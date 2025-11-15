@@ -1,0 +1,93 @@
+{
+  "correlationId": "mock-scale-456",
+  "target": {
+    "serviceId": "checkoutservice",
+    "currentPods": 3,
+    "newPods": 5,
+    "latencyMetric": "p95"
+  },
+  "affectedPaths": [
+    {
+      "path": "frontend → checkoutservice",
+      "metric": "p95 latency",
+      "change": "-15%",
+      "impact": "positive"
+    },
+    {
+      "path": "cartservice → checkoutservice",
+      "metric": "p95 latency",
+      "change": "-12%",
+      "impact": "positive"
+    }
+  ],
+  "recommendations": [
+    "Monitor resource utilization after scaling",
+    "Consider horizontal pod autoscaler for dynamic scaling",
+    "Verify database connection pool size is adequate"
+  ],
+  "pipelineTrace": {
+    "options": {
+      "trace": true,
+      "includeSnapshot": false,
+      "includeRawPaths": false,
+      "includeEdgeDetails": false
+    },
+    "stages": [
+      {
+        "name": "Validate Request",
+        "ms": 3,
+        "summary": {
+          "serviceId": "checkoutservice",
+          "currentPods": 3,
+          "newPods": 5,
+          "latencyMetric": "p95",
+          "maxDepth": 2
+        }
+      },
+      {
+        "name": "Fetch Graph Data",
+        "ms": 52,
+        "summary": {
+          "nodesCount": 12,
+          "edgesCount": 18
+        }
+      },
+      {
+        "name": "Identify Target Service",
+        "ms": 2,
+        "summary": {
+          "found": true,
+          "serviceId": "checkoutservice"
+        }
+      },
+      {
+        "name": "Compute Latency Impact",
+        "ms": 18,
+        "summary": {
+          "baselineP95": 120,
+          "projectedP95": 102,
+          "improvement": "15%"
+        }
+      },
+      {
+        "name": "Identify Affected Paths",
+        "ms": 10,
+        "summary": {
+          "pathsFound": 2,
+          "directCallers": 2
+        }
+      },
+      {
+        "name": "Generate Recommendations",
+        "ms": 6,
+        "summary": {
+          "recommendationsCount": 3
+        },
+        "warnings": [
+          "Actual impact may vary based on load patterns"
+        ]
+      }
+    ],
+    "generatedAt": "2026-01-03T10:35:00.000Z"
+  }
+}

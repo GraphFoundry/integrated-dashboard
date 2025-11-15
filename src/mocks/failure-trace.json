@@ -1,0 +1,95 @@
+{
+  "correlationId": "mock-failure-123",
+  "target": {
+    "serviceId": "productcatalog",
+    "status": "failed"
+  },
+  "affectedCallers": [
+    {
+      "serviceId": "frontend",
+      "impact": "direct",
+      "reason": "Calls productcatalog for product listings"
+    },
+    {
+      "serviceId": "recommendationservice",
+      "impact": "indirect",
+      "reason": "Depends on productcatalog for product data"
+    }
+  ],
+  "criticalPathsToTarget": [
+    {
+      "path": ["frontend", "productcatalog"],
+      "length": 2,
+      "criticality": "high"
+    },
+    {
+      "path": ["recommendationservice", "productcatalog"],
+      "length": 2,
+      "criticality": "medium"
+    }
+  ],
+  "recommendations": [
+    "Add circuit breaker to frontend → productcatalog",
+    "Implement cache layer for product data",
+    "Consider fallback mechanism for product listings"
+  ],
+  "pipelineTrace": {
+    "options": {
+      "trace": true,
+      "includeSnapshot": false,
+      "includeRawPaths": false,
+      "includeEdgeDetails": false
+    },
+    "stages": [
+      {
+        "name": "Validate Request",
+        "ms": 2,
+        "summary": {
+          "serviceId": "productcatalog",
+          "maxDepth": 2
+        }
+      },
+      {
+        "name": "Fetch Graph Data",
+        "ms": 45,
+        "summary": {
+          "nodesCount": 12,
+          "edgesCount": 18
+        }
+      },
+      {
+        "name": "Identify Target Service",
+        "ms": 3,
+        "summary": {
+          "found": true,
+          "serviceId": "productcatalog"
+        }
+      },
+      {
+        "name": "Compute Affected Callers",
+        "ms": 12,
+        "summary": {
+          "directCallers": 2,
+          "indirectCallers": 3,
+          "totalAffected": 5
+        }
+      },
+      {
+        "name": "Find Critical Paths",
+        "ms": 8,
+        "summary": {
+          "pathsFound": 2,
+          "maxPathLength": 2
+        }
+      },
+      {
+        "name": "Generate Recommendations",
+        "ms": 5,
+        "summary": {
+          "recommendationsCount": 3
+        }
+      }
+    ],
+    "generatedAt": "2026-01-03T10:30:00.000Z"
+  }
+}

@@ -1,7 +1,7 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
-import DashboardLayout from './layout/DashboardLayout';
-import PipelinePlayground from '../pages/pipeline/PipelinePlayground';
-import AlertsPlaceholder from '../pages/alerts/AlertsPlaceholder';
+import { createBrowserRouter, Navigate } from 'react-router'
+import DashboardLayout from '@/app/layout/DashboardLayout'
+import PipelinePlayground from '@/pages/pipeline/PipelinePlayground'
+import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
 
 export const router = createBrowserRouter([
   {
@@ -22,4 +22,4 @@ export const router = createBrowserRouter([
       },
     ],
   },
-]);
+])

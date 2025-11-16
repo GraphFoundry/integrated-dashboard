@@ -1,74 +1,74 @@
-import type { PipelineTrace } from '../../../lib/types';
-import type { StageStatus, StageState, StageId } from './StageControls';
+import type { PipelineTrace } from '@/lib/types'
+import type { StageStatus, StageState, StageId } from '@/pages/pipeline/components/StageControls'
 
 export interface StageDisplayState {
-  status: StageStatus;
-  enabled: boolean;
+  status: StageStatus
+  enabled: boolean
 }
 
 interface TraceTimelineProps {
-  readonly trace: PipelineTrace;
-  readonly currentStageIndex?: number;
-  readonly stageStates?: Record<StageId, StageState>;
-  readonly stopAtIndex?: number | null;
+  readonly trace: PipelineTrace
+  readonly currentStageIndex?: number
+  readonly stageStates?: Record<StageId, StageState>
+  readonly stopAtIndex?: number | null
 }
 
 function getStageClasses(status: StageStatus, isActive: boolean): string {
-  const baseClasses = 'border rounded-lg p-4 transition-all duration-300';
-  
+  const baseClasses = 'border rounded-lg p-4 transition-all duration-300'
+
   switch (status) {
     case 'done':
-      return `${baseClasses} bg-green-900/10 border-green-700/50`;
+      return `${baseClasses} bg-green-900/10 border-green-700/50`
     case 'running':
-      return `${baseClasses} bg-blue-900/20 border-blue-500 ring-2 ring-blue-500/30`;
+      return `${baseClasses} bg-blue-900/20 border-blue-500 ring-2 ring-blue-500/30`
     case 'skipped':
-      return `${baseClasses} bg-slate-800/50 border-slate-700 opacity-50`;
+      return `${baseClasses} bg-slate-800/50 border-slate-700 opacity-50`
     case 'pending':
     default:
-      return `${baseClasses} bg-slate-800 border-slate-600 ${isActive ? 'hover:border-slate-500' : ''}`;
+      return `${baseClasses} bg-slate-800 border-slate-600 ${isActive ? 'hover:border-slate-500' : ''}`
   }
 }
 
 function getIndicatorClasses(status: StageStatus): string {
   switch (status) {
     case 'done':
-      return 'bg-green-600 text-white';
+      return 'bg-green-600 text-white'
     case 'running':
-      return 'bg-blue-600 text-white animate-pulse';
+      return 'bg-blue-600 text-white animate-pulse'
     case 'skipped':
-      return 'bg-slate-600 text-slate-400 line-through';
+      return 'bg-slate-600 text-slate-400 line-through'
     case 'pending':
     default:
-      return 'bg-slate-700 text-slate-300';
+      return 'bg-slate-700 text-slate-300'
   }
 }
 
 function getStageIndicator(status: StageStatus, index: number): string {
-  if (status === 'done') return '✓';
-  if (status === 'skipped') return '—';
-  return String(index + 1);
+  if (status === 'done') return '✓'
+  if (status === 'skipped') return '—'
+  return String(index + 1)
 }
 
 function normalizeStageKey(name: string): string {
-  return name.toLowerCase().split(/\s+/).join('-');
+  return name.toLowerCase().split(/\s+/).join('-')
 }
 
-export default function TraceTimeline({ 
-  trace, 
+export default function TraceTimeline({
+  trace,
   currentStageIndex = -1,
   stageStates,
   stopAtIndex,
 }: TraceTimelineProps) {
   // Calculate total time only for non-skipped stages up to stop point
-  const effectiveStopIndex = stopAtIndex ?? trace.stages.length - 1;
-  const visibleStages = trace.stages.slice(0, effectiveStopIndex + 1);
-  
+  const effectiveStopIndex = stopAtIndex ?? trace.stages.length - 1
+  const visibleStages = trace.stages.slice(0, effectiveStopIndex + 1)
+
   const totalTime = visibleStages.reduce((sum, stage) => {
-    const stageKey = normalizeStageKey(stage.name) as StageId;
-    const stageState = stageStates?.[stageKey];
-    if (stageState?.status === 'skipped') return sum;
-    return sum + stage.ms;
-  }, 0);
+    const stageKey = normalizeStageKey(stage.name) as StageId
+    const stageState = stageStates?.[stageKey]
+    if (stageState?.status === 'skipped') return sum
+    return sum + stage.ms
+  }, 0)
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
@@ -89,25 +89,27 @@ export default function TraceTimeline({
       <div className="space-y-3">
         {trace.stages.map((stage, idx) => {
           // Determine stage state
-          const stageKey = normalizeStageKey(stage.name) as StageId;
-          const stageState = stageStates?.[stageKey];
-          const status: StageStatus = stageState?.status ?? (idx <= currentStageIndex ? 'done' : 'pending');
-          const isHidden = stopAtIndex != null && idx > stopAtIndex;
-          
-          if (isHidden) return null;
+          const stageKey = normalizeStageKey(stage.name) as StageId
+          const stageState = stageStates?.[stageKey]
+          const status: StageStatus =
+            stageState?.status ?? (idx <= currentStageIndex ? 'done' : 'pending')
+          const isHidden = stopAtIndex != null && idx > stopAtIndex
+
+          if (isHidden) return null
 
           return (
-            <div
-              key={stage.name}
-              className={getStageClasses(status, status === 'pending')}
-            >
+            <div key={stage.name} className={getStageClasses(status, status === 'pending')}>
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-3">
-                  <span className={`flex items-center justify-center w-8 h-8 text-sm font-bold rounded ${getIndicatorClasses(status)}`}>
+                  <span
+                    className={`flex items-center justify-center w-8 h-8 text-sm font-bold rounded ${getIndicatorClasses(status)}`}
+                  >
                     {getStageIndicator(status, idx)}
                   </span>
                   <div>
-                    <h3 className={`font-medium ${status === 'skipped' ? 'text-slate-500 line-through' : 'text-white'}`}>
+                    <h3
+                      className={`font-medium ${status === 'skipped' ? 'text-slate-500 line-through' : 'text-white'}`}
+                    >
                       {stage.name}
                     </h3>
                     {status === 'running' && (
@@ -130,7 +132,9 @@ export default function TraceTimeline({
                     )}
                   </div>
                 </div>
-                <span className={`text-sm font-mono ${status === 'skipped' ? 'text-slate-500' : 'text-slate-300'}`}>
+                <span
+                  className={`text-sm font-mono ${status === 'skipped' ? 'text-slate-500' : 'text-slate-300'}`}
+                >
                   {stage.ms}ms
                 </span>
               </div>
@@ -148,7 +152,7 @@ export default function TraceTimeline({
                 </div>
               )}
             </div>
-          );
+          )
         })}
       </div>
 
@@ -156,5 +160,5 @@ export default function TraceTimeline({
         Generated at: {new Date(trace.generatedAt).toLocaleString()}
       </div>
     </div>
-  );
+  )
 }

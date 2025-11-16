@@ -1,9 +1,9 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router'
 
 const navItems = [
   { path: '/pipeline', label: 'Pipeline Playground', icon: '🔬' },
   { path: '/alerts', label: 'Alerts', icon: '🚨' },
-];
+]
 
 export default function Sidebar() {
   return (
@@ -34,5 +34,5 @@ export default function Sidebar() {
         </ul>
       </nav>
     </aside>
-  );
+  )
 }

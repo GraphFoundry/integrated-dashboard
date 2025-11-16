@@ -4,9 +4,7 @@ export default function AlertsPlaceholder() {
       <h1 className="text-3xl font-bold text-white mb-6">Alerts Dashboard</h1>
       <div className="bg-slate-900 border border-slate-700 rounded-lg p-8 text-center">
         <div className="text-6xl mb-4">🚨</div>
-        <h2 className="text-xl font-semibold text-white mb-2">
-          Coming Soon
-        </h2>
+        <h2 className="text-xl font-semibold text-white mb-2">Coming Soon</h2>
         <p className="text-slate-400 mb-4">
           This page is reserved for the Alert Engine UI integration.
         </p>
@@ -23,5 +21,5 @@ export default function AlertsPlaceholder() {
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -1,39 +1,39 @@
-import { useState } from 'react';
-import type { Scenario, ScenarioType } from '../../../lib/types';
+import { useState } from 'react'
+import type { Scenario, ScenarioType } from '@/lib/types'
 
 interface ScenarioFormProps {
-  onRun: (scenario: Scenario) => void;
-  loading: boolean;
+  onRun: (scenario: Scenario) => void
+  loading: boolean
 }
 
 export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
-  const [scenarioType, setScenarioType] = useState<ScenarioType>('failure');
-  const [serviceId, setServiceId] = useState('');
-  const [maxDepth, setMaxDepth] = useState(2);
-  const [currentPods, setCurrentPods] = useState(3);
-  const [newPods, setNewPods] = useState(5);
-  const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95');
+  const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
+  const [serviceId, setServiceId] = useState('')
+  const [maxDepth, setMaxDepth] = useState(2)
+  const [currentPods, setCurrentPods] = useState(3)
+  const [newPods, setNewPods] = useState(5)
+  const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95')
 
   const isValid = () => {
-    if (!serviceId.trim()) return false;
-    if (maxDepth < 1 || maxDepth > 3) return false;
+    if (!serviceId.trim()) return false
+    if (maxDepth < 1 || maxDepth > 3) return false
     if (scenarioType === 'scale') {
-      if (currentPods < 1 || newPods < 1) return false;
-      if (currentPods === newPods) return false;
+      if (currentPods < 1 || newPods < 1) return false
+      if (currentPods === newPods) return false
     }
-    return true;
-  };
+    return true
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isValid()) return;
+    e.preventDefault()
+    if (!isValid()) return
 
     if (scenarioType === 'failure') {
       onRun({
         type: 'failure',
         serviceId: serviceId.trim(),
         maxDepth,
-      });
+      })
     } else {
       onRun({
         type: 'scale',
@@ -42,9 +42,9 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
         newPods,
         latencyMetric,
         maxDepth,
-      });
+      })
     }
-  };
+  }
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
@@ -52,9 +52,7 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Scenario Type */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Scenario Type
-          </label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Scenario Type</label>
           <select
             value={scenarioType}
             onChange={(e) => setScenarioType(e.target.value as ScenarioType)}
@@ -67,9 +65,7 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
 
         {/* Service ID */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
-            Service ID
-          </label>
+          <label className="block text-sm font-medium text-slate-300 mb-2">Service ID</label>
           <input
             type="text"
             value={serviceId}
@@ -116,9 +112,7 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  New Pods
-                </label>
+                <label className="block text-sm font-medium text-slate-300 mb-2">New Pods</label>
                 <input
                   type="number"
                   min="1"
@@ -155,5 +149,5 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
         </button>
       </form>
     </div>
-  );
+  )
 }

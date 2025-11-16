@@ -1,21 +1,21 @@
-import type { AlertsComponentProps } from './types';
+import type { AlertsComponentProps } from '@/widgets/alerts/types'
 
 /**
  * AlertsSlot - Integration mount point for teammate's Alert Engine UI
- * 
+ *
  * This component provides a stable insertion point for the Alert Engine team
  * to plug in their alerts component. The actual implementation will be provided
  * by the alert-engine module.
- * 
+ *
  * TEAMMATE INTEGRATION INSTRUCTIONS:
  * 1. Create your AlertsPanel component implementing AlertsComponentProps
  * 2. Replace the placeholder content with your component
  * 3. Connect to your alert data source (WebSocket, polling, etc.)
- * 
+ *
  * Example:
  * ```tsx
  * import AlertsPanel from '@alert-engine/ui';
- * 
+ *
  * export default function AlertsSlot(props: AlertsComponentProps) {
  *   return <AlertsPanel {...props} />;
  * }
@@ -37,7 +37,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
         <p className="text-slate-400 text-sm mb-2">
           Alerts UI will be plugged in here by Alert Engine component
         </p>
-        
+
         <div className="text-xs text-slate-500 space-y-1">
           <p>• Real-time alert notifications</p>
           <p>• Alert severity filtering</p>
@@ -70,5 +70,5 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
         </div>
       </div>
     </div>
-  );
+  )
 }

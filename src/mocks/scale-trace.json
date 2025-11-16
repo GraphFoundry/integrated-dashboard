@@ -83,9 +83,7 @@
         "summary": {
           "recommendationsCount": 3
         },
-        "warnings": [
-          "Actual impact may vary based on load patterns"
-        ]
+        "warnings": ["Actual impact may vary based on load patterns"]
       }
     ],
     "generatedAt": "2026-01-03T10:35:00.000Z"

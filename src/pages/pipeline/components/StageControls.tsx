@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo } from 'react'
 
-export type StageId = 
+export type StageId =
   | 'scenario-parse'
   | 'staleness-check'
   | 'fetch-neighborhood'
@@ -8,50 +8,94 @@ export type StageId =
   | 'apply-scaling-model'
   | 'path-analysis'
   | 'compute-impact'
-  | 'recommendations';
+  | 'recommendations'
 
 interface PipelineStageDefinition {
-  id: StageId;
-  name: string;
-  description: string;
-  scaleOnly: boolean;
+  id: StageId
+  name: string
+  description: string
+  scaleOnly: boolean
 }
 
 // Standard pipeline stages in execution order
 export const PIPELINE_STAGES: readonly PipelineStageDefinition[] = [
-  { id: 'scenario-parse', name: 'Scenario Parse', description: 'Validate and parse input parameters', scaleOnly: false },
-  { id: 'staleness-check', name: 'Staleness Check', description: 'Check graph data freshness', scaleOnly: false },
-  { id: 'fetch-neighborhood', name: 'Fetch Neighborhood', description: 'Retrieve service topology from Graph Engine', scaleOnly: false },
-  { id: 'build-snapshot', name: 'Build Snapshot', description: 'Construct graph snapshot for analysis', scaleOnly: false },
-  { id: 'apply-scaling-model', name: 'Apply Scaling Model', description: 'Calculate scaling impact (scale scenarios only)', scaleOnly: true },
-  { id: 'path-analysis', name: 'Path Analysis', description: 'Analyze critical paths and dependencies', scaleOnly: false },
-  { id: 'compute-impact', name: 'Compute Impact', description: 'Calculate affected services and impact metrics', scaleOnly: false },
-  { id: 'recommendations', name: 'Recommendations', description: 'Generate actionable recommendations', scaleOnly: false },
-];
+  {
+    id: 'scenario-parse',
+    name: 'Scenario Parse',
+    description: 'Validate and parse input parameters',
+    scaleOnly: false,
+  },
+  {
+    id: 'staleness-check',
+    name: 'Staleness Check',
+    description: 'Check graph data freshness',
+    scaleOnly: false,
+  },
+  {
+    id: 'fetch-neighborhood',
+    name: 'Fetch Neighborhood',
+    description: 'Retrieve service topology from Graph Engine',
+    scaleOnly: false,
+  },
+  {
+    id: 'build-snapshot',
+    name: 'Build Snapshot',
+    description: 'Construct graph snapshot for analysis',
+    scaleOnly: false,
+  },
+  {
+    id: 'apply-scaling-model',
+    name: 'Apply Scaling Model',
+    description: 'Calculate scaling impact (scale scenarios only)',
+    scaleOnly: true,
+  },
+  {
+    id: 'path-analysis',
+    name: 'Path Analysis',
+    description: 'Analyze critical paths and dependencies',
+    scaleOnly: false,
+  },
+  {
+    id: 'compute-impact',
+    name: 'Compute Impact',
+    description: 'Calculate affected services and impact metrics',
+    scaleOnly: false,
+  },
+  {
+    id: 'recommendations',
+    name: 'Recommendations',
+    description: 'Generate actionable recommendations',
+    scaleOnly: false,
+  },
+]
 
-export type StageStatus = 'pending' | 'running' | 'done' | 'skipped';
+export type StageStatus = 'pending' | 'running' | 'done' | 'skipped'
 
 export interface StageState {
-  id: StageId;
-  enabled: boolean;
-  status: StageStatus;
+  id: StageId
+  enabled: boolean
+  status: StageStatus
 }
 
 interface StageControlsProps {
-  readonly stages: StageState[];
-  readonly onToggleStage: (stageId: StageId) => void;
-  readonly stopAtStage: StageId | null;
-  readonly onStopAtStageChange: (stageId: StageId | null) => void;
-  readonly scenarioType: 'failure' | 'scale';
-  readonly isRunning: boolean;
+  readonly stages: StageState[]
+  readonly onToggleStage: (stageId: StageId) => void
+  readonly stopAtStage: StageId | null
+  readonly onStopAtStageChange: (stageId: StageId | null) => void
+  readonly scenarioType: 'failure' | 'scale'
+  readonly isRunning: boolean
 }
 
 function getStatusClasses(status: StageStatus): string {
   switch (status) {
-    case 'done': return 'bg-green-900/30 text-green-400';
-    case 'running': return 'bg-blue-900/30 text-blue-400';
-    case 'skipped': return 'bg-yellow-900/30 text-yellow-400';
-    default: return 'bg-slate-700 text-slate-400';
+    case 'done':
+      return 'bg-green-900/30 text-green-400'
+    case 'running':
+      return 'bg-blue-900/30 text-blue-400'
+    case 'skipped':
+      return 'bg-yellow-900/30 text-yellow-400'
+    default:
+      return 'bg-slate-700 text-slate-400'
   }
 }
 
@@ -65,12 +109,10 @@ export default function StageControls({
 }: StageControlsProps) {
   // Filter stages based on scenario type
   const availableStages = useMemo(() => {
-    return PIPELINE_STAGES.filter(
-      (stage) => !stage.scaleOnly || scenarioType === 'scale'
-    );
-  }, [scenarioType]);
+    return PIPELINE_STAGES.filter((stage) => !stage.scaleOnly || scenarioType === 'scale')
+  }, [scenarioType])
 
-  const enabledStages = stages.filter((s) => s.enabled);
+  const enabledStages = stages.filter((s) => s.enabled)
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
@@ -80,9 +122,9 @@ export default function StageControls({
       <div className="space-y-2 mb-4">
         <p className="text-xs text-slate-400 mb-2">Enable/disable stages for demo:</p>
         {availableStages.map((stage) => {
-          const stageState = stages.find((s) => s.id === stage.id);
-          const isEnabled = stageState?.enabled ?? true;
-          const status = stageState?.status ?? 'pending';
+          const stageState = stages.find((s) => s.id === stage.id)
+          const isEnabled = stageState?.enabled ?? true
+          const status = stageState?.status ?? 'pending'
 
           return (
             <label
@@ -104,13 +146,11 @@ export default function StageControls({
                   <span className="ml-2 text-xs text-blue-400">(scale only)</span>
                 )}
               </div>
-              <span
-                className={`text-xs px-2 py-0.5 rounded ${getStatusClasses(status)}`}
-              >
+              <span className={`text-xs px-2 py-0.5 rounded ${getStatusClasses(status)}`}>
                 {status}
               </span>
             </label>
-          );
+          )
         })}
       </div>
 
@@ -122,20 +162,18 @@ export default function StageControls({
         <select
           id="stop-at-stage"
           value={stopAtStage || ''}
-          onChange={(e) =>
-            onStopAtStageChange(e.target.value ? (e.target.value as StageId) : null)
-          }
+          onChange={(e) => onStopAtStageChange(e.target.value ? (e.target.value as StageId) : null)}
           disabled={isRunning}
           className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">Run all stages</option>
           {enabledStages.map((stage) => {
-            const stageInfo = PIPELINE_STAGES.find((s) => s.id === stage.id);
+            const stageInfo = PIPELINE_STAGES.find((s) => s.id === stage.id)
             return (
               <option key={stage.id} value={stage.id}>
                 Stop after: {stageInfo?.name}
               </option>
-            );
+            )
           })}
         </select>
         {stopAtStage && (
@@ -145,5 +183,5 @@ export default function StageControls({
         )}
       </div>
     </div>
-  );
+  )
 }

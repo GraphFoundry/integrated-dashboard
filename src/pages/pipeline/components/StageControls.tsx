@@ -1,81 +1,18 @@
 import { useMemo } from 'react'
+import type {
+  StageId,
+  StageState,
+  StageStatus,
+} from '@/pages/pipeline/pipelineTypes'
+import { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
 
-export type StageId =
-  | 'scenario-parse'
-  | 'staleness-check'
-  | 'fetch-neighborhood'
-  | 'build-snapshot'
-  | 'apply-scaling-model'
-  | 'path-analysis'
-  | 'compute-impact'
-  | 'recommendations'
-
-interface PipelineStageDefinition {
-  id: StageId
-  name: string
-  description: string
-  scaleOnly: boolean
-}
-
-// Standard pipeline stages in execution order
-export const PIPELINE_STAGES: readonly PipelineStageDefinition[] = [
-  {
-    id: 'scenario-parse',
-    name: 'Scenario Parse',
-    description: 'Validate and parse input parameters',
-    scaleOnly: false,
-  },
-  {
-    id: 'staleness-check',
-    name: 'Staleness Check',
-    description: 'Check graph data freshness',
-    scaleOnly: false,
-  },
-  {
-    id: 'fetch-neighborhood',
-    name: 'Fetch Neighborhood',
-    description: 'Retrieve service topology from Graph Engine',
-    scaleOnly: false,
-  },
-  {
-    id: 'build-snapshot',
-    name: 'Build Snapshot',
-    description: 'Construct graph snapshot for analysis',
-    scaleOnly: false,
-  },
-  {
-    id: 'apply-scaling-model',
-    name: 'Apply Scaling Model',
-    description: 'Calculate scaling impact (scale scenarios only)',
-    scaleOnly: true,
-  },
-  {
-    id: 'path-analysis',
-    name: 'Path Analysis',
-    description: 'Analyze critical paths and dependencies',
-    scaleOnly: false,
-  },
-  {
-    id: 'compute-impact',
-    name: 'Compute Impact',
-    description: 'Calculate affected services and impact metrics',
-    scaleOnly: false,
-  },
-  {
-    id: 'recommendations',
-    name: 'Recommendations',
-    description: 'Generate actionable recommendations',
-    scaleOnly: false,
-  },
-]
-
-export type StageStatus = 'pending' | 'running' | 'done' | 'skipped'
-
-export interface StageState {
-  id: StageId
-  enabled: boolean
-  status: StageStatus
-}
+// Re-export for components that import from this file
+export type {
+  StageId,
+  StageState,
+  StageStatus,
+} from '@/pages/pipeline/pipelineTypes'
+export { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
 
 interface StageControlsProps {
   readonly stages: StageState[]

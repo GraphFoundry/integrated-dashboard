@@ -1,10 +1,9 @@
 import type { PipelineTrace } from '@/lib/types'
-import type { StageStatus, StageState, StageId } from '@/pages/pipeline/components/StageControls'
-
-export interface StageDisplayState {
-  status: StageStatus
-  enabled: boolean
-}
+import type {
+  StageStatus,
+  StageState,
+  StageId,
+} from '@/pages/pipeline/pipelineTypes'
 
 interface TraceTimelineProps {
   readonly trace: PipelineTrace

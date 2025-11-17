@@ -1,6 +1,6 @@
 import type { FailureResponse, ScaleResponse } from '@/lib/types'
-import type { StageId } from '@/pages/pipeline/components/StageControls'
-import { PIPELINE_STAGES } from '@/pages/pipeline/components/StageControls'
+import type { StageId } from '@/pages/pipeline/pipelineTypes'
+import { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
 
 export interface DemoStopInfo {
   stopAtStage: StageId | null

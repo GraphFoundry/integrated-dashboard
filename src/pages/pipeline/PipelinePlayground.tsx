@@ -1,14 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Scenario, FailureResponse, ScaleResponse } from '@/lib/types'
+import type {
+  StageId,
+  StageState,
+  StageStatus,
+} from '@/pages/pipeline/pipelineTypes'
+import { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import TraceTimeline from '@/pages/pipeline/components/TraceTimeline'
-import ResultPanels, { type DemoStopInfo } from '@/pages/pipeline/components/ResultPanels'
-import StageControls, {
-  PIPELINE_STAGES,
-  type StageId,
-  type StageState,
-  type StageStatus,
-} from '@/pages/pipeline/components/StageControls'
+import ResultPanels, {
+  type DemoStopInfo,
+} from '@/pages/pipeline/components/ResultPanels'
+import StageControls from '@/pages/pipeline/components/StageControls'
 import PlaybackControls from '@/pages/pipeline/components/PlaybackControls'
 import ExportButtons from '@/pages/pipeline/components/ExportButtons'
 import AlertsSlot from '@/widgets/alerts/AlertsSlot'

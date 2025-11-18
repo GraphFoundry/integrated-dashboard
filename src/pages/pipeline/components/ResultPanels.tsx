@@ -1,6 +1,6 @@
 import type { FailureResponse, ScaleResponse } from '@/lib/types'
-import type { StageId } from '@/pages/pipeline/pipelineTypes'
-import { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
+import type { StageId, StageState } from '@/pages/pipeline/pipelineTypes'
+import { PIPELINE_STAGES, isStageCompleted, stageIndex } from '@/pages/pipeline/pipelineTypes'
 
 export interface DemoStopInfo {
   stopAtStage: StageId | null
@@ -10,6 +10,8 @@ export interface DemoStopInfo {
 interface ResultPanelsProps {
   readonly result: FailureResponse | ScaleResponse
   readonly demoStopInfo?: DemoStopInfo
+  readonly currentStageIndex?: number
+  readonly stageStates?: Record<StageId, StageState>
 }
 
 // Stages that must complete before certain results are available
@@ -17,20 +19,6 @@ const REQUIRED_STAGES: Record<string, StageId> = {
   impact: 'compute-impact',
   recommendations: 'recommendations',
   paths: 'path-analysis',
-}
-
-function isStageComplete(
-  stageId: StageId,
-  stopAtStage: StageId | null,
-  disabledStages: StageId[]
-): boolean {
-  if (disabledStages.includes(stageId)) return false
-  if (!stopAtStage) return true
-
-  const stageOrder = PIPELINE_STAGES.map((s) => s.id)
-  const stopIndex = stageOrder.indexOf(stopAtStage)
-  const stageIndex = stageOrder.indexOf(stageId)
-  return stageIndex <= stopIndex
 }
 
 interface DemoStopMessageProps {
@@ -62,9 +50,11 @@ function getStageName(stageId: StageId): string {
 
 function shouldShowStopMessage(
   requiredStage: StageId,
-  demoStopInfo?: DemoStopInfo
+  demoStopInfo?: DemoStopInfo,
+  currentStageIndex?: number,
+  stageStates?: Record<StageId, StageState>
 ): { show: boolean; isDisabled: boolean } {
-  if (!demoStopInfo) return { show: false, isDisabled: false }
+  if (!demoStopInfo || !stageStates) return { show: false, isDisabled: false }
 
   const { stopAtStage, disabledStages } = demoStopInfo
 
@@ -72,21 +62,46 @@ function shouldShowStopMessage(
     return { show: true, isDisabled: true }
   }
 
-  if (stopAtStage && !isStageComplete(requiredStage, stopAtStage, disabledStages)) {
+  const currentIdx = currentStageIndex ?? stageIndex(PIPELINE_STAGES.at(-1)!.id)
+  const stopIdx = stopAtStage ? stageIndex(stopAtStage) : null
+
+  const completed = isStageCompleted(requiredStage, currentIdx, stageStates, stopIdx)
+
+  if (!completed) {
     return { show: true, isDisabled: false }
   }
 
   return { show: false, isDisabled: false }
 }
 
-export default function ResultPanels({ result, demoStopInfo }: ResultPanelsProps) {
+export default function ResultPanels({
+  result,
+  demoStopInfo,
+  currentStageIndex,
+  stageStates,
+}: ResultPanelsProps) {
   const hasFailureData = 'affectedCallers' in result
   const hasScaleData = 'affectedPaths' in result
 
   // Check what results should be hidden due to demo stop
-  const impactStop = shouldShowStopMessage(REQUIRED_STAGES.impact, demoStopInfo)
-  const pathsStop = shouldShowStopMessage(REQUIRED_STAGES.paths, demoStopInfo)
-  const recsStop = shouldShowStopMessage(REQUIRED_STAGES.recommendations, demoStopInfo)
+  const impactStop = shouldShowStopMessage(
+    REQUIRED_STAGES.impact,
+    demoStopInfo,
+    currentStageIndex,
+    stageStates
+  )
+  const pathsStop = shouldShowStopMessage(
+    REQUIRED_STAGES.paths,
+    demoStopInfo,
+    currentStageIndex,
+    stageStates
+  )
+  const recsStop = shouldShowStopMessage(
+    REQUIRED_STAGES.recommendations,
+    demoStopInfo,
+    currentStageIndex,
+    stageStates
+  )
 
   return (
     <div className="space-y-6">

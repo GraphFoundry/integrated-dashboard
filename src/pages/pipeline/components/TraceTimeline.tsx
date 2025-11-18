@@ -1,9 +1,6 @@
 import type { PipelineTrace } from '@/lib/types'
-import type {
-  StageStatus,
-  StageState,
-  StageId,
-} from '@/pages/pipeline/pipelineTypes'
+import type { StageStatus, StageState, StageId } from '@/pages/pipeline/pipelineTypes'
+import { normalizeStageKey } from '@/pages/pipeline/pipelineTypes'
 
 interface TraceTimelineProps {
   readonly trace: PipelineTrace
@@ -48,10 +45,6 @@ function getStageIndicator(status: StageStatus, index: number): string {
   return String(index + 1)
 }
 
-function normalizeStageKey(name: string): string {
-  return name.toLowerCase().split(/\s+/).join('-')
-}
-
 export default function TraceTimeline({
   trace,
   currentStageIndex = -1,
@@ -63,7 +56,8 @@ export default function TraceTimeline({
   const visibleStages = trace.stages.slice(0, effectiveStopIndex + 1)
 
   const totalTime = visibleStages.reduce((sum, stage) => {
-    const stageKey = normalizeStageKey(stage.name) as StageId
+    const stageKey = normalizeStageKey(stage.name)
+    if (!stageKey) return sum + stage.ms // Unknown stage, include time
     const stageState = stageStates?.[stageKey]
     if (stageState?.status === 'skipped') return sum
     return sum + stage.ms
@@ -88,8 +82,9 @@ export default function TraceTimeline({
       <div className="space-y-3">
         {trace.stages.map((stage, idx) => {
           // Determine stage state
-          const stageKey = normalizeStageKey(stage.name) as StageId
-          const stageState = stageStates?.[stageKey]
+          const stageKey = normalizeStageKey(stage.name)
+          const stageState = stageKey ? stageStates?.[stageKey] : undefined
+          const isUnknown = !stageKey
           const status: StageStatus =
             stageState?.status ?? (idx <= currentStageIndex ? 'done' : 'pending')
           const isHidden = stopAtIndex != null && idx > stopAtIndex
@@ -110,6 +105,9 @@ export default function TraceTimeline({
                       className={`font-medium ${status === 'skipped' ? 'text-slate-500 line-through' : 'text-white'}`}
                     >
                       {stage.name}
+                      {isUnknown && (
+                        <span className="ml-2 text-xs text-orange-400">(unknown stage)</span>
+                      )}
                     </h3>
                     {status === 'running' && (
                       <span className="text-xs text-blue-400">Processing...</span>

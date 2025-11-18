@@ -198,6 +198,57 @@ Add new JSON files to `src/mocks/` following the existing structure:
 }
 ```
 
+## Manual Demo Checklist
+
+Use this checklist to verify all Pipeline Playground demo features work correctly:
+
+### Stage Toggle Behavior
+- [ ] **Enable/disable stages**: Toggle checkboxes should immediately update stage status
+- [ ] **Disabled stages show as skipped**: Disabled stages should display with "skipped" status and strike-through styling
+- [ ] **Stage state persistence**: Toggling stages during playback should not reset progress
+
+### Stop-at-Stage Resolution
+- [ ] **Set stop-at-stage**: Select a stage from the "Stop After" dropdown
+- [ ] **Disable stop stage**: Uncheck the selected stop-at-stage
+- [ ] **Auto-resolution note appears**: Orange warning should show: "Requested stage '[name]' is disabled. Will stop at: '[resolved-name]'"
+- [ ] **Resolution uses previous enabled stage**: Verify the resolved stage is the nearest enabled stage before the requested one
+- [ ] **Re-enable stop stage**: Check the stop-at-stage box again — resolution note should disappear
+
+### Playback Controls
+- [ ] **Play skips disabled stages**: Click Play, verify execution skips disabled stages automatically
+- [ ] **Next button skips disabled**: Click Next, verify it advances to next enabled stage
+- [ ] **Pause preserves state**: Click Pause, verify current stage index doesn't change
+- [ ] **Reset clears playback**: Click Reset, verify currentStageIndex returns to -1, all stages show "pending" (enabled) or "skipped" (disabled)
+- [ ] **Stop-at-stage halts playback**: Set stop-at-stage, click Play, verify playback stops after that stage
+
+### Result Panel Messaging
+- [ ] **Stop before compute-impact**: Set stop-at-stage to "Fetch Topology" or earlier, verify impact results show "Impact results not computed yet" banner
+- [ ] **Stop before recommendations**: Set stop-at-stage to "Compute Impact" or earlier, verify recommendations show "not generated yet" banner
+- [ ] **Stop before path-analysis**: For scale scenarios, set stop-at-stage before "Path Analysis", verify paths section shows appropriate message
+- [ ] **Disabled stage messaging**: Disable "Recommendations" stage, verify banner shows it was disabled
+
+### Trace Timeline Robustness
+- [ ] **Live mode with backend traces**: Switch to Live mode, run simulation, verify timeline renders all stages
+- [ ] **Unknown stage handling**: If backend returns unexpected stage names, verify they render with "(unknown stage)" label
+- [ ] **Stage name normalization**: Verify backend stage names like "Fetch Topology" map correctly to `fetch-topology` stage IDs
+- [ ] **Total time calculation**: Verify total time excludes skipped stages
+
+### Export Functionality
+- [ ] **Download JSON**: Click "Download JSON", verify file contains full trace
+- [ ] **Copy to clipboard**: Click "Copy JSON", verify clipboard contains valid JSON
+- [ ] **Copy confirmation**: Verify "Copied!" feedback appears briefly
+
+### Alerts Integration Slot
+- [ ] **Placeholder renders**: Scroll to bottom, verify "Alerts Integration" section appears
+- [ ] **Coming soon message**: Verify placeholder text indicates feature is under development
+
+### Edge Cases
+- [ ] **All stages disabled**: Disable all stages, verify graceful handling (no infinite loops)
+- [ ] **Stop at first stage**: Set stop-at-stage to "Fetch Topology", verify playback stops immediately
+- [ ] **Stop at last stage**: Set stop-at-stage to "Recommendations", verify full execution occurs
+- [ ] **Rapid toggle spam**: Toggle stages rapidly, verify no race conditions or crashes
+- [ ] **Switch scenarios mid-playback**: Change scenario type during playback, verify clean reset
+
 ## Future Work
 
 - **Alerts UI**: Full implementation of alerts dashboard

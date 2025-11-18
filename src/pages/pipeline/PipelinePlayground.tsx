@@ -1,16 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Scenario, FailureResponse, ScaleResponse } from '@/lib/types'
-import type {
-  StageId,
-  StageState,
-  StageStatus,
+import type { StageId, StageState, StageStatus } from '@/pages/pipeline/pipelineTypes'
+import {
+  PIPELINE_STAGES,
+  nextEnabledStageIndex,
+  resolveStopIndex,
 } from '@/pages/pipeline/pipelineTypes'
-import { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import TraceTimeline from '@/pages/pipeline/components/TraceTimeline'
-import ResultPanels, {
-  type DemoStopInfo,
-} from '@/pages/pipeline/components/ResultPanels'
+import ResultPanels, { type DemoStopInfo } from '@/pages/pipeline/components/ResultPanels'
 import StageControls from '@/pages/pipeline/components/StageControls'
 import PlaybackControls from '@/pages/pipeline/components/PlaybackControls'
 import ExportButtons from '@/pages/pipeline/components/ExportButtons'
@@ -61,8 +59,8 @@ export default function PipelinePlayground() {
     {} as Record<StageId, StageState>
   )
 
-  // Stop at index calculation
-  const stopAtIndex = stopAtStage ? PIPELINE_STAGES.findIndex((s) => s.id === stopAtStage) : null
+  // Stop at index calculation - resolves to nearest enabled stage
+  const stopAtIndex = resolveStopIndex(stopAtStage, stageStatesMap)
 
   // Cleanup playback timer on unmount
   useEffect(() => {
@@ -76,7 +74,17 @@ export default function PipelinePlayground() {
   // Handle stage toggle
   const handleToggleStage = useCallback((stageId: StageId) => {
     setStageStates((prev) =>
-      prev.map((s) => (s.id === stageId ? { ...s, enabled: !s.enabled } : s))
+      prev.map((s) => {
+        if (s.id === stageId) {
+          const newEnabled = !s.enabled
+          return {
+            ...s,
+            enabled: newEnabled,
+            status: newEnabled ? ('pending' as StageStatus) : ('skipped' as StageStatus),
+          }
+        }
+        return s
+      })
     )
   }, [])
 
@@ -90,13 +98,14 @@ export default function PipelinePlayground() {
     setStageStates((prev) => prev.map((s) => (s.id === stageId ? { ...s, status } : s)))
   }, [])
 
-  // Playback: advance to next stage
+  // Playback: advance to next enabled stage
   const advanceStage = useCallback(() => {
     setCurrentStageIndex((prev) => {
-      const next = prev + 1
+      // Find next enabled stage
+      const next = nextEnabledStageIndex(prev, stageStatesMap, 1)
 
-      // Check bounds
-      if (next >= PIPELINE_STAGES.length) {
+      // No more enabled stages
+      if (next === null) {
         setIsPlaying(false)
         return prev
       }
@@ -110,25 +119,27 @@ export default function PipelinePlayground() {
       const nextStage = PIPELINE_STAGES[next]
       if (!nextStage) return prev
 
-      const stageState = stageStatesMap[nextStage.id]
-
-      // Skip disabled stages
-      if (!stageState?.enabled) {
-        updateStageStatus(nextStage.id, 'skipped')
-        return next
+      // Mark current as done if we had a previous stage
+      if (prev >= 0 && prev < PIPELINE_STAGES.length) {
+        const prevStage = PIPELINE_STAGES[prev]
+        if (prevStage && stageStatesMap[prevStage.id]?.enabled) {
+          updateStageStatus(prevStage.id, 'done')
+        }
       }
 
-      // Mark as running
+      // Mark next as running
       updateStageStatus(nextStage.id, 'running')
 
-      // Schedule completion
+      // Schedule next advancement
       playbackRef.current = setTimeout(() => {
-        updateStageStatus(nextStage.id, 'done')
+        if (isPlaying) {
+          advanceStage()
+        }
       }, STAGE_DURATION_MS)
 
       return next
     })
-  }, [stopAtIndex, stageStatesMap, updateStageStatus])
+  }, [stageStatesMap, stopAtIndex, updateStageStatus, isPlaying])
 
   // Playback controls
   const handlePlay = useCallback(() => {
@@ -144,13 +155,25 @@ export default function PipelinePlayground() {
   }, [])
 
   const handleNext = useCallback(() => {
+    if (playbackRef.current) {
+      clearTimeout(playbackRef.current)
+    }
+    setIsPlaying(false)
     advanceStage()
   }, [advanceStage])
 
   const handleReset = useCallback(() => {
     setIsPlaying(false)
     setCurrentStageIndex(-1)
-    setStageStates(createInitialStageStates())
+
+    // Reset stage states - mark disabled as skipped, enabled as pending
+    setStageStates((prev) =>
+      prev.map((s) => ({
+        ...s,
+        status: s.enabled ? ('pending' as StageStatus) : ('skipped' as StageStatus),
+      }))
+    )
+
     if (playbackRef.current) {
       clearTimeout(playbackRef.current)
     }
@@ -297,7 +320,12 @@ export default function PipelinePlayground() {
               {/* Export Buttons */}
               <ExportButtons trace={result.pipelineTrace} fullResponse={result} />
 
-              <ResultPanels result={result} demoStopInfo={demoStopInfo} />
+              <ResultPanels
+                result={result}
+                demoStopInfo={demoStopInfo}
+                currentStageIndex={currentStageIndex}
+                stageStates={stageStatesMap}
+              />
             </>
           )}
 

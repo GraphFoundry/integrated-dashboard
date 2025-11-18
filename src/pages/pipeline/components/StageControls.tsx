@@ -1,17 +1,9 @@
 import { useMemo } from 'react'
-import type {
-  StageId,
-  StageState,
-  StageStatus,
-} from '@/pages/pipeline/pipelineTypes'
-import { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
+import type { StageId, StageState, StageStatus } from '@/pages/pipeline/pipelineTypes'
+import { PIPELINE_STAGES, resolveStopIndex } from '@/pages/pipeline/pipelineTypes'
 
 // Re-export for components that import from this file
-export type {
-  StageId,
-  StageState,
-  StageStatus,
-} from '@/pages/pipeline/pipelineTypes'
+export type { StageId, StageState, StageStatus } from '@/pages/pipeline/pipelineTypes'
 export { PIPELINE_STAGES } from '@/pages/pipeline/pipelineTypes'
 
 interface StageControlsProps {
@@ -50,6 +42,29 @@ export default function StageControls({
   }, [scenarioType])
 
   const enabledStages = stages.filter((s) => s.enabled)
+
+  // Compute resolved stop stage
+  const stageStatesMap = useMemo(() => {
+    return stages.reduce<Record<StageId, StageState>>(
+      (acc, s) => {
+        acc[s.id] = s
+        return acc
+      },
+      {} as Record<StageId, StageState>
+    )
+  }, [stages])
+
+  const resolvedStopIndex = useMemo(() => {
+    return resolveStopIndex(stopAtStage, stageStatesMap)
+  }, [stopAtStage, stageStatesMap])
+
+  const resolvedStopStageId = useMemo(() => {
+    if (resolvedStopIndex === null) return null
+    return PIPELINE_STAGES[resolvedStopIndex]?.id ?? null
+  }, [resolvedStopIndex])
+
+  const isStopStageDisabled = stopAtStage && !stageStatesMap[stopAtStage]?.enabled
+  const wasAutoResolved = isStopStageDisabled && resolvedStopStageId !== stopAtStage
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
@@ -114,9 +129,19 @@ export default function StageControls({
           })}
         </select>
         {stopAtStage && (
-          <p className="text-xs text-yellow-400 mt-1">
-            ⚠ Demo will stop after "{PIPELINE_STAGES.find((s) => s.id === stopAtStage)?.name}"
-          </p>
+          <div className="mt-2 space-y-1">
+            {wasAutoResolved && resolvedStopStageId ? (
+              <p className="text-xs text-orange-400">
+                ⚠ Requested stage "{PIPELINE_STAGES.find((s) => s.id === stopAtStage)?.name}" is
+                disabled. Will stop at: "
+                {PIPELINE_STAGES.find((s) => s.id === resolvedStopStageId)?.name}"
+              </p>
+            ) : (
+              <p className="text-xs text-yellow-400">
+                ⚠ Demo will stop after "{PIPELINE_STAGES.find((s) => s.id === stopAtStage)?.name}"
+              </p>
+            )}
+          </div>
         )}
       </div>
     </div>

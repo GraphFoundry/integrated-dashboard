@@ -1,10 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Scenario, FailureResponse, ScaleResponse } from '@/lib/types'
-import type { StageId, StageState, StageStatus } from '@/pages/pipeline/pipelineTypes'
+import type { StageId, StageState, StageStatus, ScenarioType } from '@/pages/pipeline/pipelineTypes'
 import {
   PIPELINE_STAGES,
   nextEnabledStageIndex,
   resolveStopIndex,
+  isStageSupported,
+  resolveStopStageId,
+  getFirstRunnableIndex,
 } from '@/pages/pipeline/pipelineTypes'
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import TraceTimeline from '@/pages/pipeline/components/TraceTimeline'
@@ -18,18 +21,43 @@ import failureMock from '@/mocks/failure-trace.json'
 import scaleMock from '@/mocks/scale-trace.json'
 
 type Mode = 'mock' | 'live'
-type ScenarioType = 'failure' | 'scale'
 
 // Default duration per stage in ms (used for playback simulation)
 const STAGE_DURATION_MS = 400
 
 // Initialize stage states from PIPELINE_STAGES
-function createInitialStageStates(): StageState[] {
-  return PIPELINE_STAGES.map((stage) => ({
-    id: stage.id,
-    status: 'pending' as StageStatus,
-    enabled: true,
-  }))
+function createInitialStageStates(scenarioType: ScenarioType = 'failure'): StageState[] {
+  return PIPELINE_STAGES.map((stage) => {
+    const supported = isStageSupported(stage.id, scenarioType)
+    return {
+      id: stage.id,
+      userEnabled: true, // Default: user wants all stages enabled
+      enabled: supported, // Derived: userEnabled && supported
+      status: (supported ? 'pending' : 'skipped') as StageStatus,
+    }
+  })
+}
+
+/**
+ * Reconcile stage states when scenario type changes
+ * Preserves user preferences (userEnabled) and derives enabled from userEnabled && supported
+ */
+function reconcileStageStatesForScenario(
+  prevStates: StageState[],
+  scenarioType: ScenarioType
+): StageState[] {
+  return prevStates.map((s) => {
+    const supported = isStageSupported(s.id, scenarioType)
+
+    // If stage just became supported and userEnabled was never explicitly set, default to true
+    // Otherwise preserve existing userEnabled
+    const userEnabled = s.userEnabled ?? true
+
+    const enabled = supported && userEnabled
+    const status: StageStatus = enabled ? 'pending' : 'skipped'
+
+    return { ...s, userEnabled, enabled, status }
+  })
 }
 
 export default function PipelinePlayground() {
@@ -40,11 +68,13 @@ export default function PipelinePlayground() {
   const [result, setResult] = useState<FailureResponse | ScaleResponse | null>(null)
 
   // Stage control state
-  const [stageStates, setStageStates] = useState<StageState[]>(createInitialStageStates)
+  const [stageStates, setStageStates] = useState<StageState[]>(() =>
+    createInitialStageStates('failure')
+  )
   const [stopAtStage, setStopAtStage] = useState<StageId | null>(null)
 
   // Playback state
-  const [currentStageIndex, setCurrentStageIndex] = useState(-1)
+  const [currentStageIndex, setCurrentStageIndex] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const playbackRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -62,6 +92,40 @@ export default function PipelinePlayground() {
   // Stop at index calculation - resolves to nearest enabled stage
   const stopAtIndex = resolveStopIndex(stopAtStage, stageStatesMap)
 
+  // Handle scenario type change - reconcile stage states and resolve stop/current
+  useEffect(() => {
+    setStageStates((prev) => {
+      const next = reconcileStageStatesForScenario(prev, scenarioType)
+      const nextMap = next.reduce<Record<StageId, StageState>>(
+        (acc, s) => {
+          acc[s.id] = s
+          return acc
+        },
+        {} as Record<StageId, StageState>
+      )
+
+      // Resolve stopAtStage from computed next state
+      setStopAtStage((prevStop) => {
+        const { resolved } = resolveStopStageId(prevStop, nextMap, scenarioType)
+        return resolved
+      })
+
+      // Reset currentStageIndex from computed next state
+      setCurrentStageIndex((prevIdx) => {
+        const first = getFirstRunnableIndex(nextMap, scenarioType)
+        if (first === null) return null
+
+        if (prevIdx === null) return first
+
+        const cur = PIPELINE_STAGES[prevIdx]
+        const valid = !!cur && nextMap[cur.id]?.enabled && isStageSupported(cur.id, scenarioType)
+        return valid ? prevIdx : first
+      })
+
+      return next
+    })
+  }, [scenarioType])
+
   // Cleanup playback timer on unmount
   useEffect(() => {
     return () => {
@@ -72,21 +136,29 @@ export default function PipelinePlayground() {
   }, [])
 
   // Handle stage toggle
-  const handleToggleStage = useCallback((stageId: StageId) => {
-    setStageStates((prev) =>
-      prev.map((s) => {
-        if (s.id === stageId) {
-          const newEnabled = !s.enabled
-          return {
-            ...s,
-            enabled: newEnabled,
-            status: newEnabled ? ('pending' as StageStatus) : ('skipped' as StageStatus),
+  const handleToggleStage = useCallback(
+    (stageId: StageId) => {
+      // Prevent toggling unsupported stages
+      if (!isStageSupported(stageId, scenarioType)) return
+
+      setStageStates((prev) =>
+        prev.map((s) => {
+          if (s.id === stageId) {
+            const newUserEnabled = !s.userEnabled
+            const newEnabled = newUserEnabled && isStageSupported(stageId, scenarioType)
+            return {
+              ...s,
+              userEnabled: newUserEnabled,
+              enabled: newEnabled,
+              status: newEnabled ? ('pending' as StageStatus) : ('skipped' as StageStatus),
+            }
           }
-        }
-        return s
-      })
-    )
-  }, [])
+          return s
+        })
+      )
+    },
+    [scenarioType]
+  )
 
   // Handle stop-at-stage change
   const handleStopAtChange = useCallback((stageId: StageId | null) => {
@@ -101,8 +173,11 @@ export default function PipelinePlayground() {
   // Playback: advance to next enabled stage
   const advanceStage = useCallback(() => {
     setCurrentStageIndex((prev) => {
+      // If prev is null, start from -1 to get first stage
+      const currentIdx = prev ?? -1
+
       // Find next enabled stage
-      const next = nextEnabledStageIndex(prev, stageStatesMap, 1)
+      const next = nextEnabledStageIndex(currentIdx, stageStatesMap, 1)
 
       // No more enabled stages
       if (next === null) {
@@ -120,7 +195,7 @@ export default function PipelinePlayground() {
       if (!nextStage) return prev
 
       // Mark current as done if we had a previous stage
-      if (prev >= 0 && prev < PIPELINE_STAGES.length) {
+      if (prev !== null && prev >= 0 && prev < PIPELINE_STAGES.length) {
         const prevStage = PIPELINE_STAGES[prev]
         if (prevStage && stageStatesMap[prevStage.id]?.enabled) {
           updateStageStatus(prevStage.id, 'done')
@@ -164,7 +239,7 @@ export default function PipelinePlayground() {
 
   const handleReset = useCallback(() => {
     setIsPlaying(false)
-    setCurrentStageIndex(-1)
+    setCurrentStageIndex(null)
 
     // Reset stage states - mark disabled as skipped, enabled as pending
     setStageStates((prev) =>
@@ -260,6 +335,31 @@ export default function PipelinePlayground() {
         </div>
       </div>
 
+      {/* Live Mode Honesty Banner */}
+      {mode === 'live' && (
+        <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <span className="text-blue-400 text-lg">ℹ️</span>
+            <p className="text-sm text-blue-200">
+              <strong>Demo controls</strong> (toggle/stop/playback) simulate stage playback in the
+              UI. The backend still executes the full pipeline.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Mock Mode Banner */}
+      {mode === 'mock' && (
+        <div className="bg-slate-800 border border-slate-600 rounded-lg p-3">
+          <div className="flex items-start gap-2">
+            <span className="text-slate-400 text-lg">📋</span>
+            <p className="text-sm text-slate-300">
+              <strong>Demo controls</strong> drive the mock playback.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid - 4 columns */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Sidebar: Scenario Form + Stage Controls */}
@@ -283,8 +383,8 @@ export default function PipelinePlayground() {
           {result?.pipelineTrace && (
             <PlaybackControls
               isPlaying={isPlaying}
-              isPaused={!isPlaying && currentStageIndex > -1}
-              currentStageIndex={currentStageIndex}
+              isPaused={!isPlaying && currentStageIndex !== null}
+              currentStageIndex={currentStageIndex ?? 0}
               totalStages={totalStages}
               onPlay={handlePlay}
               onPause={handlePause}
@@ -312,7 +412,7 @@ export default function PipelinePlayground() {
             <>
               <TraceTimeline
                 trace={result.pipelineTrace}
-                currentStageIndex={currentStageIndex}
+                currentStageIndex={currentStageIndex ?? undefined}
                 stageStates={stageStatesMap}
                 stopAtIndex={stopAtIndex}
               />
@@ -323,7 +423,7 @@ export default function PipelinePlayground() {
               <ResultPanels
                 result={result}
                 demoStopInfo={demoStopInfo}
-                currentStageIndex={currentStageIndex}
+                currentStageIndex={currentStageIndex ?? undefined}
                 stageStates={stageStatesMap}
               />
             </>

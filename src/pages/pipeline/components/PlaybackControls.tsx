@@ -22,7 +22,7 @@ export default function PlaybackControls({
   disabled,
 }: PlaybackControlsProps) {
   const canNext = currentStageIndex < totalStages - 1 && !isPlaying
-  const canReset = currentStageIndex > 0 || isPlaying || isPaused
+  const canReset = currentStageIndex >= 0 || isPlaying || isPaused
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">

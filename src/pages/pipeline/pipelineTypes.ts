@@ -15,17 +15,28 @@ export type StageId =
 
 export type StageStatus = 'pending' | 'running' | 'done' | 'skipped'
 
+export type ScenarioType = 'failure' | 'scale'
+
 export interface PipelineStageDefinition {
   id: StageId
   name: string
   description: string
-  scaleOnly: boolean
+  supportedScenarios: readonly ScenarioType[]
 }
 
 export interface StageState {
   id: StageId
-  enabled: boolean
+  userEnabled: boolean // User preference (persists across scenario switches)
+  enabled: boolean // Derived: userEnabled && supported for scenario
   status: StageStatus
+}
+
+// Alias mapping for backend stage name variations
+export const STAGE_ALIASES: Record<string, StageId> = {
+  'fetch-upstream-neighborhood': 'fetch-neighborhood',
+  'fetch-upstream-neighborhoods': 'fetch-neighborhood',
+  'fetch-topology': 'fetch-neighborhood',
+  'topology-fetch': 'fetch-neighborhood',
 }
 
 // Standard pipeline stages in execution order
@@ -34,49 +45,49 @@ export const PIPELINE_STAGES: readonly PipelineStageDefinition[] = [
     id: 'scenario-parse',
     name: 'Scenario Parse',
     description: 'Validate and parse input parameters',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
   {
     id: 'staleness-check',
     name: 'Staleness Check',
     description: 'Check graph data freshness',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
   {
     id: 'fetch-neighborhood',
     name: 'Fetch Neighborhood',
     description: 'Retrieve service topology from Graph Engine',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
   {
     id: 'build-snapshot',
     name: 'Build Snapshot',
     description: 'Construct graph snapshot for analysis',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
   {
     id: 'apply-scaling-model',
     name: 'Apply Scaling Model',
     description: 'Calculate scaling impact (scale scenarios only)',
-    scaleOnly: true,
+    supportedScenarios: ['scale'],
   },
   {
     id: 'path-analysis',
     name: 'Path Analysis',
     description: 'Analyze critical paths and dependencies',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
   {
     id: 'compute-impact',
     name: 'Compute Impact',
     description: 'Calculate affected services and impact metrics',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
   {
     id: 'recommendations',
     name: 'Recommendations',
     description: 'Generate actionable recommendations',
-    scaleOnly: false,
+    supportedScenarios: ['failure', 'scale'],
   },
 ]
 
@@ -188,13 +199,124 @@ export function getStageDef(id: StageId): PipelineStageDefinition | undefined {
 }
 
 /**
+ * Check if a stage is supported for a given scenario type
+ */
+export function isStageSupported(stageId: StageId, scenarioType: ScenarioType): boolean {
+  const stage = getStageDef(stageId)
+  if (!stage) return false
+  return stage.supportedScenarios.includes(scenarioType)
+}
+
+/**
+ * Derive stage state from user preference and scenario support
+ * Deterministically computes enabled state: userEnabled && supported
+ */
+export function deriveStageState(prev: StageState, scenarioType: ScenarioType): StageState {
+  const supported = isStageSupported(prev.id, scenarioType)
+  const enabled = supported && prev.userEnabled
+  const status: StageStatus = enabled ? 'pending' : 'skipped'
+  return { ...prev, enabled, status }
+}
+
+/**
  * Normalize stage name to StageId
- * Handles name variations from backend trace
+ * Handles name variations from backend trace via STAGE_ALIASES
  */
 export function normalizeStageKey(name: string): StageId | null {
-  const normalized = name.toLowerCase().split(/\s+/).join('-')
-  const found = PIPELINE_STAGES.find(
-    (s) => s.id === normalized || s.name.toLowerCase().split(/\s+/).join('-') === normalized
+  // Step 1: Normalize raw string (trim, lowercase, join)
+  const normalized = name.trim().toLowerCase().split(/\s+/).join('-')
+
+  // Step 2: Check alias mapping first
+  if (normalized in STAGE_ALIASES) {
+    return STAGE_ALIASES[normalized]
+  }
+
+  // Step 3: Check if normalized matches a known StageId directly
+  const found = PIPELINE_STAGES.find((s) => s.id === normalized)
+  if (found) return found.id
+
+  // Step 4: Check if it matches any stage's name when normalized
+  const foundByName = PIPELINE_STAGES.find(
+    (s) => s.name.toLowerCase().split(/\s+/).join('-') === normalized
   )
-  return found?.id ?? null
+  return foundByName?.id ?? null
+}
+
+/**
+ * Get list of runnable stage IDs (enabled and supported for scenario)
+ */
+export function getRunnableStageIds(
+  stageStates: Record<StageId, StageState>,
+  scenarioType: ScenarioType
+): StageId[] {
+  return PIPELINE_STAGES.filter((stage) => {
+    const state = stageStates[stage.id]
+    return state?.enabled && isStageSupported(stage.id, scenarioType)
+  }).map((s) => s.id)
+}
+
+/**
+ * Resolve stop stage ID to nearest valid runnable stage
+ * Returns the requested stage if valid, or the nearest previous enabled+supported stage
+ */
+export function resolveStopStageId(
+  requestedStopStageId: StageId | null,
+  stageStates: Record<StageId, StageState>,
+  scenarioType: ScenarioType
+): { resolved: StageId | null; wasAutoResolved: boolean; reason?: string } {
+  if (!requestedStopStageId) {
+    return { resolved: null, wasAutoResolved: false }
+  }
+
+  const isSupported = isStageSupported(requestedStopStageId, scenarioType)
+  const isEnabled = stageStates[requestedStopStageId]?.enabled ?? false
+
+  // If requested stage is valid, use it
+  if (isSupported && isEnabled) {
+    return { resolved: requestedStopStageId, wasAutoResolved: false }
+  }
+
+  // Find nearest previous enabled+supported stage
+  const requestedIndex = stageIndex(requestedStopStageId)
+  if (requestedIndex === -1) {
+    return { resolved: null, wasAutoResolved: true, reason: 'Invalid stage ID' }
+  }
+
+  for (let i = requestedIndex - 1; i >= 0; i--) {
+    const candidateStage = PIPELINE_STAGES[i]
+    if (
+      candidateStage &&
+      isStageSupported(candidateStage.id, scenarioType) &&
+      stageStates[candidateStage.id]?.enabled
+    ) {
+      const reason = isSupported
+        ? 'Requested stage is disabled'
+        : 'Requested stage not supported for this scenario'
+      return { resolved: candidateStage.id, wasAutoResolved: true, reason }
+    }
+  }
+
+  // No valid previous stage found
+  return {
+    resolved: null,
+    wasAutoResolved: true,
+    reason: 'No enabled stages before requested stop point',
+  }
+}
+
+/**
+ * Get the index of the first runnable stage (enabled + supported)
+ * Returns null if no runnable stages exist
+ */
+export function getFirstRunnableIndex(
+  stageStates: Record<StageId, StageState>,
+  scenarioType: ScenarioType
+): number | null {
+  for (let i = 0; i < PIPELINE_STAGES.length; i++) {
+    const stage = PIPELINE_STAGES[i]
+    if (stage && isStageSupported(stage.id, scenarioType) && stageStates[stage.id]?.enabled) {
+      return i
+    }
+  }
+  return null
 }

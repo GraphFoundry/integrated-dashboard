@@ -200,25 +200,36 @@ Add new JSON files to `src/mocks/` following the existing structure:
 
 ## Manual Demo Checklist
 
-Use this checklist to verify all Pipeline Playground demo features work correctly:
+**To verify demo features, run the application and manually test each item:**
+
+```bash
+npm run dev
+# Open http://localhost:3000 in browser
+```
 
 ### Stage Toggle Behavior
 - [ ] **Enable/disable stages**: Toggle checkboxes should immediately update stage status
 - [ ] **Disabled stages show as skipped**: Disabled stages should display with "skipped" status and strike-through styling
 - [ ] **Stage state persistence**: Toggling stages during playback should not reset progress
 
+### Scenario Gating (NEW)
+- [ ] **Switch failure→scale**: Verify "Apply Scaling Model" becomes enabled
+- [ ] **Switch scale→failure**: Verify "Apply Scaling Model" becomes disabled with "(scale only)" label
+- [ ] **Previously disabled stages re-enable**: When switching back, stages should return to enabled state
+
 ### Stop-at-Stage Resolution
 - [ ] **Set stop-at-stage**: Select a stage from the "Stop After" dropdown
 - [ ] **Disable stop stage**: Uncheck the selected stop-at-stage
-- [ ] **Auto-resolution note appears**: Orange warning should show: "Requested stage '[name]' is disabled. Will stop at: '[resolved-name]'"
+- [ ] **Auto-resolution note appears**: Orange warning should show resolution reason and resolved stage
 - [ ] **Resolution uses previous enabled stage**: Verify the resolved stage is the nearest enabled stage before the requested one
+- [ ] **Scenario switch triggers resolution**: Set stop to "Apply Scaling Model", switch to failure scenario, verify auto-resolution note appears
 - [ ] **Re-enable stop stage**: Check the stop-at-stage box again — resolution note should disappear
 
 ### Playback Controls
 - [ ] **Play skips disabled stages**: Click Play, verify execution skips disabled stages automatically
 - [ ] **Next button skips disabled**: Click Next, verify it advances to next enabled stage
 - [ ] **Pause preserves state**: Click Pause, verify current stage index doesn't change
-- [ ] **Reset clears playback**: Click Reset, verify currentStageIndex returns to -1, all stages show "pending" (enabled) or "skipped" (disabled)
+- [ ] **Reset clears playback**: Click Reset, verify currentStageIndex returns to null, all stages show "pending" (enabled) or "skipped" (disabled)
 - [ ] **Stop-at-stage halts playback**: Set stop-at-stage, click Play, verify playback stops after that stage
 
 ### Result Panel Messaging

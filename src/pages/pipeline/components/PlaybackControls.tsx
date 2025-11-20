@@ -1,7 +1,7 @@
 interface PlaybackControlsProps {
   readonly isPlaying: boolean
   readonly isPaused: boolean
-  readonly currentStageIndex: number
+  readonly currentStageIndex: number | null
   readonly totalStages: number
   readonly onPlay: () => void
   readonly onPause: () => void
@@ -21,8 +21,12 @@ export default function PlaybackControls({
   onReset,
   disabled,
 }: PlaybackControlsProps) {
-  const canNext = currentStageIndex < totalStages - 1 && !isPlaying
-  const canReset = currentStageIndex >= 0 || isPlaying || isPaused
+  const idx = currentStageIndex ?? -1
+  const canNext = idx < totalStages - 1 && !isPlaying
+  const canReset = idx >= 0 || isPlaying || isPaused
+
+  const progressPct =
+    totalStages <= 0 ? 0 : Math.round(((Math.max(idx, -1) + 1) / totalStages) * 100)
 
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-lg p-4">
@@ -32,14 +36,14 @@ export default function PlaybackControls({
       <div className="mb-4">
         <div className="flex justify-between text-xs text-slate-400 mb-1">
           <span>
-            Stage {currentStageIndex + 1} of {totalStages}
+            Stage {idx + 1} of {totalStages}
           </span>
-          <span>{Math.round(((currentStageIndex + 1) / totalStages) * 100)}%</span>
+          <span>{progressPct}%</span>
         </div>
         <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
           <div
             className="h-full bg-blue-600 transition-all duration-300"
-            style={{ width: `${((currentStageIndex + 1) / totalStages) * 100}%` }}
+            style={{ width: `${progressPct}%` }}
           />
         </div>
       </div>
@@ -60,7 +64,7 @@ export default function PlaybackControls({
         ) : (
           <button
             onClick={onPlay}
-            disabled={disabled || currentStageIndex >= totalStages - 1}
+            disabled={disabled || idx >= totalStages - 1}
             className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -102,19 +106,14 @@ export default function PlaybackControls({
       {/* Status text */}
       <div className="mt-3 text-xs text-center">
         {isPlaying && <span className="text-blue-400">▶ Playing stage-by-stage...</span>}
-        {isPaused && (
-          <span className="text-yellow-400">⏸ Paused at stage {currentStageIndex + 1}</span>
-        )}
-        {!isPlaying && !isPaused && currentStageIndex === 0 && (
+        {isPaused && <span className="text-yellow-400">⏸ Paused at stage {idx + 1}</span>}
+        {!isPlaying && !isPaused && idx === 0 && (
           <span className="text-slate-400">Ready to start</span>
         )}
-        {!isPlaying &&
-          !isPaused &&
-          currentStageIndex > 0 &&
-          currentStageIndex < totalStages - 1 && (
-            <span className="text-slate-400">Stopped at stage {currentStageIndex + 1}</span>
-          )}
-        {!isPlaying && currentStageIndex >= totalStages - 1 && (
+        {!isPlaying && !isPaused && idx > 0 && idx < totalStages - 1 && (
+          <span className="text-slate-400">Stopped at stage {idx + 1}</span>
+        )}
+        {!isPlaying && idx >= totalStages - 1 && (
           <span className="text-green-400">✓ All stages complete</span>
         )}
       </div>

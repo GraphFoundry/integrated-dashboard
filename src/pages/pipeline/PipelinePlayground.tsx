@@ -94,6 +94,12 @@ export default function PipelinePlayground() {
 
   // Handle scenario type change - reconcile stage states and resolve stop/current
   useEffect(() => {
+    // Stop any active playback when scenario changes
+    setIsPlaying(false)
+    if (playbackRef.current) {
+      clearTimeout(playbackRef.current)
+    }
+
     setStageStates((prev) => {
       const next = reconcileStageStatesForScenario(prev, scenarioType)
       const nextMap = next.reduce<Record<StageId, StageState>>(
@@ -384,7 +390,7 @@ export default function PipelinePlayground() {
             <PlaybackControls
               isPlaying={isPlaying}
               isPaused={!isPlaying && currentStageIndex !== null}
-              currentStageIndex={currentStageIndex ?? 0}
+              currentStageIndex={currentStageIndex}
               totalStages={totalStages}
               onPlay={handlePlay}
               onPause={handlePause}

@@ -16,7 +16,7 @@ import StageControls from '@/pages/pipeline/components/StageControls'
 import PlaybackControls from '@/pages/pipeline/components/PlaybackControls'
 import ExportButtons from '@/pages/pipeline/components/ExportButtons'
 import AlertsSlot from '@/widgets/alerts/AlertsSlot'
-import { simulateFailure, simulateScale } from '@/lib/api'
+import { simulateFailure, simulateScale, healthCheck } from '@/lib/api'
 import failureMock from '@/mocks/failure-trace.json'
 import scaleMock from '@/mocks/scale-trace.json'
 
@@ -77,6 +77,13 @@ export default function PipelinePlayground() {
   const [currentStageIndex, setCurrentStageIndex] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const playbackRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Live mode: abort controller for canceling in-flight requests
+  const abortControllerRef = useRef<AbortController | null>(null)
+
+  // Live mode: health status for backend connectivity indicator
+  type HealthStatus = 'checking' | 'connected' | 'unreachable'
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null)
 
   // Compute derived values
   const totalStages = PIPELINE_STAGES.length
@@ -140,6 +147,44 @@ export default function PipelinePlayground() {
       }
     }
   }, [])
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      abortControllerRef.current?.abort()
+    }
+  }, [])
+
+  // Health polling when Live mode is active
+  useEffect(() => {
+    if (mode !== 'live') {
+      setHealthStatus(null)
+      return
+    }
+
+    let isMounted = true
+    const checkHealth = async () => {
+      if (!isMounted) return
+      setHealthStatus('checking')
+      try {
+        await healthCheck()
+        if (isMounted) setHealthStatus('connected')
+      } catch {
+        if (isMounted) setHealthStatus('unreachable')
+      }
+    }
+
+    // Initial check
+    checkHealth()
+
+    // Poll every 15 seconds
+    const intervalId = setInterval(checkHealth, 15000)
+
+    return () => {
+      isMounted = false
+      clearInterval(intervalId)
+    }
+  }, [mode])
 
   // Handle stage toggle
   const handleToggleStage = useCallback(
@@ -261,6 +306,11 @@ export default function PipelinePlayground() {
   }, [])
 
   const handleRun = async (scenario: Scenario) => {
+    // Abort any previous in-flight request
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
     setLoading(true)
     setError(null)
     setResult(null)
@@ -280,24 +330,54 @@ export default function PipelinePlayground() {
       } else {
         let response: FailureResponse | ScaleResponse
         if (scenario.type === 'failure') {
-          response = await simulateFailure({
-            serviceId: scenario.serviceId,
-            maxDepth: scenario.maxDepth,
-          })
+          response = await simulateFailure(
+            {
+              serviceId: scenario.serviceId,
+              maxDepth: scenario.maxDepth,
+            },
+            signal
+          )
         } else {
-          response = await simulateScale({
-            serviceId: scenario.serviceId,
-            currentPods: scenario.currentPods,
-            newPods: scenario.newPods,
-            latencyMetric: scenario.latencyMetric,
-            maxDepth: scenario.maxDepth,
-          })
+          response = await simulateScale(
+            {
+              serviceId: scenario.serviceId,
+              currentPods: scenario.currentPods,
+              newPods: scenario.newPods,
+              latencyMetric: scenario.latencyMetric,
+              maxDepth: scenario.maxDepth,
+            },
+            signal
+          )
         }
         setResult(response)
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to run simulation'
-      setError(errorMessage)
+      const error = err as { name?: string; code?: string; status?: number; response?: { status?: number }; message?: string }
+      const name = error?.name
+      const code = error?.code
+      const status = error?.status ?? error?.response?.status
+
+      // Abort/cancel: ignore, but ensure UI stops loading
+      if (name === 'CanceledError' || code === 'ERR_CANCELED') {
+        setLoading(false)
+        return
+      }
+
+      if (status === 503) {
+        setError(
+          'Predictive engine unavailable (503). Graph data may be stale or backend is degrading. Check /health and backend logs.'
+        )
+      } else if (status === 500) {
+        setError(
+          'Predictive engine internal error (500). Graph Engine may be down or misconfigured. Check backend logs.'
+        )
+      } else if (status === 502 || status == null || code === 'ERR_NETWORK') {
+        setError(
+          'Predictive engine unreachable. Is the backend running on :7000 and is the Vite /api proxy working?'
+        )
+      } else {
+        setError(error?.message || 'Failed to run simulation')
+      }
     } finally {
       setLoading(false)
     }
@@ -319,7 +399,24 @@ export default function PipelinePlayground() {
             Test failure and scaling scenarios with pipeline trace visualization
           </p>
         </div>
-        <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1">
+        <div className="flex items-center gap-3">
+          {/* Health Badge - only show in Live mode */}
+          {mode === 'live' && healthStatus && (() => {
+            let badgeClasses = 'bg-slate-800 text-slate-400 border border-slate-600'
+            if (healthStatus === 'connected') {
+              badgeClasses = 'bg-green-900/50 text-green-400 border border-green-700'
+            } else if (healthStatus === 'unreachable') {
+              badgeClasses = 'bg-red-900/50 text-red-400 border border-red-700'
+            }
+            return (
+              <span className={`px-2 py-1 rounded text-xs font-medium ${badgeClasses}`}>
+                {healthStatus === 'connected' && '● Live: Connected'}
+                {healthStatus === 'unreachable' && '○ Live: Unreachable'}
+                {healthStatus === 'checking' && '◌ Live: Checking'}
+              </span>
+            )
+          })()}
+          <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1">
           <button
             type="button"
             onClick={() => setMode('mock')}
@@ -338,6 +435,7 @@ export default function PipelinePlayground() {
           >
             Live
           </button>
+          </div>
         </div>
       </div>
 

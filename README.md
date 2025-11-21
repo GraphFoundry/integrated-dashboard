@@ -112,6 +112,42 @@ Live mode connects to the actual backend API. In development, **Vite's proxy han
 
 **Network requests will show:** `/api/simulate/failure?trace=true` (proxied to backend)
 
+### Verify Live Mode is Real
+
+To confirm Live mode is actually hitting the backend (not using cached/mock data):
+
+1. **Start backend:**
+   ```bash
+   cd ../predictive-analysis-engine
+   npm start
+   # Server listening on :7000
+   ```
+
+2. **Start UI:**
+   ```bash
+   cd dashboard-ui
+   npm run dev
+   # UI at http://localhost:5173
+   ```
+
+3. **Open DevTools → Network tab**
+
+4. **Switch to Live mode** in the top-right corner
+   - You should see a health badge appear: `● Live: Connected`
+
+5. **Run a simulation** and observe:
+   - Request goes to `/api/simulate/failure?trace=true` (or `scale`)
+   - Request headers include `X-Request-Id`
+   - Response contains real backend data
+
+6. **Kill the backend** (Ctrl+C in terminal)
+
+7. **Confirm error handling:**
+   - Health badge changes to `○ Live: Unreachable`
+   - Running a simulation shows: *"Predictive engine unreachable. Is the backend running on :7000..."*
+
+8. **Restart backend** and confirm badge returns to `● Live: Connected`
+
 ### Live Mode (Production)
 
 For production builds, set the `VITE_PREDICTIVE_API_BASE_URL` environment variable:

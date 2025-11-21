@@ -2,6 +2,9 @@ import axios, { AxiosError, type AxiosInstance } from 'axios'
 
 const API_TIMEOUT_MS = 20000
 
+/**
+ * Custom error class for API errors with status code and payload
+ */
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -13,18 +16,26 @@ export class ApiError extends Error {
   }
 }
 
-function resolvePredictiveBaseUrl(): string {
-  if (import.meta.env.DEV) {
-    return '/api'
-  }
-  return import.meta.env.VITE_PREDICTIVE_API_BASE_URL || 'http://localhost:7000'
+/**
+ * Generate a unique request ID for tracing
+ */
+function generateRequestId(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  )
 }
 
-function resolveAlertBaseUrl(): string {
-  return import.meta.env.VITE_GRAPH_ALERT_API_BASE_URL || 'http://localhost:PORT'
-}
-
-function createClient(baseURL: string): AxiosInstance {
+/**
+ * Create an Axios client with standard configuration:
+ * - 20s timeout
+ * - X-Request-Id header on every request
+ * - Error normalization (except for canceled requests)
+ *
+ * @param baseURL - Base URL for the API
+ * @returns Configured Axios instance
+ */
+export function createApiClient(baseURL: string): AxiosInstance {
   const instance = axios.create({
     baseURL,
     timeout: API_TIMEOUT_MS,
@@ -33,9 +44,23 @@ function createClient(baseURL: string): AxiosInstance {
     },
   })
 
+  // Request interceptor: attach X-Request-Id for tracing
+  instance.interceptors.request.use((config) => {
+    const rid = generateRequestId()
+    config.headers = config.headers ?? {}
+    ;(config.headers as Record<string, string>)['X-Request-Id'] = rid
+    return config
+  })
+
+  // Response interceptor: normalize errors, but let cancellations pass through
   instance.interceptors.response.use(
     (response) => response,
     (error: AxiosError) => {
+      // Don't wrap canceled requests - let them propagate as-is for proper abort handling
+      if (error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        return Promise.reject(error)
+      }
+
       const status = error.response?.status ?? 0
       const message =
         (error.response?.data as { message?: string } | undefined)?.message || error.message
@@ -46,6 +71,3 @@ function createClient(baseURL: string): AxiosInstance {
 
   return instance
 }
-
-export const predictiveApi = createClient(resolvePredictiveBaseUrl())
-export const graphAlertApi = createClient(resolveAlertBaseUrl())

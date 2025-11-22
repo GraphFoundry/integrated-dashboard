@@ -2,7 +2,7 @@ import { createApiClient } from '@/lib/httpClient'
 
 /**
  * Resolve base URL for Predictive Analysis Engine
- * - DEV: Uses Vite proxy (/api → localhost:7000)
+ * - DEV: Uses Vite proxy (/api → localhost:5000)
  * - PROD: Uses VITE_PREDICTIVE_API_BASE_URL env var
  */
 function resolvePredictiveBaseUrl(): string {

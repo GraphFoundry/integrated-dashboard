@@ -23,10 +23,11 @@ interface ScenarioFormProps {
   readonly onRun: (scenario: Scenario) => void
   readonly loading: boolean
   readonly mode: 'mock' | 'live'
+  readonly scenarioType: ScenarioType
+  readonly onScenarioTypeChange: (type: ScenarioType) => void
 }
 
-export default function ScenarioForm({ onRun, loading, mode }: ScenarioFormProps) {
-  const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
+export default function ScenarioForm({ onRun, loading, mode, scenarioType, onScenarioTypeChange }: ScenarioFormProps) {
   // Mock mode: prefill with a valid service; Live mode: empty for user input
   const [serviceId, setServiceId] = useState(mode === 'mock' ? 'default:productcatalog' : '')
   const [maxDepth, setMaxDepth] = useState(2)
@@ -110,7 +111,7 @@ export default function ScenarioForm({ onRun, loading, mode }: ScenarioFormProps
           <select
             id="scenarioType"
             value={scenarioType}
-            onChange={(e) => setScenarioType(e.target.value as ScenarioType)}
+            onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
             className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="failure">Failure</option>

@@ -393,7 +393,6 @@ export default function PipelinePlayground() {
     setLoading(true)
     setError(null)
     setResult(null)
-    setScenarioType(scenario.type)
     handleReset()
 
     try {
@@ -533,7 +532,13 @@ export default function PipelinePlayground() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Sidebar: Scenario Form + Stage Controls */}
         <div className="lg:col-span-1 space-y-6">
-          <ScenarioForm onRun={handleRun} loading={loading} mode={mode} />
+          <ScenarioForm
+            onRun={handleRun}
+            loading={loading}
+            mode={mode}
+            scenarioType={scenarioType}
+            onScenarioTypeChange={setScenarioType}
+          />
 
           {/* Stage Controls (Demo Settings) */}
           <StageControls

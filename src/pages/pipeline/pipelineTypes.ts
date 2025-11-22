@@ -32,11 +32,53 @@ export interface StageState {
 }
 
 // Alias mapping for backend stage name variations
+// Maps normalized names (lowercase, hyphenated) to canonical StageIds
 export const STAGE_ALIASES: Record<string, StageId> = {
+  // Fetch neighborhood variations
   'fetch-upstream-neighborhood': 'fetch-neighborhood',
   'fetch-upstream-neighborhoods': 'fetch-neighborhood',
   'fetch-topology': 'fetch-neighborhood',
   'topology-fetch': 'fetch-neighborhood',
+  'fetch-graph-data': 'fetch-neighborhood',
+  'graph-fetch': 'fetch-neighborhood',
+
+  // Scenario parse / validate variations
+  'validate-request': 'scenario-parse',
+  'request-validation': 'scenario-parse',
+  'parse-request': 'scenario-parse',
+  'input-validation': 'scenario-parse',
+
+  // Build snapshot variations
+  'identify-target-service': 'build-snapshot',
+  'build-graph-snapshot': 'build-snapshot',
+  'snapshot-build': 'build-snapshot',
+
+  // Compute impact variations
+  'compute-affected-callers': 'compute-impact',
+  'impact-analysis': 'compute-impact',
+  'compute-latency-impact': 'compute-impact',
+  'latency-impact': 'compute-impact',
+
+  // Path analysis variations
+  'find-critical-paths': 'path-analysis',
+  'critical-paths': 'path-analysis',
+  'identify-affected-paths': 'path-analysis',
+  'affected-paths': 'path-analysis',
+
+  // Recommendations variations
+  'generate-recommendations': 'recommendations',
+  'generate-recommendation': 'recommendations',
+  'recommendation-generation': 'recommendations',
+
+  // Apply scaling model variations
+  'apply-scaling': 'apply-scaling-model',
+  'scaling-model': 'apply-scaling-model',
+  'compute-scaling': 'apply-scaling-model',
+
+  // Staleness check variations
+  'freshness-check': 'staleness-check',
+  'data-freshness': 'staleness-check',
+  'check-staleness': 'staleness-check',
 }
 
 // Standard pipeline stages in execution order

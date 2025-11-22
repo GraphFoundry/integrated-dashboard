@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import type { Scenario, FailureResponse, ScaleResponse } from '@/lib/types'
+import type { Scenario, FailureResponse, ScaleResponse, LastRunMeta } from '@/lib/types'
 import type { StageId, StageState, StageStatus, ScenarioType } from '@/pages/pipeline/pipelineTypes'
 import {
   PIPELINE_STAGES,
@@ -16,6 +16,7 @@ import StageControls from '@/pages/pipeline/components/StageControls'
 import PlaybackControls from '@/pages/pipeline/components/PlaybackControls'
 import ExportButtons from '@/pages/pipeline/components/ExportButtons'
 import AlertsSlot from '@/widgets/alerts/AlertsSlot'
+import StatusBadge from '@/components/common/StatusBadge'
 import { simulateFailure, simulateScale, healthCheck } from '@/lib/api'
 import failureMock from '@/mocks/failure-trace.json'
 import scaleMock from '@/mocks/scale-trace.json'
@@ -77,6 +78,8 @@ export default function PipelinePlayground() {
   const [currentStageIndex, setCurrentStageIndex] = useState<number | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const playbackRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Ref to track isPlaying in closures (avoids stale closure in setTimeout)
+  const isPlayingRef = useRef(false)
 
   // Live mode: abort controller for canceling in-flight requests
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -84,6 +87,9 @@ export default function PipelinePlayground() {
   // Live mode: health status for backend connectivity indicator
   type HealthStatus = 'checking' | 'connected' | 'unreachable'
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null)
+
+  // Proof metadata: tracks run context for operator auditability
+  const [lastRunMeta, setLastRunMeta] = useState<LastRunMeta | null>(null)
 
   // Compute derived values
   const totalStages = PIPELINE_STAGES.length
@@ -155,6 +161,27 @@ export default function PipelinePlayground() {
     }
   }, [])
 
+  // Reset simulation state when mode changes
+  useEffect(() => {
+    // Clear previous results when switching modes
+    setResult(null)
+    setLastRunMeta(null)
+    setError(null)
+    setCurrentStageIndex(null)
+    setIsPlaying(false)
+    isPlayingRef.current = false
+    if (playbackRef.current) {
+      clearTimeout(playbackRef.current)
+    }
+    // Reset stage states to pending
+    setStageStates((prev) =>
+      prev.map((s) => ({
+        ...s,
+        status: s.enabled ? ('pending' as StageStatus) : ('skipped' as StageStatus),
+      }))
+    )
+  }, [mode])
+
   // Health polling when Live mode is active
   useEffect(() => {
     if (mode !== 'live') {
@@ -221,60 +248,68 @@ export default function PipelinePlayground() {
     setStageStates((prev) => prev.map((s) => (s.id === stageId ? { ...s, status } : s)))
   }, [])
 
+  // Helper to mark a stage as done if valid and enabled
+  const markStageAsDone = useCallback(
+    (stageIdx: number | null) => {
+      if (stageIdx === null || stageIdx < 0 || stageIdx >= PIPELINE_STAGES.length) return
+      const stage = PIPELINE_STAGES[stageIdx]
+      if (stage && stageStatesMap[stage.id]?.enabled) {
+        updateStageStatus(stage.id, 'done')
+      }
+    },
+    [stageStatesMap, updateStageStatus]
+  )
+
+  // Helper to stop playback
+  const stopPlayback = useCallback(() => {
+    setIsPlaying(false)
+    isPlayingRef.current = false
+  }, [])
+
   // Playback: advance to next enabled stage
   const advanceStage = useCallback(() => {
     setCurrentStageIndex((prev) => {
-      // If prev is null, start from -1 to get first stage
       const currentIdx = prev ?? -1
-
-      // Find next enabled stage
       const next = nextEnabledStageIndex(currentIdx, stageStatesMap, 1)
 
-      // No more enabled stages
-      if (next === null) {
-        setIsPlaying(false)
-        return prev
-      }
-
-      // Check stop-at condition
-      if (stopAtIndex !== null && next > stopAtIndex) {
-        setIsPlaying(false)
+      // No more enabled stages OR hit stop condition - mark current as done and stop
+      const shouldStop = next === null || (stopAtIndex !== null && next > stopAtIndex)
+      if (shouldStop) {
+        markStageAsDone(prev)
+        stopPlayback()
         return prev
       }
 
       const nextStage = PIPELINE_STAGES[next]
       if (!nextStage) return prev
 
-      // Mark current as done if we had a previous stage
-      if (prev !== null && prev >= 0 && prev < PIPELINE_STAGES.length) {
-        const prevStage = PIPELINE_STAGES[prev]
-        if (prevStage && stageStatesMap[prevStage.id]?.enabled) {
-          updateStageStatus(prevStage.id, 'done')
-        }
-      }
+      // Mark previous stage as done
+      markStageAsDone(prev)
 
       // Mark next as running
       updateStageStatus(nextStage.id, 'running')
 
       // Schedule next advancement
       playbackRef.current = setTimeout(() => {
-        if (isPlaying) {
+        if (isPlayingRef.current) {
           advanceStage()
         }
       }, STAGE_DURATION_MS)
 
       return next
     })
-  }, [stageStatesMap, stopAtIndex, updateStageStatus, isPlaying])
+  }, [stageStatesMap, stopAtIndex, updateStageStatus, markStageAsDone, stopPlayback])
 
   // Playback controls
   const handlePlay = useCallback(() => {
     setIsPlaying(true)
+    isPlayingRef.current = true
     advanceStage()
   }, [advanceStage])
 
   const handlePause = useCallback(() => {
     setIsPlaying(false)
+    isPlayingRef.current = false
     if (playbackRef.current) {
       clearTimeout(playbackRef.current)
     }
@@ -285,11 +320,13 @@ export default function PipelinePlayground() {
       clearTimeout(playbackRef.current)
     }
     setIsPlaying(false)
+    isPlayingRef.current = false
     advanceStage()
   }, [advanceStage])
 
   const handleReset = useCallback(() => {
     setIsPlaying(false)
+    isPlayingRef.current = false
     setCurrentStageIndex(null)
 
     // Reset stage states - mark disabled as skipped, enabled as pending
@@ -305,11 +342,53 @@ export default function PipelinePlayground() {
     }
   }, [])
 
+  // Generate a unique request ID for tracing (matches format from httpClient)
+  const generateRequestId = (): string => {
+    return (
+      globalThis.crypto?.randomUUID?.() ??
+      `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+    )
+  }
+
+  // Helper to extract error message from caught error (reduces complexity in handleRun)
+  const getErrorMessage = (err: unknown): string | null => {
+    const error = err as { name?: string; code?: string; status?: number; response?: { status?: number }; message?: string }
+    const name = error?.name
+    const code = error?.code
+    const status = error?.status ?? error?.response?.status
+
+    // Abort/cancel: return null to signal ignore
+    if (name === 'CanceledError' || code === 'ERR_CANCELED') {
+      return null
+    }
+
+    if (status === 503) {
+      return 'Predictive engine unavailable (503). Graph data may be stale or backend is degrading. Check /health and backend logs.'
+    }
+    if (status === 500) {
+      return 'Predictive engine internal error (500). Graph Engine may be down or misconfigured. Check backend logs.'
+    }
+    if (status === 502 || status == null || code === 'ERR_NETWORK') {
+      return 'Predictive engine unreachable. Is the backend running on :7000 and is the Vite /api proxy working?'
+    }
+    return error?.message || 'Failed to run simulation'
+  }
+
   const handleRun = async (scenario: Scenario) => {
     // Abort any previous in-flight request
     abortControllerRef.current?.abort()
     abortControllerRef.current = new AbortController()
     const signal = abortControllerRef.current.signal
+
+    // Generate request ID BEFORE starting (so it's set even on failure)
+    const runRequestId = generateRequestId()
+    const runMeta: LastRunMeta = {
+      requestId: runRequestId,
+      startedAt: new Date().toISOString(),
+      source: mode,
+      scenario,
+    }
+    setLastRunMeta(runMeta)
 
     setLoading(true)
     setError(null)
@@ -327,6 +406,8 @@ export default function PipelinePlayground() {
         } else {
           setResult(scaleMock as ScaleResponse)
         }
+        // Set completedAt for mock mode
+        setLastRunMeta((prev) => prev ? { ...prev, completedAt: new Date().toISOString() } : null)
       } else {
         let response: FailureResponse | ScaleResponse
         if (scenario.type === 'failure') {
@@ -335,7 +416,7 @@ export default function PipelinePlayground() {
               serviceId: scenario.serviceId,
               maxDepth: scenario.maxDepth,
             },
-            signal
+            { signal, requestId: runRequestId }
           )
         } else {
           response = await simulateScale(
@@ -346,38 +427,21 @@ export default function PipelinePlayground() {
               latencyMetric: scenario.latencyMetric,
               maxDepth: scenario.maxDepth,
             },
-            signal
+            { signal, requestId: runRequestId }
           )
         }
         setResult(response)
+        // Set completedAt on success
+        setLastRunMeta((prev) => prev ? { ...prev, completedAt: new Date().toISOString() } : null)
       }
     } catch (err: unknown) {
-      const error = err as { name?: string; code?: string; status?: number; response?: { status?: number }; message?: string }
-      const name = error?.name
-      const code = error?.code
-      const status = error?.status ?? error?.response?.status
-
-      // Abort/cancel: ignore, but ensure UI stops loading
-      if (name === 'CanceledError' || code === 'ERR_CANCELED') {
+      const errorMessage = getErrorMessage(err)
+      if (errorMessage === null) {
+        // Abort/cancel: ignore, but ensure UI stops loading
         setLoading(false)
         return
       }
-
-      if (status === 503) {
-        setError(
-          'Predictive engine unavailable (503). Graph data may be stale or backend is degrading. Check /health and backend logs.'
-        )
-      } else if (status === 500) {
-        setError(
-          'Predictive engine internal error (500). Graph Engine may be down or misconfigured. Check backend logs.'
-        )
-      } else if (status === 502 || status == null || code === 'ERR_NETWORK') {
-        setError(
-          'Predictive engine unreachable. Is the backend running on :7000 and is the Vite /api proxy working?'
-        )
-      } else {
-        setError(error?.message || 'Failed to run simulation')
-      }
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -402,18 +466,19 @@ export default function PipelinePlayground() {
         <div className="flex items-center gap-3">
           {/* Health Badge - only show in Live mode */}
           {mode === 'live' && healthStatus && (() => {
-            let badgeClasses = 'bg-slate-800 text-slate-400 border border-slate-600'
+            let healthVariant: 'success' | 'destructive' | 'secondary' = 'secondary'
+            let healthLabel = '◌ Live: Checking'
             if (healthStatus === 'connected') {
-              badgeClasses = 'bg-green-900/50 text-green-400 border border-green-700'
+              healthVariant = 'success'
+              healthLabel = '● Live: Connected'
             } else if (healthStatus === 'unreachable') {
-              badgeClasses = 'bg-red-900/50 text-red-400 border border-red-700'
+              healthVariant = 'destructive'
+              healthLabel = '○ Live: Unreachable'
             }
             return (
-              <span className={`px-2 py-1 rounded text-xs font-medium ${badgeClasses}`}>
-                {healthStatus === 'connected' && '● Live: Connected'}
-                {healthStatus === 'unreachable' && '○ Live: Unreachable'}
-                {healthStatus === 'checking' && '◌ Live: Checking'}
-              </span>
+              <StatusBadge variant={healthVariant}>
+                {healthLabel}
+              </StatusBadge>
             )
           })()}
           <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1">
@@ -468,7 +533,7 @@ export default function PipelinePlayground() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Sidebar: Scenario Form + Stage Controls */}
         <div className="lg:col-span-1 space-y-6">
-          <ScenarioForm onRun={handleRun} loading={loading} />
+          <ScenarioForm onRun={handleRun} loading={loading} mode={mode} />
 
           {/* Stage Controls (Demo Settings) */}
           <StageControls
@@ -529,16 +594,34 @@ export default function PipelinePlayground() {
                 demoStopInfo={demoStopInfo}
                 currentStageIndex={currentStageIndex ?? undefined}
                 stageStates={stageStatesMap}
+                lastRunMeta={lastRunMeta ?? undefined}
               />
             </>
           )}
 
-          {!result && !loading && !error && (
+          {/* Empty state - different for Mock vs Live */}
+          {!result && !loading && !error && mode === 'mock' && (
             <div className="bg-slate-900 border border-slate-700 rounded-lg p-8 text-center">
               <div className="text-4xl mb-4">🔬</div>
               <p className="text-slate-400">Configure a scenario and click Run to see results</p>
             </div>
           )}
+
+          {!result && !loading && !error && mode === 'live' && (() => {
+            let statusMessage = 'Checking backend connection...'
+            if (healthStatus === 'connected') {
+              statusMessage = 'Backend is connected. Configure a scenario and click Run to fetch real predictions.'
+            } else if (healthStatus === 'unreachable') {
+              statusMessage = 'Backend is unreachable. Please ensure the Predictive Analysis Engine is running.'
+            }
+            return (
+              <div className="bg-slate-900 border border-blue-700/50 rounded-lg p-8 text-center">
+                <div className="text-4xl mb-4">🚀</div>
+                <h3 className="text-white font-semibold mb-2">Live Mode Ready</h3>
+                <p className="text-slate-400">{statusMessage}</p>
+              </div>
+            )
+          })()}
 
           {/* Alerts Integration Slot */}
           <AlertsSlot />

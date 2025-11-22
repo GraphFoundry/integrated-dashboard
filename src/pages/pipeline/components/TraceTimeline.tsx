@@ -106,7 +106,7 @@ export default function TraceTimeline({
                     >
                       {stage.name}
                       {isUnknown && (
-                        <span className="ml-2 text-xs text-orange-400">(unknown stage)</span>
+                        <span className="ml-2 text-xs text-slate-500">(custom stage)</span>
                       )}
                     </h3>
                     {status === 'running' && (

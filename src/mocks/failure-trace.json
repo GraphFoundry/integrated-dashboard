@@ -2,36 +2,62 @@
   "correlationId": "mock-failure-123",
   "target": {
     "serviceId": "productcatalog",
-    "status": "failed"
+    "name": "productcatalog",
+    "namespace": "default"
   },
+  "neighborhood": {
+    "description": "k-hop neighborhood subgraph around target",
+    "serviceCount": 12,
+    "edgeCount": 18,
+    "depthUsed": 2,
+    "generatedAt": "2026-01-03T10:30:00.000Z"
+  },
+  "dataFreshness": {
+    "source": "graph-engine",
+    "stale": false,
+    "lastUpdatedSecondsAgo": 30
+  },
+  "confidence": "high",
+  "explanation": "If productcatalog fails, 2 upstream caller(s) lose direct access, affecting 3 downstream service(s). Total estimated traffic loss: 150.5 RPS.",
   "affectedCallers": [
     {
       "serviceId": "frontend",
-      "impact": "direct",
-      "reason": "Calls productcatalog for product listings"
+      "name": "frontend",
+      "namespace": "default",
+      "lostTrafficRps": 100.5,
+      "edgeErrorRate": 0.02
     },
     {
       "serviceId": "recommendationservice",
-      "impact": "indirect",
-      "reason": "Depends on productcatalog for product data"
+      "name": "recommendationservice",
+      "namespace": "default",
+      "lostTrafficRps": 50.0,
+      "edgeErrorRate": 0.01
     }
   ],
+  "affectedDownstream": [
+    {
+      "serviceId": "currencyservice",
+      "name": "currencyservice",
+      "namespace": "default"
+    }
+  ],
+  "unreachableServices": [],
   "criticalPathsToTarget": [
     {
       "path": ["frontend", "productcatalog"],
-      "length": 2,
-      "criticality": "high"
+      "pathRps": 100.5
     },
     {
       "path": ["recommendationservice", "productcatalog"],
-      "length": 2,
-      "criticality": "medium"
+      "pathRps": 50.0
     }
   ],
+  "totalLostTrafficRps": 150.5,
   "recommendations": [
-    "Add circuit breaker to frontend → productcatalog",
-    "Implement cache layer for product data",
-    "Consider fallback mechanism for product listings"
+    { "type": "circuit-breaker", "priority": "high", "description": "Add circuit breaker to frontend → productcatalog" },
+    { "type": "caching", "priority": "medium", "description": "Implement cache layer for product data" },
+    { "type": "fallback", "priority": "low", "description": "Consider fallback mechanism for product listings" }
   ],
   "pipelineTrace": {
     "options": {
@@ -42,7 +68,7 @@
     },
     "stages": [
       {
-        "name": "Validate Request",
+        "name": "Scenario Parse",
         "ms": 2,
         "summary": {
           "serviceId": "productcatalog",
@@ -50,7 +76,15 @@
         }
       },
       {
-        "name": "Fetch Graph Data",
+        "name": "Staleness Check",
+        "ms": 3,
+        "summary": {
+          "stale": false,
+          "lastUpdatedSecondsAgo": 30
+        }
+      },
+      {
+        "name": "Fetch Neighborhood",
         "ms": 45,
         "summary": {
           "nodesCount": 12,
@@ -58,16 +92,24 @@
         }
       },
       {
-        "name": "Identify Target Service",
-        "ms": 3,
+        "name": "Build Snapshot",
+        "ms": 8,
         "summary": {
           "found": true,
           "serviceId": "productcatalog"
         }
       },
       {
-        "name": "Compute Affected Callers",
+        "name": "Path Analysis",
         "ms": 12,
+        "summary": {
+          "pathsFound": 2,
+          "maxPathLength": 2
+        }
+      },
+      {
+        "name": "Compute Impact",
+        "ms": 15,
         "summary": {
           "directCallers": 2,
           "indirectCallers": 3,
@@ -75,15 +117,7 @@
         }
       },
       {
-        "name": "Find Critical Paths",
-        "ms": 8,
-        "summary": {
-          "pathsFound": 2,
-          "maxPathLength": 2
-        }
-      },
-      {
-        "name": "Generate Recommendations",
+        "name": "Recommendations",
         "ms": 5,
         "summary": {
           "recommendationsCount": 3

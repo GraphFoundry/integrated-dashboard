@@ -6,7 +6,7 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const devServerPort = Number(env.VITE_DEV_SERVER_PORT) || 5173
-  const predictiveBaseUrl = env.VITE_PREDICTIVE_API_BASE_URL || 'http://localhost:7000'
+  const predictiveBaseUrl = env.VITE_PREDICTIVE_API_BASE_URL || 'http://localhost:5000'
 
   return {
     plugins: [react(), tailwindcss()],

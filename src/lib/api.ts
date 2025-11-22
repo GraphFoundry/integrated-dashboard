@@ -1,22 +1,32 @@
 import type { FailureResponse, ScaleResponse, FailureScenario, ScaleScenario } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
+interface RequestOptions {
+  signal?: AbortSignal
+  requestId?: string
+}
+
 /**
  * Simulate a service failure scenario
  * @param scenario - Failure scenario parameters
- * @param signal - Optional AbortSignal for canceling in-flight requests
+ * @param options - Optional request options (signal, requestId)
  */
 export async function simulateFailure(
   scenario: Omit<FailureScenario, 'type'>,
-  signal?: AbortSignal
+  options?: RequestOptions
 ): Promise<FailureResponse> {
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
+  }
+
   const { data } = await predictiveApi.post<FailureResponse>(
     '/simulate/failure?trace=true',
     {
       serviceId: scenario.serviceId,
       maxDepth: scenario.maxDepth,
     },
-    { signal }
+    { signal: options?.signal, headers }
   )
   return data
 }
@@ -24,12 +34,17 @@ export async function simulateFailure(
 /**
  * Simulate a scaling scenario
  * @param scenario - Scale scenario parameters
- * @param signal - Optional AbortSignal for canceling in-flight requests
+ * @param options - Optional request options (signal, requestId)
  */
 export async function simulateScale(
   scenario: Omit<ScaleScenario, 'type'>,
-  signal?: AbortSignal
+  options?: RequestOptions
 ): Promise<ScaleResponse> {
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
+  }
+
   const { data } = await predictiveApi.post<ScaleResponse>(
     '/simulate/scale?trace=true',
     {
@@ -39,7 +54,7 @@ export async function simulateScale(
       latencyMetric: scenario.latencyMetric,
       maxDepth: scenario.maxDepth,
     },
-    { signal }
+    { signal: options?.signal, headers }
   )
   return data
 }

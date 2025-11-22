@@ -1,28 +1,82 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Scenario, ScenarioType } from '@/lib/types'
 
-interface ScenarioFormProps {
-  onRun: (scenario: Scenario) => void
-  loading: boolean
+// Example services for Mock mode (valid format for Live mode reference)
+const EXAMPLE_SERVICES = [
+  'default:productcatalog',
+  'default:checkoutservice',
+  'default:frontend',
+  'default:cartservice',
+]
+
+// Validate serviceId format for Live mode: must be "namespace:name"
+function isValidLiveServiceId(serviceId: string): boolean {
+  const trimmed = serviceId.trim()
+  if (!trimmed) return false
+  const parts = trimmed.split(':')
+  if (parts.length !== 2) return false
+  const [namespace, name] = parts
+  return namespace.length > 0 && name.length > 0
 }
 
-export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
+interface ScenarioFormProps {
+  readonly onRun: (scenario: Scenario) => void
+  readonly loading: boolean
+  readonly mode: 'mock' | 'live'
+}
+
+export default function ScenarioForm({ onRun, loading, mode }: ScenarioFormProps) {
   const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
-  const [serviceId, setServiceId] = useState('')
+  // Mock mode: prefill with a valid service; Live mode: empty for user input
+  const [serviceId, setServiceId] = useState(mode === 'mock' ? 'default:productcatalog' : '')
   const [maxDepth, setMaxDepth] = useState(2)
   const [currentPods, setCurrentPods] = useState(3)
   const [newPods, setNewPods] = useState(5)
   const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95')
 
-  const isValid = () => {
-    if (!serviceId.trim()) return false
-    if (maxDepth < 1 || maxDepth > 3) return false
-    if (scenarioType === 'scale') {
-      if (currentPods < 1 || newPods < 1) return false
-      if (currentPods === newPods) return false
+  // Reset serviceId when mode changes
+  useEffect(() => {
+    if (mode === 'mock') {
+      setServiceId('default:productcatalog')
+    } else {
+      setServiceId('')
     }
+  }, [mode])
+
+  // Helper: check if serviceId is valid for Live mode
+  const isLiveServiceIdValid = (): boolean => {
+    if (!serviceId.trim()) return false
+    return isValidLiveServiceId(serviceId)
+  }
+
+  // Helper: check scale-specific validation
+  const isScaleInputsValid = (): boolean => {
+    if (currentPods < 1) return false
+    if (newPods < 1) return false
+    if (currentPods === newPods) return false
     return true
   }
+
+  // Helper: get serviceId validation message for display
+  const getServiceIdHint = (): string | null => {
+    if (mode === 'mock') return null
+    if (!serviceId.trim()) return null
+    if (!isValidLiveServiceId(serviceId)) {
+      return 'Format: namespace:name (e.g., default:productcatalog)'
+    }
+    return null
+  }
+
+  // Main validation
+  const isValid = (): boolean => {
+    if (!serviceId.trim()) return false
+    if (mode === 'live' && !isLiveServiceIdValid()) return false
+    if (maxDepth < 1 || maxDepth > 3) return false
+    if (scenarioType === 'scale' && !isScaleInputsValid()) return false
+    return true
+  }
+
+  const serviceIdHint = getServiceIdHint()
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,8 +106,9 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Scenario Type */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">Scenario Type</label>
+          <label htmlFor="scenarioType" className="block text-sm font-medium text-slate-300 mb-2">Scenario Type</label>
           <select
+            id="scenarioType"
             value={scenarioType}
             onChange={(e) => setScenarioType(e.target.value as ScenarioType)}
             className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -65,22 +120,39 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
 
         {/* Service ID */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">Service ID</label>
+          <label htmlFor="serviceId" className="block text-sm font-medium text-slate-300 mb-2">
+            Service ID
+            {mode === 'live' && (
+              <span className="ml-1 text-xs text-slate-500">(namespace:name)</span>
+            )}
+          </label>
           <input
+            id="serviceId"
             type="text"
             value={serviceId}
             onChange={(e) => setServiceId(e.target.value)}
-            placeholder="e.g., productcatalog"
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder={mode === 'live' ? 'default:productcatalog' : 'e.g., productcatalog'}
+            className={`w-full px-3 py-2 bg-slate-800 border rounded text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+              serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
+            }`}
           />
+          {serviceIdHint && (
+            <p className="mt-1 text-xs text-yellow-400">{serviceIdHint}</p>
+          )}
+          {mode === 'live' && !serviceId.trim() && (
+            <p className="mt-1 text-xs text-slate-500">
+              Examples: {EXAMPLE_SERVICES.slice(0, 2).join(', ')}
+            </p>
+          )}
         </div>
 
         {/* Max Depth */}
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="maxDepth" className="block text-sm font-medium text-slate-300 mb-2">
             Max Depth: {maxDepth}
           </label>
           <input
+            id="maxDepth"
             type="range"
             min="1"
             max="3"
@@ -100,10 +172,11 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
           <>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label htmlFor="currentPods" className="block text-sm font-medium text-slate-300 mb-2">
                   Current Pods
                 </label>
                 <input
+                  id="currentPods"
                   type="number"
                   min="1"
                   value={currentPods}
@@ -112,8 +185,9 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">New Pods</label>
+                <label htmlFor="newPods" className="block text-sm font-medium text-slate-300 mb-2">New Pods</label>
                 <input
+                  id="newPods"
                   type="number"
                   min="1"
                   value={newPods}
@@ -124,10 +198,11 @@ export default function ScenarioForm({ onRun, loading }: ScenarioFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="latencyMetric" className="block text-sm font-medium text-slate-300 mb-2">
                 Latency Metric
               </label>
               <select
+                id="latencyMetric"
                 value={latencyMetric}
                 onChange={(e) => setLatencyMetric(e.target.value as any)}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -106,15 +106,17 @@ export default function PlaybackControls({
       {/* Status text */}
       <div className="mt-3 text-xs text-center">
         {isPlaying && <span className="text-blue-400">▶ Playing stage-by-stage...</span>}
-        {isPaused && <span className="text-yellow-400">⏸ Paused at stage {idx + 1}</span>}
+        {!isPlaying && idx >= totalStages - 1 && idx >= 0 && (
+          <span className="text-green-400">✓ All stages complete</span>
+        )}
+        {isPaused && idx < totalStages - 1 && (
+          <span className="text-yellow-400">⏸ Paused at stage {idx + 1}</span>
+        )}
         {!isPlaying && !isPaused && idx === 0 && (
           <span className="text-slate-400">Ready to start</span>
         )}
         {!isPlaying && !isPaused && idx > 0 && idx < totalStages - 1 && (
           <span className="text-slate-400">Stopped at stage {idx + 1}</span>
-        )}
-        {!isPlaying && idx >= totalStages - 1 && (
-          <span className="text-green-400">✓ All stages complete</span>
         )}
       </div>
     </div>

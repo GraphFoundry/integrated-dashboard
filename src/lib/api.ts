@@ -1,9 +1,19 @@
-import type { FailureResponse, ScaleResponse, FailureScenario, ScaleScenario } from '@/lib/types'
+import type { FailureResponse, ScaleResponse, FailureScenario, ScaleScenario, ServicesResponse } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
 interface RequestOptions {
   signal?: AbortSignal
   requestId?: string
+}
+
+/**
+ * Fetch available services from the graph engine
+ * @param signal - Optional AbortSignal for canceling in-flight requests
+ * @returns List of discovered services with freshness info
+ */
+export async function getServices(signal?: AbortSignal): Promise<ServicesResponse> {
+  const { data } = await predictiveApi.get<ServicesResponse>('/services', { signal })
+  return data
 }
 
 /**

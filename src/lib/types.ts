@@ -174,3 +174,31 @@ export type LastRunMeta = {
   /** Scenario inputs used for this run */
   scenario: Scenario
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Service Discovery Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DiscoveredService = {
+  /** Canonical service ID in format 'namespace:name' */
+  serviceId: string
+  /** Service name */
+  name: string
+  /** Kubernetes namespace */
+  namespace: string
+}
+
+export type ServicesResponse = {
+  /** List of services from the current graph snapshot */
+  services: DiscoveredService[]
+  /** Total number of services discovered */
+  count: number
+  /** Whether the graph data is stale (older than expected window) */
+  stale: boolean
+  /** Seconds since last graph update (null if unavailable) */
+  lastUpdatedSecondsAgo: number | null
+  /** Expected freshness window in minutes */
+  windowMinutes: number
+  /** Error message if service discovery failed */
+  error?: string
+}

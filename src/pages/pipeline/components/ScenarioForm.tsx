@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import type { Scenario, ScenarioType } from '@/lib/types'
+import { useState, useEffect, useCallback } from 'react'
+import type { Scenario, ScenarioType, DiscoveredService } from '@/lib/types'
+import { getServices } from '@/lib/api'
 
 // Example services for Mock mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
@@ -35,19 +36,62 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
   const [newPods, setNewPods] = useState(5)
   const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95')
 
-  // Reset serviceId when mode changes
+  // Service discovery state (Live mode only)
+  const [discoveredServices, setDiscoveredServices] = useState<DiscoveredService[]>([])
+  const [servicesLoading, setServicesLoading] = useState(false)
+  const [servicesError, setServicesError] = useState<string | null>(null)
+  const [servicesStale, setServicesStale] = useState(false)
+
+  // Fetch services from backend when Live mode is active
+  const fetchServices = useCallback(async (signal?: AbortSignal) => {
+    setServicesLoading(true)
+    setServicesError(null)
+    try {
+      const response = await getServices(signal)
+      setDiscoveredServices(response.services)
+      setServicesStale(response.stale)
+      if (response.error) {
+        setServicesError(response.error)
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'CanceledError') {
+        return // Aborted, ignore
+      }
+      setServicesError(err instanceof Error ? err.message : 'Failed to fetch services')
+      setDiscoveredServices([])
+    } finally {
+      setServicesLoading(false)
+    }
+  }, [])
+
+  // Reset serviceId and fetch services when mode changes
   useEffect(() => {
     if (mode === 'mock') {
       setServiceId('default:productcatalog')
+      setDiscoveredServices([])
+      setServicesError(null)
+      setServicesStale(false)
     } else {
       setServiceId('')
+      // Fetch services for Live mode
+      const controller = new AbortController()
+      fetchServices(controller.signal)
+      return () => controller.abort()
     }
-  }, [mode])
+  }, [mode, fetchServices])
+
+  // Helper: check if serviceId exists in discovered services (Live mode)
+  const isServiceIdInGraph = (): boolean => {
+    if (mode !== 'live') return true
+    if (discoveredServices.length === 0) return true // Allow if no services loaded (may be loading)
+    return discoveredServices.some((s) => s.serviceId === serviceId.trim())
+  }
 
   // Helper: check if serviceId is valid for Live mode
   const isLiveServiceIdValid = (): boolean => {
     if (!serviceId.trim()) return false
-    return isValidLiveServiceId(serviceId)
+    if (!isValidLiveServiceId(serviceId)) return false
+    return isServiceIdInGraph()
   }
 
   // Helper: check scale-specific validation
@@ -64,6 +108,9 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
     if (!serviceId.trim()) return null
     if (!isValidLiveServiceId(serviceId)) {
       return 'Format: namespace:name (e.g., default:productcatalog)'
+    }
+    if (discoveredServices.length > 0 && !isServiceIdInGraph()) {
+      return 'Service not found in graph. Select from the dropdown or check the service name.'
     }
     return null
   }
@@ -126,21 +173,45 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
             {mode === 'live' && (
               <span className="ml-1 text-xs text-slate-500">(namespace:name)</span>
             )}
+            {mode === 'live' && servicesLoading && (
+              <span className="ml-2 text-xs text-blue-400">Loading services...</span>
+            )}
+            {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
+              <span className="ml-2 text-xs text-green-400">
+                {discoveredServices.length} service{discoveredServices.length === 1 ? '' : 's'} available
+                {servicesStale && <span className="text-yellow-400 ml-1">(stale)</span>}
+              </span>
+            )}
           </label>
           <input
             id="serviceId"
             type="text"
             value={serviceId}
             onChange={(e) => setServiceId(e.target.value)}
-            placeholder={mode === 'live' ? 'default:productcatalog' : 'e.g., productcatalog'}
+            list={mode === 'live' ? 'discovered-services' : undefined}
+            placeholder={mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'}
             className={`w-full px-3 py-2 bg-slate-800 border rounded text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
               serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
             }`}
+            disabled={mode === 'live' && servicesLoading}
           />
+          {/* Datalist for Live mode autocomplete */}
+          {mode === 'live' && discoveredServices.length > 0 && (
+            <datalist id="discovered-services">
+              {discoveredServices.map((s) => (
+                <option key={s.serviceId} value={s.serviceId}>
+                  {s.name} ({s.namespace})
+                </option>
+              ))}
+            </datalist>
+          )}
           {serviceIdHint && (
             <p className="mt-1 text-xs text-yellow-400">{serviceIdHint}</p>
           )}
-          {mode === 'live' && !serviceId.trim() && (
+          {mode === 'live' && servicesError && (
+            <p className="mt-1 text-xs text-red-400">{servicesError}</p>
+          )}
+          {mode === 'live' && !serviceId.trim() && !servicesLoading && discoveredServices.length === 0 && !servicesError && (
             <p className="mt-1 text-xs text-slate-500">
               Examples: {EXAMPLE_SERVICES.slice(0, 2).join(', ')}
             </p>

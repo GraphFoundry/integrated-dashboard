@@ -1,4 +1,16 @@
-import type { FailureResponse, ScaleResponse, FailureScenario, ScaleScenario, ServicesResponse } from '@/lib/types'
+import type {
+  FailureResponse,
+  ScaleResponse,
+  FailureScenario,
+  ScaleScenario,
+  ServicesResponse,
+  TelemetryMetricsRequest,
+  TelemetryMetricsResponse,
+  DecisionHistoryRequest,
+  DecisionHistoryResponse,
+  LogDecisionRequest,
+  LogDecisionResponse,
+} from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
 interface RequestOptions {
@@ -75,5 +87,32 @@ export async function simulateScale(
  */
 export async function healthCheck(signal?: AbortSignal): Promise<{ status: string }> {
   const { data } = await predictiveApi.get<{ status: string }>('/health', { signal })
+  return data
+}
+
+/**
+ * Get telemetry metrics for a service
+ * @param params - Query parameters (service, from, to, step)
+ */
+export async function getTelemetryMetrics(params: TelemetryMetricsRequest): Promise<TelemetryMetricsResponse> {
+  const { data } = await predictiveApi.get<TelemetryMetricsResponse>('/telemetry/service', { params })
+  return data
+}
+
+/**
+ * Get decision history logs
+ * @param params - Query parameters (limit, offset, type)
+ */
+export async function getDecisionHistory(params: DecisionHistoryRequest): Promise<DecisionHistoryResponse> {
+  const { data } = await predictiveApi.get<DecisionHistoryResponse>('/decisions/history', { params })
+  return data
+}
+
+/**
+ * Log a decision from Pipeline Playground
+ * @param decision - Decision log payload
+ */
+export async function logDecision(decision: LogDecisionRequest): Promise<LogDecisionResponse> {
+  const { data } = await predictiveApi.post<LogDecisionResponse>('/decisions/log', decision)
   return data
 }

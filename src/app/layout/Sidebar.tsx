@@ -1,8 +1,20 @@
 import { NavLink } from 'react-router'
 
-const navItems = [
-  { path: '/pipeline', label: 'Pipeline Playground', icon: '🔬' },
-  { path: '/alerts', label: 'Alerts', icon: '🚨' },
+const navSections = [
+  {
+    title: 'Playground',
+    items: [
+      { path: '/pipeline', label: 'Pipeline Playground', icon: '🔬' },
+    ],
+  },
+  {
+    title: 'Analytics',
+    items: [
+      { path: '/telemetry', label: 'Service Telemetry', icon: '📊' },
+      { path: '/decisions', label: 'Decision Logs', icon: '📋' },
+      { path: '/alerts', label: 'Alerts', icon: '🚨' },
+    ],
+  },
 ]
 
 export default function Sidebar() {
@@ -12,26 +24,33 @@ export default function Sidebar() {
         <h1 className="text-xl font-bold text-white">Analysis Dashboard</h1>
         <p className="text-xs text-slate-400 mt-1">Predictive Engine</p>
       </div>
-      <nav className="flex-1 p-4">
-        <ul className="space-y-2">
-          {navItems.map((item) => (
-            <li key={item.path}>
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-                  }`
-                }
-              >
-                <span className="text-xl">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-        </ul>
+      <nav className="flex-1 p-4 space-y-6">
+        {navSections.map((section) => (
+          <div key={section.title}>
+            <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 mb-2">
+              {section.title}
+            </h2>
+            <ul className="space-y-1">
+              {section.items.map((item) => (
+                <li key={item.path}>
+                  <NavLink
+                    to={item.path}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                        isActive
+                          ? 'bg-blue-600 text-white'
+                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      }`
+                    }
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    <span className="font-medium text-sm">{item.label}</span>
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
     </aside>
   )

@@ -202,3 +202,76 @@ export type ServicesResponse = {
   /** Error message if service discovery failed */
   error?: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Telemetry Types (InfluxDB 3 queries)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type TelemetryMetricsRequest = {
+  service: string
+  from: string
+  to: string
+  step?: number
+}
+
+export type TelemetryDatapoint = {
+  timestamp: string
+  service: string
+  namespace: string
+  requestRate: number
+  errorRate: number
+  p50: number
+  p95: number
+  p99: number
+  availability: number
+}
+
+export type TelemetryMetricsResponse = {
+  service: string
+  from: string
+  to: string
+  step: number
+  datapoints: TelemetryDatapoint[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Decision Log Types (SQLite decision history)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DecisionHistoryRequest = {
+  limit?: number
+  offset?: number
+  type?: string
+}
+
+export type DecisionRecord = {
+  id: number
+  timestamp: string
+  type: string
+  scenario: Record<string, unknown>
+  result: Record<string, unknown>
+  correlationId: string | null
+  createdAt: string
+}
+
+export type DecisionHistoryResponse = {
+  decisions: DecisionRecord[]
+  pagination: {
+    limit: number
+    offset: number
+    total: number
+  }
+}
+
+export type LogDecisionRequest = {
+  timestamp: string
+  type: string
+  scenario: Record<string, unknown>
+  result: Record<string, unknown>
+  correlationId?: string
+}
+
+export type LogDecisionResponse = {
+  id: number
+  timestamp: string
+}

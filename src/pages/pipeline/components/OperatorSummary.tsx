@@ -21,9 +21,7 @@ function getConfidenceVariant(confidence: string | undefined): BadgeVariant {
 function ConfidenceBadge({ confidence }: { readonly confidence?: string }) {
   if (!confidence) return null
   return (
-    <StatusBadge variant={getConfidenceVariant(confidence)}>
-      Confidence: {confidence}
-    </StatusBadge>
+    <StatusBadge variant={getConfidenceVariant(confidence)}>Confidence: {confidence}</StatusBadge>
   )
 }
 
@@ -117,8 +115,10 @@ function getDeltaVariant(deltaMs: number | undefined | null): CardVariant {
 }
 
 function FailureSummaryCards({ result }: { readonly result: FailureResponse }) {
-  const lostTrafficVariant = result.totalLostTrafficRps && result.totalLostTrafficRps > 0 ? 'warning' : 'default'
-  const unreachableVariant = result.unreachableServices && result.unreachableServices.length > 0 ? 'warning' : 'default'
+  const lostTrafficVariant =
+    result.totalLostTrafficRps && result.totalLostTrafficRps > 0 ? 'warning' : 'default'
+  const unreachableVariant =
+    result.unreachableServices && result.unreachableServices.length > 0 ? 'warning' : 'default'
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -127,14 +127,8 @@ function FailureSummaryCards({ result }: { readonly result: FailureResponse }) {
         value={formatRps(result.totalLostTrafficRps)}
         variant={lostTrafficVariant}
       />
-      <SummaryCard
-        title="Affected Callers"
-        value={result.affectedCallers?.length ?? 0}
-      />
-      <SummaryCard
-        title="Affected Downstream"
-        value={result.affectedDownstream?.length ?? 0}
-      />
+      <SummaryCard title="Affected Callers" value={result.affectedCallers?.length ?? 0} />
+      <SummaryCard title="Affected Downstream" value={result.affectedDownstream?.length ?? 0} />
       <SummaryCard
         title="Unreachable Services"
         value={result.unreachableServices?.length ?? 0}
@@ -152,10 +146,7 @@ function ScaleSummaryCards({ result }: { readonly result: ScaleResponse }) {
         value={result.scalingDirection ?? '—'}
         variant={getScalingVariant(result.scalingDirection)}
       />
-      <SummaryCard
-        title="Baseline Latency"
-        value={formatMs(result.latencyEstimate?.baselineMs)}
-      />
+      <SummaryCard title="Baseline Latency" value={formatMs(result.latencyEstimate?.baselineMs)} />
       <SummaryCard
         title="Projected Latency"
         value={formatMs(result.latencyEstimate?.projectedMs)}
@@ -239,7 +230,8 @@ export default function OperatorSummary({ result, lastRunMeta }: OperatorSummary
         <div className="flex flex-wrap items-center gap-3 pb-3 border-b border-slate-700">
           <SourceBadge source={lastRunMeta.source} />
           <span className="text-xs text-slate-500">
-            {formatRelativeTime(lastRunMeta.startedAt)} ({formatAbsoluteTime(lastRunMeta.startedAt)})
+            {formatRelativeTime(lastRunMeta.startedAt)} ({formatAbsoluteTime(lastRunMeta.startedAt)}
+            )
           </span>
           <span className="text-xs text-slate-500">•</span>
           <span className="text-xs text-slate-400">{getScenarioSummary(lastRunMeta)}</span>
@@ -260,7 +252,8 @@ export default function OperatorSummary({ result, lastRunMeta }: OperatorSummary
         <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
           {displayRequestId && (
             <span className="flex items-center gap-2">
-              Request ID: <code className="text-slate-400 bg-slate-800 px-1 rounded">{displayRequestId}</code>
+              Request ID:{' '}
+              <code className="text-slate-400 bg-slate-800 px-1 rounded">{displayRequestId}</code>
               <CopyButton text={displayRequestId} label="Copy" />
             </span>
           )}

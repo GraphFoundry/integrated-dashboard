@@ -55,9 +55,21 @@
   ],
   "totalLostTrafficRps": 150.5,
   "recommendations": [
-    { "type": "circuit-breaker", "priority": "high", "description": "Add circuit breaker to frontend → productcatalog" },
-    { "type": "caching", "priority": "medium", "description": "Implement cache layer for product data" },
-    { "type": "fallback", "priority": "low", "description": "Consider fallback mechanism for product listings" }
+    {
+      "type": "circuit-breaker",
+      "priority": "high",
+      "description": "Add circuit breaker to frontend → productcatalog"
+    },
+    {
+      "type": "caching",
+      "priority": "medium",
+      "description": "Implement cache layer for product data"
+    },
+    {
+      "type": "fallback",
+      "priority": "low",
+      "description": "Consider fallback mechanism for product listings"
+    }
   ],
   "pipelineTrace": {
     "options": {

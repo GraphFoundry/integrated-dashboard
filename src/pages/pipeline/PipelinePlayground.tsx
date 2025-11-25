@@ -352,7 +352,13 @@ export default function PipelinePlayground() {
 
   // Helper to extract error message from caught error (reduces complexity in handleRun)
   const getErrorMessage = (err: unknown): string | null => {
-    const error = err as { name?: string; code?: string; status?: number; response?: { status?: number }; message?: string }
+    const error = err as {
+      name?: string
+      code?: string
+      status?: number
+      response?: { status?: number }
+      message?: string
+    }
     const name = error?.name
     const code = error?.code
     const status = error?.status ?? error?.response?.status
@@ -406,7 +412,7 @@ export default function PipelinePlayground() {
           setResult(scaleMock as ScaleResponse)
         }
         // Set completedAt for mock mode
-        setLastRunMeta((prev) => prev ? { ...prev, completedAt: new Date().toISOString() } : null)
+        setLastRunMeta((prev) => (prev ? { ...prev, completedAt: new Date().toISOString() } : null))
       } else {
         let response: FailureResponse | ScaleResponse
         if (scenario.type === 'failure') {
@@ -431,7 +437,7 @@ export default function PipelinePlayground() {
         }
         setResult(response)
         // Set completedAt on success
-        setLastRunMeta((prev) => prev ? { ...prev, completedAt: new Date().toISOString() } : null)
+        setLastRunMeta((prev) => (prev ? { ...prev, completedAt: new Date().toISOString() } : null))
       }
     } catch (err: unknown) {
       const errorMessage = getErrorMessage(err)
@@ -464,41 +470,39 @@ export default function PipelinePlayground() {
         </div>
         <div className="flex items-center gap-3">
           {/* Health Badge - only show in Live mode */}
-          {mode === 'live' && healthStatus && (() => {
-            let healthVariant: 'success' | 'destructive' | 'secondary' = 'secondary'
-            let healthLabel = '◌ Live: Checking'
-            if (healthStatus === 'connected') {
-              healthVariant = 'success'
-              healthLabel = '● Live: Connected'
-            } else if (healthStatus === 'unreachable') {
-              healthVariant = 'destructive'
-              healthLabel = '○ Live: Unreachable'
-            }
-            return (
-              <StatusBadge variant={healthVariant}>
-                {healthLabel}
-              </StatusBadge>
-            )
-          })()}
+          {mode === 'live' &&
+            healthStatus &&
+            (() => {
+              let healthVariant: 'success' | 'destructive' | 'secondary' = 'secondary'
+              let healthLabel = '◌ Live: Checking'
+              if (healthStatus === 'connected') {
+                healthVariant = 'success'
+                healthLabel = '● Live: Connected'
+              } else if (healthStatus === 'unreachable') {
+                healthVariant = 'destructive'
+                healthLabel = '○ Live: Unreachable'
+              }
+              return <StatusBadge variant={healthVariant}>{healthLabel}</StatusBadge>
+            })()}
           <div className="flex items-center gap-2 bg-slate-900 rounded-lg p-1">
-          <button
-            type="button"
-            onClick={() => setMode('mock')}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-              mode === 'mock' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Mock
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('live')}
-            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-              mode === 'live' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Live
-          </button>
+            <button
+              type="button"
+              onClick={() => setMode('mock')}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                mode === 'mock' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Mock
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('live')}
+              className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+                mode === 'live' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Live
+            </button>
           </div>
         </div>
       </div>
@@ -612,21 +616,27 @@ export default function PipelinePlayground() {
             </div>
           )}
 
-          {!result && !loading && !error && mode === 'live' && (() => {
-            let statusMessage = 'Checking backend connection...'
-            if (healthStatus === 'connected') {
-              statusMessage = 'Backend is connected. Configure a scenario and click Run to fetch real predictions.'
-            } else if (healthStatus === 'unreachable') {
-              statusMessage = 'Backend is unreachable. Please ensure the Predictive Analysis Engine is running.'
-            }
-            return (
-              <div className="bg-slate-900 border border-blue-700/50 rounded-lg p-8 text-center">
-                <div className="text-4xl mb-4">🚀</div>
-                <h3 className="text-white font-semibold mb-2">Live Mode Ready</h3>
-                <p className="text-slate-400">{statusMessage}</p>
-              </div>
-            )
-          })()}
+          {!result &&
+            !loading &&
+            !error &&
+            mode === 'live' &&
+            (() => {
+              let statusMessage = 'Checking backend connection...'
+              if (healthStatus === 'connected') {
+                statusMessage =
+                  'Backend is connected. Configure a scenario and click Run to fetch real predictions.'
+              } else if (healthStatus === 'unreachable') {
+                statusMessage =
+                  'Backend is unreachable. Please ensure the Predictive Analysis Engine is running.'
+              }
+              return (
+                <div className="bg-slate-900 border border-blue-700/50 rounded-lg p-8 text-center">
+                  <div className="text-4xl mb-4">🚀</div>
+                  <h3 className="text-white font-semibold mb-2">Live Mode Ready</h3>
+                  <p className="text-slate-400">{statusMessage}</p>
+                </div>
+              )
+            })()}
 
           {/* Alerts Integration Slot */}
           <AlertsSlot />

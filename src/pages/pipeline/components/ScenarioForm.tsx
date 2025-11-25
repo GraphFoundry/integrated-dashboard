@@ -28,7 +28,13 @@ interface ScenarioFormProps {
   readonly onScenarioTypeChange: (type: ScenarioType) => void
 }
 
-export default function ScenarioForm({ onRun, loading, mode, scenarioType, onScenarioTypeChange }: ScenarioFormProps) {
+export default function ScenarioForm({
+  onRun,
+  loading,
+  mode,
+  scenarioType,
+  onScenarioTypeChange,
+}: ScenarioFormProps) {
   // Mock mode: prefill with a valid service; Live mode: empty for user input
   const [serviceId, setServiceId] = useState(mode === 'mock' ? 'default:productcatalog' : '')
   const [maxDepth, setMaxDepth] = useState(2)
@@ -154,7 +160,9 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Scenario Type */}
         <div>
-          <label htmlFor="scenarioType" className="block text-sm font-medium text-slate-300 mb-2">Scenario Type</label>
+          <label htmlFor="scenarioType" className="block text-sm font-medium text-slate-300 mb-2">
+            Scenario Type
+          </label>
           <select
             id="scenarioType"
             value={scenarioType}
@@ -178,7 +186,8 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
             )}
             {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
               <span className="ml-2 text-xs text-green-400">
-                {discoveredServices.length} service{discoveredServices.length === 1 ? '' : 's'} available
+                {discoveredServices.length} service{discoveredServices.length === 1 ? '' : 's'}{' '}
+                available
                 {servicesStale && <span className="text-yellow-400 ml-1">(stale)</span>}
               </span>
             )}
@@ -205,17 +214,19 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
               ))}
             </datalist>
           )}
-          {serviceIdHint && (
-            <p className="mt-1 text-xs text-yellow-400">{serviceIdHint}</p>
-          )}
+          {serviceIdHint && <p className="mt-1 text-xs text-yellow-400">{serviceIdHint}</p>}
           {mode === 'live' && servicesError && (
             <p className="mt-1 text-xs text-red-400">{servicesError}</p>
           )}
-          {mode === 'live' && !serviceId.trim() && !servicesLoading && discoveredServices.length === 0 && !servicesError && (
-            <p className="mt-1 text-xs text-slate-500">
-              Examples: {EXAMPLE_SERVICES.slice(0, 2).join(', ')}
-            </p>
-          )}
+          {mode === 'live' &&
+            !serviceId.trim() &&
+            !servicesLoading &&
+            discoveredServices.length === 0 &&
+            !servicesError && (
+              <p className="mt-1 text-xs text-slate-500">
+                Examples: {EXAMPLE_SERVICES.slice(0, 2).join(', ')}
+              </p>
+            )}
         </div>
 
         {/* Max Depth */}
@@ -244,7 +255,10 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
           <>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="currentPods" className="block text-sm font-medium text-slate-300 mb-2">
+                <label
+                  htmlFor="currentPods"
+                  className="block text-sm font-medium text-slate-300 mb-2"
+                >
                   Current Pods
                 </label>
                 <input
@@ -257,7 +271,9 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
                 />
               </div>
               <div>
-                <label htmlFor="newPods" className="block text-sm font-medium text-slate-300 mb-2">New Pods</label>
+                <label htmlFor="newPods" className="block text-sm font-medium text-slate-300 mb-2">
+                  New Pods
+                </label>
                 <input
                   id="newPods"
                   type="number"
@@ -270,7 +286,10 @@ export default function ScenarioForm({ onRun, loading, mode, scenarioType, onSce
             </div>
 
             <div>
-              <label htmlFor="latencyMetric" className="block text-sm font-medium text-slate-300 mb-2">
+              <label
+                htmlFor="latencyMetric"
+                className="block text-sm font-medium text-slate-300 mb-2"
+              >
                 Latency Metric
               </label>
               <select

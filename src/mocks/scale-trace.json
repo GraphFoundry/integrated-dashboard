@@ -53,9 +53,21 @@
     }
   ],
   "recommendations": [
-    { "type": "monitoring", "priority": "high", "description": "Monitor resource utilization after scaling" },
-    { "type": "autoscaling", "priority": "medium", "description": "Consider horizontal pod autoscaler for dynamic scaling" },
-    { "type": "configuration", "priority": "low", "description": "Verify database connection pool size is adequate" }
+    {
+      "type": "monitoring",
+      "priority": "high",
+      "description": "Monitor resource utilization after scaling"
+    },
+    {
+      "type": "autoscaling",
+      "priority": "medium",
+      "description": "Consider horizontal pod autoscaler for dynamic scaling"
+    },
+    {
+      "type": "configuration",
+      "priority": "low",
+      "description": "Verify database connection pool size is adequate"
+    }
   ],
   "pipelineTrace": {
     "options": {

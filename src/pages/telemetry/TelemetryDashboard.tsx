@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTelemetryMetrics } from '@/lib/api'
+import { getTelemetryMetrics, getServices } from '@/lib/api'
 
 interface TelemetryDatapoint {
   timestamp: string
@@ -22,11 +22,12 @@ interface TelemetryResponse {
 }
 
 export default function TelemetryDashboard() {
-  const [serviceName, setServiceName] = useState('productcatalogservice')
+  const [serviceName, setServiceName] = useState('')
   const [timeRange, setTimeRange] = useState('1h')
   const [data, setData] = useState<TelemetryResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [services, setServices] = useState<Array<{ name: string; namespace: string }>>([])
 
   const fetchData = async () => {
     if (!serviceName) {
@@ -57,11 +58,28 @@ export default function TelemetryDashboard() {
   }
 
   useEffect(() => {
+    const fetchServices = async () => {
+      try {
+        const response = await getServices()
+        setServices(response.services)
+      } catch (err) {
+        console.error('Failed to fetch services:', err)
+      }
+    }
+    fetchServices()
+  }, [])
+
+  useEffect(() => {
     fetchData()
   }, [serviceName, timeRange])
 
   const getTimeRangeMs = (range: string): number => {
     const units: Record<string, number> = {
+      '30s': 30 * 1000,
+      '1m': 60 * 1000,
+      '5m': 5 * 60 * 1000,
+      '15m': 15 * 60 * 1000,
+      '30m': 30 * 60 * 1000,
       '1h': 60 * 60 * 1000,
       '6h': 6 * 60 * 60 * 1000,
       '24h': 24 * 60 * 60 * 1000,
@@ -91,26 +109,32 @@ export default function TelemetryDashboard() {
       <div className="bg-slate-800 rounded-lg p-6 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Service Name
-            </label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium text-slate-300 mb-2">Service Name</label>
+            <select
               value={serviceName}
               onChange={(e) => setServiceName(e.target.value)}
               className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., productcatalogservice"
-            />
+            >
+              <option value="">All Services</option>
+              {services.map((service) => (
+                <option key={`${service.namespace}/${service.name}`} value={service.name}>
+                  {service.name} ({service.namespace})
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Time Range
-            </label>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Time Range</label>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+              <option value="30s">Last 30 seconds</option>
+              <option value="1m">Last 1 minute</option>
+              <option value="5m">Last 5 minutes</option>
+              <option value="15m">Last 15 minutes</option>
+              <option value="30m">Last 30 minutes</option>
               <option value="1h">Last 1 hour</option>
               <option value="6h">Last 6 hours</option>
               <option value="24h">Last 24 hours</option>
@@ -173,9 +197,7 @@ export default function TelemetryDashboard() {
                     <td className="px-4 py-3 text-sm text-slate-300">
                       {formatTimestamp(point.timestamp)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-white font-mono">
-                      {point.service}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-white font-mono">{point.service}</td>
                     <td className="px-4 py-3 text-sm text-slate-300 text-right font-mono">
                       {formatMetric(point.requestRate)}
                     </td>
@@ -185,8 +207,8 @@ export default function TelemetryDashboard() {
                           point.errorRate > 5
                             ? 'text-red-400'
                             : point.errorRate > 1
-                            ? 'text-yellow-400'
-                            : 'text-green-400'
+                              ? 'text-yellow-400'
+                              : 'text-green-400'
                         }
                       >
                         {formatMetric(point.errorRate)}
@@ -207,8 +229,8 @@ export default function TelemetryDashboard() {
                           point.availability >= 99
                             ? 'text-green-400'
                             : point.availability >= 95
-                            ? 'text-yellow-400'
-                            : 'text-red-400'
+                              ? 'text-yellow-400'
+                              : 'text-red-400'
                         }
                       >
                         {formatMetric(point.availability)}

@@ -35,11 +35,7 @@ export default function StatusBadge({
   const baseClasses = 'px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1'
   const variantClasses = VARIANT_CLASSES[variant]
 
-  return (
-    <span className={`${baseClasses} ${variantClasses} ${className}`.trim()}>
-      {children}
-    </span>
-  )
+  return <span className={`${baseClasses} ${variantClasses} ${className}`.trim()}>{children}</span>
 }
 
 // Re-export variant type for external use

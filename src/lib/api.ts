@@ -94,8 +94,12 @@ export async function healthCheck(signal?: AbortSignal): Promise<{ status: strin
  * Get telemetry metrics for a service
  * @param params - Query parameters (service, from, to, step)
  */
-export async function getTelemetryMetrics(params: TelemetryMetricsRequest): Promise<TelemetryMetricsResponse> {
-  const { data } = await predictiveApi.get<TelemetryMetricsResponse>('/telemetry/service', { params })
+export async function getTelemetryMetrics(
+  params: TelemetryMetricsRequest
+): Promise<TelemetryMetricsResponse> {
+  const { data } = await predictiveApi.get<TelemetryMetricsResponse>('/telemetry/service', {
+    params,
+  })
   return data
 }
 
@@ -103,8 +107,12 @@ export async function getTelemetryMetrics(params: TelemetryMetricsRequest): Prom
  * Get decision history logs
  * @param params - Query parameters (limit, offset, type)
  */
-export async function getDecisionHistory(params: DecisionHistoryRequest): Promise<DecisionHistoryResponse> {
-  const { data } = await predictiveApi.get<DecisionHistoryResponse>('/decisions/history', { params })
+export async function getDecisionHistory(
+  params: DecisionHistoryRequest
+): Promise<DecisionHistoryResponse> {
+  const { data } = await predictiveApi.get<DecisionHistoryResponse>('/decisions/history', {
+    params,
+  })
   return data
 }
 

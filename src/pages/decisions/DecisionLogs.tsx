@@ -69,11 +69,9 @@ export default function DecisionLogs() {
 
       {/* Filters */}
       <div className="bg-slate-800 rounded-lg p-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Filter by Type
-            </label>
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-300 mb-2">Filter by Type</label>
             <select
               value={typeFilter}
               onChange={(e) => {
@@ -88,15 +86,13 @@ export default function DecisionLogs() {
               <option value="risk">Risk</option>
             </select>
           </div>
-          <div className="flex items-end">
-            <button
-              onClick={fetchData}
-              disabled={loading}
-              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors"
-            >
-              {loading ? 'Loading...' : 'Refresh'}
-            </button>
-          </div>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors whitespace-nowrap"
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
         </div>
       </div>
 
@@ -134,9 +130,7 @@ export default function DecisionLogs() {
               <tbody className="divide-y divide-slate-700">
                 {data.decisions.map((decision) => (
                   <tr key={decision.id} className="hover:bg-slate-700/50">
-                    <td className="px-4 py-3 text-sm text-slate-300 font-mono">
-                      {decision.id}
-                    </td>
+                    <td className="px-4 py-3 text-sm text-slate-300 font-mono">{decision.id}</td>
                     <td className="px-4 py-3 text-sm text-slate-300">
                       {formatTimestamp(decision.timestamp)}
                     </td>
@@ -146,8 +140,8 @@ export default function DecisionLogs() {
                           decision.type === 'failure'
                             ? 'bg-red-900/30 text-red-300'
                             : decision.type === 'scaling'
-                            ? 'bg-blue-900/30 text-blue-300'
-                            : 'bg-yellow-900/30 text-yellow-300'
+                              ? 'bg-blue-900/30 text-blue-300'
+                              : 'bg-yellow-900/30 text-yellow-300'
                         }`}
                       >
                         {decision.type}
@@ -173,8 +167,9 @@ export default function DecisionLogs() {
           {/* Pagination */}
           <div className="px-6 py-4 border-t border-slate-700 flex items-center justify-between">
             <div className="text-sm text-slate-400">
-              Showing {page * pageSize + 1} - {Math.min((page + 1) * pageSize, data.pagination.total)} of{' '}
-              {data.pagination.total} decisions
+              Showing {page * pageSize + 1} -{' '}
+              {Math.min((page + 1) * pageSize, data.pagination.total)} of {data.pagination.total}{' '}
+              decisions
             </div>
             <div className="flex gap-2">
               <button
@@ -232,7 +227,9 @@ export default function DecisionLogs() {
                   </div>
                   <div className="flex">
                     <span className="text-slate-400 w-32">Timestamp:</span>
-                    <span className="text-white">{formatTimestamp(selectedDecision.timestamp)}</span>
+                    <span className="text-white">
+                      {formatTimestamp(selectedDecision.timestamp)}
+                    </span>
                   </div>
                   <div className="flex">
                     <span className="text-slate-400 w-32">Type:</span>
@@ -240,7 +237,9 @@ export default function DecisionLogs() {
                   </div>
                   <div className="flex">
                     <span className="text-slate-400 w-32">Correlation ID:</span>
-                    <span className="text-white font-mono">{selectedDecision.correlationId || 'N/A'}</span>
+                    <span className="text-white font-mono">
+                      {selectedDecision.correlationId || 'N/A'}
+                    </span>
                   </div>
                 </div>
               </div>

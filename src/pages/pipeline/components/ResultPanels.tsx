@@ -274,44 +274,46 @@ export default function ResultPanels({
       )}
 
       {/* Failure: Affected Callers Table */}
-      {!impactStop.show && failureResult?.affectedCallers && failureResult.affectedCallers.length > 0 && (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">
-            Affected Callers ({failureResult.affectedCallers.length})
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700">
-                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Service</th>
-                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Lost Traffic</th>
-                  <th className="text-left py-2 px-3 text-slate-400 font-medium">Error Rate</th>
-                </tr>
-              </thead>
-              <tbody>
-                {failureResult.affectedCallers.map((caller: FailureAffectedCaller, idx) => (
-                  <tr
-                    key={caller.serviceId ?? `caller-${idx}`}
-                    className="border-b border-slate-800 hover:bg-slate-800/50"
-                  >
-                    <td className="py-3 px-3 text-white font-mono">
-                      {caller.name ?? caller.serviceId ?? 'Unknown'}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="inline-block px-2 py-1 bg-red-900/30 text-red-400 text-xs rounded">
-                        {formatOptionalRps(caller.lostTrafficRps)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-slate-400 text-xs">
-                      {formatOptionalPercent(caller.edgeErrorRate)}
-                    </td>
+      {!impactStop.show &&
+        failureResult?.affectedCallers &&
+        failureResult.affectedCallers.length > 0 && (
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">
+              Affected Callers ({failureResult.affectedCallers.length})
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700">
+                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Service</th>
+                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Lost Traffic</th>
+                    <th className="text-left py-2 px-3 text-slate-400 font-medium">Error Rate</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {failureResult.affectedCallers.map((caller: FailureAffectedCaller, idx) => (
+                    <tr
+                      key={caller.serviceId ?? `caller-${idx}`}
+                      className="border-b border-slate-800 hover:bg-slate-800/50"
+                    >
+                      <td className="py-3 px-3 text-white font-mono">
+                        {caller.name ?? caller.serviceId ?? 'Unknown'}
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className="inline-block px-2 py-1 bg-red-900/30 text-red-400 text-xs rounded">
+                          {formatOptionalRps(caller.lostTrafficRps)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 text-slate-400 text-xs">
+                        {formatOptionalPercent(caller.edgeErrorRate)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Scale: Affected Callers Table (with latency deltas) */}
       {!impactStop.show && isScaleResult && scaleCallers.length > 0 && (
@@ -345,8 +347,12 @@ export default function ResultPanels({
                       {formatOptionalMs(caller.afterMs)}
                     </td>
                     <td className="py-3 px-3">
-                      {caller.deltaMs === undefined ? '—' : (
-                        <span className={`inline-block px-2 py-1 text-xs rounded ${getDeltaClasses(caller.deltaMs)}`}>
+                      {caller.deltaMs === undefined ? (
+                        '—'
+                      ) : (
+                        <span
+                          className={`inline-block px-2 py-1 text-xs rounded ${getDeltaClasses(caller.deltaMs)}`}
+                        >
                           {formatDelta(caller.deltaMs)}
                         </span>
                       )}
@@ -369,33 +375,33 @@ export default function ResultPanels({
       )}
 
       {/* Critical Paths (Failure) */}
-      {!pathsStop.show && failureResult?.criticalPathsToTarget && failureResult.criticalPathsToTarget.length > 0 && (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-white mb-4">
-            Critical Paths ({failureResult.criticalPathsToTarget.length})
-          </h2>
-          <div className="space-y-3">
-            {failureResult.criticalPathsToTarget.map((path: CriticalPath, pathIndex: number) => (
-              <div
-                key={path.id ?? `path-${pathIndex}`}
-                className="bg-slate-800 border border-slate-600 rounded p-4"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-slate-400">Path {pathIndex + 1}</span>
-                  {path.pathRps !== undefined && (
-                    <span className="text-xs text-slate-500">{path.pathRps.toFixed(1)} RPS</span>
+      {!pathsStop.show &&
+        failureResult?.criticalPathsToTarget &&
+        failureResult.criticalPathsToTarget.length > 0 && (
+          <div className="bg-slate-900 border border-slate-700 rounded-lg p-6">
+            <h2 className="text-xl font-semibold text-white mb-4">
+              Critical Paths ({failureResult.criticalPathsToTarget.length})
+            </h2>
+            <div className="space-y-3">
+              {failureResult.criticalPathsToTarget.map((path: CriticalPath, pathIndex: number) => (
+                <div
+                  key={path.id ?? `path-${pathIndex}`}
+                  className="bg-slate-800 border border-slate-600 rounded p-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-slate-400">Path {pathIndex + 1}</span>
+                    {path.pathRps !== undefined && (
+                      <span className="text-xs text-slate-500">{path.pathRps.toFixed(1)} RPS</span>
+                    )}
+                  </div>
+                  {path.path && (
+                    <div className="text-sm text-slate-300 font-mono">{path.path.join(' → ')}</div>
                   )}
                 </div>
-                {path.path && (
-                  <div className="text-sm text-slate-300 font-mono">
-                    {path.path.join(' → ')}
-                  </div>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Affected Paths (Scale) */}
       {!pathsStop.show && scaleResult?.affectedPaths && scaleResult.affectedPaths.length > 0 && (
@@ -417,10 +423,7 @@ export default function ResultPanels({
                 {scaleResult.affectedPaths.map((path: ScaleAffectedPath) => {
                   const pathKey = path.path?.join('-') ?? crypto.randomUUID()
                   return (
-                    <tr
-                      key={pathKey}
-                      className="border-b border-slate-800 hover:bg-slate-800/50"
-                    >
+                    <tr key={pathKey} className="border-b border-slate-800 hover:bg-slate-800/50">
                       <td className="py-3 px-3 text-white font-mono text-xs">
                         {path.path?.join(' → ') ?? 'Unknown Path'}
                       </td>
@@ -431,8 +434,12 @@ export default function ResultPanels({
                         {formatOptionalMs(path.afterMs)}
                       </td>
                       <td className="py-3 px-3">
-                        {path.deltaMs === undefined ? '—' : (
-                          <span className={`inline-block px-2 py-1 text-xs rounded ${getDeltaClasses(path.deltaMs)}`}>
+                        {path.deltaMs === undefined ? (
+                          '—'
+                        ) : (
+                          <span
+                            className={`inline-block px-2 py-1 text-xs rounded ${getDeltaClasses(path.deltaMs)}`}
+                          >
                             {formatDelta(path.deltaMs)}
                           </span>
                         )}
@@ -468,7 +475,9 @@ export default function ResultPanels({
                   <div className="flex-1">
                     <span className="text-sm">{rec.description ?? JSON.stringify(rec)}</span>
                     {rec.priority && (
-                      <span className={`ml-2 inline-block px-2 py-0.5 text-xs rounded ${getPriorityClasses(rec.priority)}`}>
+                      <span
+                        className={`ml-2 inline-block px-2 py-0.5 text-xs rounded ${getPriorityClasses(rec.priority)}`}
+                      >
                         {rec.priority}
                       </span>
                     )}

@@ -1,19 +1,18 @@
 import { NavLink } from 'react-router'
+import { Beaker, LineChart, FileText, Bell } from 'lucide-react'
 
 const navSections = [
   {
-    title: 'Playground',
+    title: 'Analytics',
     items: [
-      { path: '/pipeline', label: 'Pipeline Playground', icon: '🔬' },
+      { path: '/telemetry', label: 'Service Telemetry', icon: LineChart },
+      { path: '/decisions', label: 'Decision Logs', icon: FileText },
+      { path: '/alerts', label: 'Alerts', icon: Bell },
     ],
   },
   {
-    title: 'Analytics',
-    items: [
-      { path: '/telemetry', label: 'Service Telemetry', icon: '📊' },
-      { path: '/decisions', label: 'Decision Logs', icon: '📋' },
-      { path: '/alerts', label: 'Alerts', icon: '🚨' },
-    ],
+    title: 'Playground',
+    items: [{ path: '/pipeline', label: 'Pipeline Playground', icon: Beaker }],
   },
 ]
 
@@ -43,7 +42,7 @@ export default function Sidebar() {
                       }`
                     }
                   >
-                    <span className="text-lg">{item.icon}</span>
+                    <item.icon className="w-5 h-5" />
                     <span className="font-medium text-sm">{item.label}</span>
                   </NavLink>
                 </li>

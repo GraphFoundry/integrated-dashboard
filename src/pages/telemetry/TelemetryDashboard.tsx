@@ -30,11 +30,6 @@ export default function TelemetryDashboard() {
   const [services, setServices] = useState<Array<{ name: string; namespace: string }>>([])
 
   const fetchData = async () => {
-    if (!serviceName) {
-      setError('Please enter a service name')
-      return
-    }
-
     setLoading(true)
     setError(null)
 
@@ -106,9 +101,9 @@ export default function TelemetryDashboard() {
       </div>
 
       {/* Controls */}
-      <div className="bg-slate-800 rounded-lg p-6 space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
+      <div className="bg-slate-800 rounded-lg p-6">
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
             <label className="block text-sm font-medium text-slate-300 mb-2">Service Name</label>
             <select
               value={serviceName}
@@ -123,7 +118,7 @@ export default function TelemetryDashboard() {
               ))}
             </select>
           </div>
-          <div>
+          <div className="flex-1">
             <label className="block text-sm font-medium text-slate-300 mb-2">Time Range</label>
             <select
               value={timeRange}
@@ -141,14 +136,14 @@ export default function TelemetryDashboard() {
               <option value="7d">Last 7 days</option>
             </select>
           </div>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors whitespace-nowrap h-[42px]"
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
         </div>
-        <button
-          onClick={fetchData}
-          disabled={loading}
-          className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors"
-        >
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
       </div>
 
       {/* Error */}

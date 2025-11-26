@@ -12,7 +12,7 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/pipeline" replace />,
+        element: <Navigate to="/telemetry" replace />,
       },
       {
         path: 'pipeline',

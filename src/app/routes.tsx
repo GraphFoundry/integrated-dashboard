@@ -1,8 +1,9 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import DashboardLayout from '@/app/layout/DashboardLayout'
-import PipelinePlayground from '@/pages/pipeline/PipelinePlayground'
-import TelemetryDashboard from '@/pages/telemetry/TelemetryDashboard'
-import DecisionLogs from '@/pages/decisions/DecisionLogs'
+import Overview from '@/pages/overview/Overview'
+import Metrics from '@/pages/metrics/Metrics'
+import Simulations from '@/pages/simulations/Simulations'
+import History from '@/pages/history/History'
 import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
 
 export const router = createBrowserRouter([
@@ -12,19 +13,36 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Navigate to="/telemetry" replace />,
+        element: <Navigate to="/overview" replace />,
+      },
+      {
+        path: 'overview',
+        element: <Overview />,
+      },
+      {
+        path: 'metrics',
+        element: <Metrics />,
+      },
+      {
+        path: 'simulations',
+        element: <Simulations />,
+      },
+      {
+        path: 'history',
+        element: <History />,
+      },
+      // Legacy redirects
+      {
+        path: 'telemetry',
+        element: <Navigate to="/metrics" replace />,
       },
       {
         path: 'pipeline',
-        element: <PipelinePlayground />,
-      },
-      {
-        path: 'telemetry',
-        element: <TelemetryDashboard />,
+        element: <Navigate to="/simulations" replace />,
       },
       {
         path: 'decisions',
-        element: <DecisionLogs />,
+        element: <Navigate to="/history" replace />,
       },
       {
         path: 'alerts',

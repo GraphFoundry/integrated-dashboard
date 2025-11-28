@@ -4,6 +4,7 @@ import Overview from '@/pages/overview/Overview'
 import Metrics from '@/pages/metrics/Metrics'
 import Simulations from '@/pages/simulations/Simulations'
 import History from '@/pages/history/History'
+import DecisionDetail from '@/pages/history/DecisionDetail'
 import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
 
 export const router = createBrowserRouter([
@@ -30,6 +31,10 @@ export const router = createBrowserRouter([
       {
         path: 'history',
         element: <History />,
+      },
+      {
+        path: 'history/:id',
+        element: <DecisionDetail />,
       },
       // Legacy redirects
       {

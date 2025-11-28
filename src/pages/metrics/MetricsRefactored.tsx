@@ -4,6 +4,8 @@ import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
+import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { calculateServiceRisk } from '@/lib/risk'
@@ -78,7 +80,7 @@ export default function Metrics() {
     ? (() => {
         const latest = data.datapoints.at(-1)
         if (!latest) return null
-        
+
         return {
           requestRate: latest.requestRate,
           errorRate: latest.errorRate,
@@ -110,16 +112,16 @@ export default function Metrics() {
 
   return (
     <div className="p-8 space-y-6">
-      <PageHeader
-        title="Metrics"
-        description="Service telemetry and performance indicators"
-      />
+      <PageHeader title="Metrics" description="Service telemetry and performance indicators" />
 
       {/* Controls */}
       <Section>
         <div className="flex gap-4 items-end">
           <div className="flex-1">
-            <label htmlFor="service-select" className="block text-sm font-medium text-slate-300 mb-2">
+            <label
+              htmlFor="service-select"
+              className="block text-sm font-medium text-slate-300 mb-2"
+            >
               Service Name
             </label>
             <select
@@ -137,7 +139,10 @@ export default function Metrics() {
             </select>
           </div>
           <div className="flex-1">
-            <label htmlFor="time-range-select" className="block text-sm font-medium text-slate-300 mb-2">
+            <label
+              htmlFor="time-range-select"
+              className="block text-sm font-medium text-slate-300 mb-2"
+            >
               Time Range
             </label>
             <select
@@ -184,40 +189,96 @@ export default function Metrics() {
           <KPIStatCard
             label="Error Rate"
             value={formatPercent(summaryStats.errorRate)}
-            variant={
-              (() => {
-                const rate = summaryStats.errorRate
-                if (rate > 5) return 'danger'
-                if (rate > 1) return 'warning'
-                return 'success'
-              })()
-            }
+            variant={(() => {
+              const rate = summaryStats.errorRate
+              if (rate > 5) return 'danger'
+              if (rate > 1) return 'warning'
+              return 'success'
+            })()}
           />
           <KPIStatCard
             label="P95 Latency"
             value={formatMs(summaryStats.p95)}
-            variant={
-              (() => {
-                const p95 = summaryStats.p95
-                if (p95 > 1000) return 'danger'
-                if (p95 > 500) return 'warning'
-                return 'success'
-              })()
-            }
+            variant={(() => {
+              const p95 = summaryStats.p95
+              if (p95 > 1000) return 'danger'
+              if (p95 > 500) return 'warning'
+              return 'success'
+            })()}
           />
           <KPIStatCard
             label="Availability"
             value={formatPercent(summaryStats.availability)}
-            variant={
-              (() => {
-                const avail = summaryStats.availability
-                if (avail >= 99) return 'success'
-                if (avail >= 95) return 'warning'
-                return 'danger'
-              })()
-            }
+            variant={(() => {
+              const avail = summaryStats.availability
+              if (avail >= 99) return 'success'
+              if (avail >= 95) return 'warning'
+              return 'danger'
+            })()}
           />
         </div>
+      )}
+
+      {/* Trends Charts */}
+      {data && data.datapoints.length > 0 && (
+        <Section title="Trends" description="Time-series metrics visualization">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Request Rate Chart */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-3">Request Rate</h3>
+              <TimeSeriesLineChart
+                data={data.datapoints.map((d) => ({
+                  timestamp: d.timestamp,
+                  value: d.requestRate,
+                }))}
+                strokeColor="#3b82f6"
+                fillColor="#3b82f6"
+                valueFormatter={(v) => formatRps(v)}
+              />
+            </div>
+
+            {/* Error Rate Chart */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-3">Error Rate</h3>
+              <TimeSeriesLineChart
+                data={data.datapoints.map((d) => ({
+                  timestamp: d.timestamp,
+                  value: d.errorRate,
+                }))}
+                strokeColor="#ef4444"
+                fillColor="#ef4444"
+                valueFormatter={(v) => formatPercent(v)}
+              />
+            </div>
+
+            {/* Latency Chart (Multi-line) */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-3">Latency (P50/P95/P99)</h3>
+              <LatencyMultiLineChart
+                data={data.datapoints.map((d) => ({
+                  timestamp: d.timestamp,
+                  p50: d.p50,
+                  p95: d.p95,
+                  p99: d.p99,
+                }))}
+              />
+            </div>
+
+            {/* Availability Chart */}
+            <div>
+              <h3 className="text-sm font-medium text-slate-300 mb-3">Availability</h3>
+              <TimeSeriesLineChart
+                data={data.datapoints.map((d) => ({
+                  timestamp: d.timestamp,
+                  value: d.availability,
+                }))}
+                strokeColor="#10b981"
+                fillColor="#10b981"
+                valueFormatter={(v) => formatPercent(v)}
+              />
+            </div>
+          </div>
+        </Section>
       )}
 
       {/* Top Offenders Snapshot */}
@@ -290,9 +351,7 @@ export default function Metrics() {
                     <td className="px-4 py-3 text-sm">
                       <button
                         onClick={() =>
-                          navigate(
-                            `/simulations?service=${point.namespace}:${point.service}`
-                          )
+                          navigate(`/simulations?service=${point.namespace}:${point.service}`)
                         }
                         className="text-blue-400 hover:text-blue-300 font-medium"
                       >
@@ -309,10 +368,7 @@ export default function Metrics() {
 
       {/* Empty State */}
       {!loading && (!data || data.datapoints.length === 0) && (
-        <EmptyState
-          icon="📊"
-          message="No telemetry data available for the selected time range"
-        />
+        <EmptyState icon="📊" message="No telemetry data available for the selected time range" />
       )}
 
       {loading && (

@@ -41,9 +41,7 @@ export default function KPIStatCard({
   const TrendIcon = trend ? trendIcons[trend] : null
 
   return (
-    <div
-      className={`border rounded-lg p-4 ${variantClasses[variant]} ${className}`}
-    >
+    <div className={`border rounded-lg p-4 ${variantClasses[variant]} ${className}`}>
       <div className="text-sm text-slate-400 mb-1">{label}</div>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-white">{value}</div>

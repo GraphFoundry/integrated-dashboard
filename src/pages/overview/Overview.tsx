@@ -59,15 +59,13 @@ export default function Overview() {
         services.forEach((service, idx) => {
           const telemetry = telemetryResults[idx]
           if (!telemetry || telemetry.datapoints.length === 0) {
-            risks.push(
-              calculateServiceRisk(service.name, service.namespace, undefined)
-            )
+            risks.push(calculateServiceRisk(service.name, service.namespace, undefined))
             return
           }
 
           const latest = telemetry.datapoints.at(-1)
           if (!latest) return
-          
+
           totalRequestRate += latest.requestRate
           totalErrorRate += latest.errorRate
           totalP95 += latest.p95
@@ -149,86 +147,74 @@ export default function Overview() {
         <KPIStatCard
           label="Avg Error Rate"
           value={formatPercent(kpiData?.avgErrorRate ?? 0)}
-          variant={
-            (() => {
-              const rate = kpiData?.avgErrorRate ?? 0
-              if (rate > 5) return 'danger'
-              if (rate > 1) return 'warning'
-              return 'success'
-            })()
-          }
+          variant={(() => {
+            const rate = kpiData?.avgErrorRate ?? 0
+            if (rate > 5) return 'danger'
+            if (rate > 1) return 'warning'
+            return 'success'
+          })()}
         />
         <KPIStatCard
           label="Avg P95 Latency"
           value={`${(kpiData?.avgP95 ?? 0).toFixed(0)}ms`}
-          variant={
-            (() => {
-              const p95 = kpiData?.avgP95 ?? 0
-              if (p95 > 1000) return 'danger'
-              if (p95 > 500) return 'warning'
-              return 'success'
-            })()
-          }
+          variant={(() => {
+            const p95 = kpiData?.avgP95 ?? 0
+            if (p95 > 1000) return 'danger'
+            if (p95 > 500) return 'warning'
+            return 'success'
+          })()}
         />
         <KPIStatCard
           label="Avg Availability"
           value={formatPercent(kpiData?.avgAvailability ?? 0)}
-          variant={
-            (() => {
-              const avail = kpiData?.avgAvailability ?? 0
-              if (avail >= 99) return 'success'
-              if (avail >= 95) return 'warning'
-              return 'danger'
-            })()
-          }
+          variant={(() => {
+            const avail = kpiData?.avgAvailability ?? 0
+            if (avail >= 99) return 'success'
+            if (avail >= 95) return 'warning'
+            return 'danger'
+          })()}
         />
       </div>
 
       {/* Top Risks */}
       <Section title="Top Risks" description="Services ranked by risk level">
         {topRisks.length === 0 ? (
-          <EmptyState
-            icon="✅"
-            message="No services at risk. All systems stable."
-          />
+          <EmptyState icon="✅" message="No services at risk. All systems stable." />
         ) : (
           <div className="space-y-3">
-            {topRisks.filter((r) => r.riskLevel !== 'low').map((risk) => (
-              <div
-                key={`${risk.namespace}:${risk.service}`}
-                className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium text-white">{risk.service}</span>
-                    <span className="text-xs text-slate-500">
-                      {risk.namespace}
-                    </span>
+            {topRisks
+              .filter((r) => r.riskLevel !== 'low')
+              .map((risk) => (
+                <div
+                  key={`${risk.namespace}:${risk.service}`}
+                  className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium text-white">{risk.service}</span>
+                      <span className="text-xs text-slate-500">{risk.namespace}</span>
+                    </div>
+                    <p className="text-sm text-slate-400 mt-1">{risk.reason}</p>
                   </div>
-                  <p className="text-sm text-slate-400 mt-1">{risk.reason}</p>
+                  <div className="flex items-center gap-3">
+                    <RiskBadge level={risk.riskLevel} />
+                    <button
+                      onClick={() =>
+                        navigate(`/simulations?service=${risk.namespace}:${risk.service}`)
+                      }
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                    >
+                      Run Prediction
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <RiskBadge level={risk.riskLevel} />
-                  <button
-                    onClick={() =>
-                      navigate(`/simulations?service=${risk.namespace}:${risk.service}`)
-                    }
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
-                  >
-                    Run Prediction
-                  </button>
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </Section>
 
       {/* Recommended Actions */}
-      <Section
-        title="Recommended Actions"
-        description="Based on latest simulation results"
-      >
+      <Section title="Recommended Actions" description="Based on latest simulation results">
         <EmptyState
           icon="🔮"
           message="Run a simulation to get recommendations"

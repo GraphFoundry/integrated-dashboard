@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router'
 import DashboardLayout from '@/app/layout/DashboardLayout'
 import Overview from '@/pages/overview/Overview'
+import ServiceHealthDetails from '@/pages/services/ServiceHealthDetails'
 import Metrics from '@/pages/metrics/Metrics'
 import Simulations from '@/pages/simulations/Simulations'
 import History from '@/pages/history/History'
@@ -19,6 +20,10 @@ export const router = createBrowserRouter([
       {
         path: 'overview',
         element: <Overview />,
+      },
+      {
+        path: 'services/:serviceId', // Accepts "namespace:serviceName"
+        element: <ServiceHealthDetails />,
       },
       {
         path: 'metrics',

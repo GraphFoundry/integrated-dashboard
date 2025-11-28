@@ -10,6 +10,7 @@ import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { calculateServiceRisk } from '@/lib/risk'
 import type { TelemetryDatapoint, TelemetryMetricsResponse } from '@/lib/types'
+import { getGlossaryTerm } from '@/lib/glossary'
 
 export default function Metrics() {
   const navigate = useNavigate()
@@ -78,36 +79,36 @@ export default function Metrics() {
   // Calculate summary stats from current datapoints
   const summaryStats = data?.datapoints.length
     ? (() => {
-        const latest = data.datapoints.at(-1)
-        if (!latest) return null
+      const latest = data.datapoints.at(-1)
+      if (!latest) return null
 
-        return {
-          requestRate: latest.requestRate,
-          errorRate: latest.errorRate,
-          p95: latest.p95,
-          availability: latest.availability,
-        }
-      })()
+      return {
+        requestRate: latest.requestRate,
+        errorRate: latest.errorRate,
+        p95: latest.p95,
+        availability: latest.availability,
+      }
+    })()
     : null
 
   // Group datapoints by service for "Top Offenders" snapshot
   const topOffenders = data?.datapoints.length
     ? (() => {
-        const byService = new Map<string, TelemetryDatapoint>()
-        data.datapoints.forEach((point) => {
-          const key = `${point.namespace}:${point.service}`
-          if (!byService.has(key)) {
-            byService.set(key, point)
-          }
-        })
-        return Array.from(byService.values())
-          .map((point) => ({
-            ...point,
-            risk: calculateServiceRisk(point.service, point.namespace, point),
-          }))
-          .sort((a, b) => b.errorRate - a.errorRate)
-          .slice(0, 10)
-      })()
+      const byService = new Map<string, TelemetryDatapoint>()
+      data.datapoints.forEach((point) => {
+        const key = `${point.namespace}:${point.service}`
+        if (!byService.has(key)) {
+          byService.set(key, point)
+        }
+      })
+      return Array.from(byService.values())
+        .map((point) => ({
+          ...point,
+          risk: calculateServiceRisk(point.service, point.namespace, point),
+        }))
+        .sort((a, b) => b.errorRate - a.errorRate)
+        .slice(0, 10)
+    })()
     : []
 
   return (
@@ -182,12 +183,14 @@ export default function Metrics() {
       {summaryStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPIStatCard
-            label="Request Rate"
+            label={getGlossaryTerm('requestRate').label}
+            tooltip={getGlossaryTerm('requestRate').tooltip}
             value={formatRps(summaryStats.requestRate)}
             variant="default"
           />
           <KPIStatCard
-            label="Error Rate"
+            label={getGlossaryTerm('errorRate').label}
+            tooltip={getGlossaryTerm('errorRate').tooltip}
             value={formatPercent(summaryStats.errorRate)}
             variant={(() => {
               const rate = summaryStats.errorRate
@@ -197,7 +200,8 @@ export default function Metrics() {
             })()}
           />
           <KPIStatCard
-            label="P95 Latency"
+            label={getGlossaryTerm('p95').label}
+            tooltip={getGlossaryTerm('p95').tooltip}
             value={formatMs(summaryStats.p95)}
             variant={(() => {
               const p95 = summaryStats.p95
@@ -207,7 +211,8 @@ export default function Metrics() {
             })()}
           />
           <KPIStatCard
-            label="Availability"
+            label={getGlossaryTerm('availability').label}
+            tooltip={getGlossaryTerm('availability').tooltip}
             value={formatPercent(summaryStats.availability)}
             variant={(() => {
               const avail = summaryStats.availability
@@ -294,17 +299,29 @@ export default function Metrics() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase">
                     Service
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase">
-                    Req/s
+                  <th
+                    className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase cursor-help"
+                    title={getGlossaryTerm('requestRate').tooltip}
+                  >
+                    Traffic
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase">
-                    Error %
+                  <th
+                    className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase cursor-help"
+                    title={getGlossaryTerm('errorRate').tooltip}
+                  >
+                    Failed %
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase">
-                    P95
+                  <th
+                    className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase cursor-help"
+                    title={getGlossaryTerm('p95').tooltip}
+                  >
+                    Slow (P95)
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase">
-                    Availability
+                  <th
+                    className="px-4 py-3 text-right text-xs font-semibold text-slate-300 uppercase cursor-help"
+                    title={getGlossaryTerm('availability').tooltip}
+                  >
+                    Uptime
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-300 uppercase">
                     Actions
@@ -351,11 +368,11 @@ export default function Metrics() {
                     <td className="px-4 py-3 text-sm">
                       <button
                         onClick={() =>
-                          navigate(`/simulations?service=${point.namespace}:${point.service}`)
+                          navigate(`/services/${point.namespace}:${point.service}`)
                         }
                         className="text-blue-400 hover:text-blue-300 font-medium"
                       >
-                        Run Prediction
+                        View Details
                       </button>
                     </td>
                   </tr>

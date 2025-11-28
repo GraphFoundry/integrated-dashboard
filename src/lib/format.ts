@@ -68,3 +68,19 @@ export function formatCount(count: number | null | undefined): string {
   if (count < 1000000) return `${(count / 1000).toFixed(1)}K`
   return `${(count / 1000000).toFixed(1)}M`
 }
+
+/**
+ * Get readable label for risk level
+ */
+export function formatRiskLevel(level: string): string {
+  switch (level.toLowerCase()) {
+    case 'high':
+      return 'Critical'
+    case 'medium':
+      return 'Warning'
+    case 'low':
+      return 'Healthy'
+    default:
+      return 'Unknown'
+  }
+}

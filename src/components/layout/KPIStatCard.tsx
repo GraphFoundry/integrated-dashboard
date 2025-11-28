@@ -9,6 +9,7 @@ interface KPIStatCardProps {
   trendLabel?: string
   variant?: 'default' | 'success' | 'warning' | 'danger'
   className?: string
+  tooltip?: string
 }
 
 const variantClasses = {
@@ -37,12 +38,23 @@ export default function KPIStatCard({
   trendLabel,
   variant = 'default',
   className = '',
+  tooltip,
 }: Readonly<KPIStatCardProps>) {
   const TrendIcon = trend ? trendIcons[trend] : null
 
   return (
     <div className={`border rounded-lg p-4 ${variantClasses[variant]} ${className}`}>
-      <div className="text-sm text-slate-400 mb-1">{label}</div>
+      <div className="flex items-center gap-2 mb-1">
+        <div className="text-sm text-slate-400">{label}</div>
+        {tooltip && (
+          <div className="group relative">
+            <span className="cursor-help text-slate-500 text-xs">ⓘ</span>
+            <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-slate-900 border border-slate-700 rounded shadow-lg text-xs text-slate-300 z-20">
+              {tooltip}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-white">{value}</div>
         {trend && TrendIcon && (

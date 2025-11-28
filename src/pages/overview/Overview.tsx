@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
-import EmptyState from '@/components/layout/EmptyState'
-import RiskBadge from '@/components/layout/RiskBadge'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { calculateServiceRisk, sortByRisk, type ServiceRisk } from '@/lib/risk'
 import { formatRps, formatPercent } from '@/lib/format'
+import TopRisksNetwork from '@/pages/overview/TopRisksNetwork'
+import RiskDistributionPie from '@/pages/overview/RiskBreakdownPie'
+import { getGlossaryTerm } from '@/lib/glossary'
 
 export default function Overview() {
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [kpiData, setKpiData] = useState<{
@@ -21,6 +20,7 @@ export default function Overview() {
     avgAvailability: number
   } | null>(null)
   const [topRisks, setTopRisks] = useState<ServiceRisk[]>([])
+  const [graphEdges, setGraphEdges] = useState<{ source: string; target: string }[]>([])
 
   useEffect(() => {
     const fetchOverviewData = async () => {
@@ -31,6 +31,7 @@ export default function Overview() {
         // Fetch services
         const servicesResponse = await getServices()
         const services = servicesResponse.services
+        setGraphEdges(servicesResponse.edges || [])
 
         // Fetch latest telemetry for all services (last 5 minutes)
         const now = new Date()
@@ -140,12 +141,14 @@ export default function Overview() {
           variant="default"
         />
         <KPIStatCard
-          label="Total Req/s"
+          label={getGlossaryTerm('requestRate').label}
+          tooltip={getGlossaryTerm('requestRate').tooltip}
           value={formatRps(kpiData?.avgRequestRate ?? 0)}
           variant="default"
         />
         <KPIStatCard
-          label="Avg Error Rate"
+          label={getGlossaryTerm('errorRate').label}
+          tooltip={getGlossaryTerm('errorRate').tooltip}
           value={formatPercent(kpiData?.avgErrorRate ?? 0)}
           variant={(() => {
             const rate = kpiData?.avgErrorRate ?? 0
@@ -155,7 +158,8 @@ export default function Overview() {
           })()}
         />
         <KPIStatCard
-          label="Avg P95 Latency"
+          label={getGlossaryTerm('p95').label}
+          tooltip={getGlossaryTerm('p95').tooltip}
           value={`${(kpiData?.avgP95 ?? 0).toFixed(0)}ms`}
           variant={(() => {
             const p95 = kpiData?.avgP95 ?? 0
@@ -165,7 +169,8 @@ export default function Overview() {
           })()}
         />
         <KPIStatCard
-          label="Avg Availability"
+          label={getGlossaryTerm('availability').label}
+          tooltip={getGlossaryTerm('availability').tooltip}
           value={formatPercent(kpiData?.avgAvailability ?? 0)}
           variant={(() => {
             const avail = kpiData?.avgAvailability ?? 0
@@ -176,58 +181,18 @@ export default function Overview() {
         />
       </div>
 
-      {/* Top Risks */}
-      <Section title="Top Risks" description="Services ranked by risk level">
-        {topRisks.length === 0 ? (
-          <EmptyState icon="✅" message="No services at risk. All systems stable." />
-        ) : (
-          <div className="space-y-3">
-            {topRisks
-              .filter((r) => r.riskLevel !== 'low')
-              .map((risk) => (
-                <div
-                  key={`${risk.namespace}:${risk.service}`}
-                  className="flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium text-white">{risk.service}</span>
-                      <span className="text-xs text-slate-500">{risk.namespace}</span>
-                    </div>
-                    <p className="text-sm text-slate-400 mt-1">{risk.reason}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <RiskBadge level={risk.riskLevel} />
-                    <button
-                      onClick={() =>
-                        navigate(`/simulations?service=${risk.namespace}:${risk.service}`)
-                      }
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
-                    >
-                      Run Prediction
-                    </button>
-                  </div>
-                </div>
-              ))}
-          </div>
-        )}
-      </Section>
+      {/* Top Risks & Distribution */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <TopRisksNetwork risks={topRisks} edges={graphEdges} />
+        </div>
 
-      {/* Recommended Actions */}
-      <Section title="Recommended Actions" description="Based on latest simulation results">
-        <EmptyState
-          icon="🔮"
-          message="Run a simulation to get recommendations"
-          action={
-            <button
-              onClick={() => navigate('/simulations')}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Go to Simulations
-            </button>
-          }
-        />
-      </Section>
+        <div className="lg:col-span-1">
+          <Section title="Risk Distribution" description="Services by risk level">
+            <RiskDistributionPie risks={topRisks} />
+          </Section>
+        </div>
+      </div>
     </div>
   )
 }

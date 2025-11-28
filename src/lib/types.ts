@@ -201,6 +201,8 @@ export type ServicesResponse = {
   windowMinutes: number
   /** Error message if service discovery failed */
   error?: string
+  /** Dependency edges for the graph */
+  edges?: { source: string; target: string }[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import { getDecisionHistory } from '@/lib/api'
 import { formatDate, formatRps, formatMs } from '@/lib/format'
-import type { DecisionRecord, Recommendation } from '@/lib/types'
+import type { DecisionRecord, Recommendation, PipelineTrace } from '@/lib/types'
 
 const getScenarioSummary = (item: DecisionRecord): string => {
   const { type, scenario, result } = item
@@ -103,6 +103,7 @@ export default function DecisionDetail() {
   const affectedCallers = (decision.result.affectedCallers as unknown[]) ?? []
   const affectedDownstream = (decision.result.affectedDownstream as unknown[]) ?? []
   const latencyEstimate = decision.result.latencyEstimate as Record<string, unknown> | undefined
+  const pipelineTrace = decision.result.pipelineTrace as PipelineTrace | undefined
 
   return (
     <div className="p-8 space-y-6">
@@ -129,43 +130,75 @@ export default function DecisionDetail() {
         </div>
       </Section>
 
-      {/* Scenario Details */}
-      <Section title="Scenario Configuration">
+      {/* Configuration Audit (Inputs) */}
+      <Section title="Configuration Audit" description="System state inputs used for this simulation">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-slate-900 rounded-lg">
-            <div className="text-xs text-slate-500 uppercase mb-1">Type</div>
+          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
+            <div className="text-xs text-slate-500 uppercase mb-1">Scenario Type</div>
             <div className="text-white font-medium capitalize">{decision.type}</div>
           </div>
-          <div className="p-4 bg-slate-900 rounded-lg">
+          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
             <div className="text-xs text-slate-500 uppercase mb-1">Target Service</div>
             <div className="text-white font-medium">{decision.scenario.serviceId as string}</div>
           </div>
           {(decision.type === 'scale' || decision.type === 'scaling') && (
             <>
-              <div className="p-4 bg-slate-900 rounded-lg">
+              <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
                 <div className="text-xs text-slate-500 uppercase mb-1">Current Pods</div>
                 <div className="text-white font-medium">
                   {decision.scenario.currentPods as number}
                 </div>
               </div>
-              <div className="p-4 bg-slate-900 rounded-lg">
+              <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
                 <div className="text-xs text-slate-500 uppercase mb-1">Target Pods</div>
                 <div className="text-white font-medium">{decision.scenario.newPods as number}</div>
               </div>
             </>
           )}
-          <div className="p-4 bg-slate-900 rounded-lg">
-            <div className="text-xs text-slate-500 uppercase mb-1">Max Depth</div>
+          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
+            <div className="text-xs text-slate-500 uppercase mb-1">Simulation Depth</div>
             <div className="text-white font-medium">
-              {(decision.scenario.maxDepth as number) ?? 'N/A'}
+              {(decision.scenario.maxDepth as number) ?? 'N/A'} hops
             </div>
           </div>
         </div>
       </Section>
 
+      {/* Evidence Chain (Pipeline Trace) */}
+      {pipelineTrace && (
+        <Section title="Evidence Chain" description="Steps executed to reach this conclusion">
+          <div className="space-y-4">
+            {pipelineTrace.stages.map((stage, idx) => (
+              <div key={idx} className="relative pl-6 pb-4 border-l border-slate-700 last:pb-0 last:border-0">
+                <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-slate-900" />
+                <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="text-sm font-medium text-white">{stage.name}</span>
+                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {formatMs(stage.ms)}
+                    </span>
+                  </div>
+                  {stage.warnings && stage.warnings.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {stage.warnings.map((w, wIdx) => (
+                        <div key={wIdx} className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-900/10 p-1.5 rounded">
+                          <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
+                          <span>{w}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
       {/* Affected Services */}
       {decision.type === 'failure' && (
-        <Section title="Affected Services">
+        <Section title="Impact Analysis">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Upstream Callers */}
             <div>
@@ -173,7 +206,10 @@ export default function DecisionDetail() {
                 Upstream Callers ({affectedCallers.length})
               </h3>
               {affectedCallers.length === 0 ? (
-                <p className="text-sm text-slate-500">No upstream callers affected</p>
+                <div className="p-8 text-center bg-slate-900 rounded border border-slate-800 border-dashed">
+                  <CheckCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No upstream callers affected</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {affectedCallers.map((caller: unknown, idx: number) => {
@@ -203,7 +239,10 @@ export default function DecisionDetail() {
                 Downstream Impacted ({affectedDownstream.length})
               </h3>
               {affectedDownstream.length === 0 ? (
-                <p className="text-sm text-slate-500">No downstream services impacted</p>
+                <div className="p-8 text-center bg-slate-900 rounded border border-slate-800 border-dashed">
+                  <CheckCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">No downstream services impacted</p>
+                </div>
               ) : (
                 <div className="space-y-2">
                   {affectedDownstream.map((downstream: unknown, idx: number) => {
@@ -261,7 +300,7 @@ export default function DecisionDetail() {
 
       {/* Recommendations */}
       {recommendations.length > 0 && (
-        <Section title="Recommendations">
+        <Section title="Recommendations" description="AI-generated action items based on simulation results">
           <div className="space-y-3">
             {recommendations.map((rec, idx) => {
               const priorityClass = (() => {
@@ -296,14 +335,14 @@ export default function DecisionDetail() {
           onClick={() => setShowRawJson(!showRawJson)}
           className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
         >
-          <span className="text-sm font-medium text-slate-300">Advanced Details (Raw JSON)</span>
+          <span className="text-sm font-medium text-slate-300">Raw Record (Debug)</span>
           <span className="text-slate-500">{showRawJson ? '▼' : '▶'}</span>
         </button>
 
         {showRawJson && (
           <div className="mt-4 p-4 bg-slate-900 rounded-lg">
-            <h4 className="text-xs font-semibold text-slate-400 mb-2">Full Decision Record</h4>
-            <pre className="text-xs text-slate-300 overflow-x-auto">
+            <div className="text-xs text-slate-500 mb-2 font-mono">ID: {decision.id} | Correlation: {decision.correlationId || 'N/A'}</div>
+            <pre className="text-xs text-slate-300 overflow-x-auto font-mono">
               {JSON.stringify(decision, null, 2)}
             </pre>
           </div>

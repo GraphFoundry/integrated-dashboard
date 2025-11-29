@@ -19,9 +19,10 @@ const RISK_COLORS = {
 const HOVER_COLOR = '#38bdf8' // Sky-400 for hover
 
 export default function TopRisksNetwork({ risks, edges = [] }: TopRisksNetworkProps) {
-    const [viewMode, setViewMode] = useState<'graph' | 'list'>('graph')
-    const [selectedNode, setSelectedNode] = useState<ServiceRisk | null>(null)
+    const [clickedNode, setClickedNode] = useState<ServiceRisk | null>(null)
     const [hoveredNode, setHoveredNode] = useState<ServiceRisk | null>(null)
+    const [selections, setSelections] = useState<string[]>([])
+    const [actives, setActives] = useState<string[]>([])
 
     // Convert risks to Graph Nodes with modern colors
     const nodes: GraphNode[] = useMemo(() => {
@@ -30,7 +31,7 @@ export default function TopRisksNetwork({ risks, edges = [] }: TopRisksNetworkPr
             label: r.service,
             fill: r.riskLevel === 'high' ? RISK_COLORS.high : r.riskLevel === 'medium' ? RISK_COLORS.medium : RISK_COLORS.low,
             data: r,
-            // Add a subtle glow/halo via size? Reagraph doesn't support glow natively on canvas 
+            // Add a subtle glow/halo via size? Reagraph doesn't support glow natively on canvas
             // but we can use brighter colors.
         }))
     }, [risks])
@@ -49,33 +50,18 @@ export default function TopRisksNetwork({ risks, edges = [] }: TopRisksNetworkPr
         <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px] relative">
             <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
                 <h3 className="text-lg font-medium text-white">Dependency Network</h3>
-                <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-600">
-                    <button
-                        onClick={() => setViewMode('graph')}
-                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${viewMode === 'graph' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                            }`}
-                    >
-                        Graph
-                    </button>
-                    <button
-                        onClick={() => setViewMode('list')}
-                        className={`px-3 py-1 rounded text-sm font-medium transition-colors ${viewMode === 'list' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
-                            }`}
-                    >
-                        List
-                    </button>
-                </div>
             </div>
 
             <div className="flex-1 relative">
-                {viewMode === 'graph' ? (
-                    hasData ? (
-                        <div className="absolute inset-0">
-                            <GraphCanvas
-                                nodes={nodes}
-                                edges={graphEdges}
-                                layoutType="forceDirected2d"
-                                labelType="all"
+                {hasData ? (
+                    <div className="absolute inset-0">
+                        <GraphCanvas
+                            nodes={nodes}
+                            edges={graphEdges}
+                            selections={selections}
+                            actives={actives}
+                            layoutType="forceDirected2d"
+                            labelType="all"
                                 theme={{
                                     canvas: {
                                         background: '#0f172a', // Slate-900
@@ -124,123 +110,128 @@ export default function TopRisksNetwork({ risks, edges = [] }: TopRisksNetworkPr
                                     }
                                 }}
                                 onNodeClick={(node) => {
-                                    setSelectedNode(node.data as ServiceRisk)
-                                }}
-                                onNodePointerOver={(node) => {
-                                    setHoveredNode(node.data as ServiceRisk)
-                                }}
-                                onNodePointerOut={() => {
-                                    setHoveredNode(null)
-                                }}
-                            />
+                                const nodeId = node.id
+                                // Find connected nodes and edges
+                                const connectedNodeIds: string[] = []
+                                const connectedEdgeIds: string[] = []
+                                graphEdges.forEach(edge => {
+                                    if (edge.source === nodeId) {
+                                        connectedNodeIds.push(edge.target)
+                                        connectedEdgeIds.push(edge.id)
+                                    }
+                                    if (edge.target === nodeId) {
+                                        connectedNodeIds.push(edge.source)
+                                        connectedEdgeIds.push(edge.id)
+                                    }
+                                })
+                                // Set selections to highlight clicked node and connected nodes
+                                setSelections([nodeId, ...connectedNodeIds])
+                                // Set actives to highlight connected edges
+                                setActives(connectedEdgeIds)
+                                setClickedNode(node.data as ServiceRisk)
+                            }}
+                            onNodePointerOver={(node) => {
+                                setHoveredNode(node.data as ServiceRisk)
+                            }}
+                            onNodePointerOut={() => {
+                                setHoveredNode(null)
+                            }}
+                            onCanvasClick={() => {
+                                setSelections([])
+                                setActives([])
+                                setClickedNode(null)
+                            }}
+                        />
 
-                            {/* Hover Tooltip Overlay */}
-                            {hoveredNode && !selectedNode && (
-                                <div className="absolute top-4 left-4 z-20 pointer-events-none bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-xl max-w-xs animate-in fade-in zoom-in-95 duration-200">
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <div
-                                            className="w-2 h-2 rounded-full"
-                                            style={{ backgroundColor: hoveredNode.riskLevel === 'high' ? RISK_COLORS.high : hoveredNode.riskLevel === 'medium' ? RISK_COLORS.medium : RISK_COLORS.low }}
-                                        />
-                                        <span className="font-semibold text-white text-sm">{hoveredNode.service}</span>
-                                    </div>
-                                    <div className="text-xs text-slate-400 mb-1">{hoveredNode.namespace}</div>
-                                    {hoveredNode.reason && (
-                                        <div className="text-xs text-slate-300 mt-2 border-t border-slate-700/50 pt-2">
-                                            {hoveredNode.reason}
-                                        </div>
-                                    )}
+                        {/* Hover Tooltip Overlay */}
+                        {hoveredNode && !clickedNode && (
+                            <div className="absolute top-4 left-4 z-20 pointer-events-none bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-xl max-w-xs animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <div
+                                        className="w-2 h-2 rounded-full"
+                                        style={{ backgroundColor: hoveredNode.riskLevel === 'high' ? RISK_COLORS.high : hoveredNode.riskLevel === 'medium' ? RISK_COLORS.medium : RISK_COLORS.low }}
+                                    />
+                                    <span className="font-semibold text-white text-sm">{hoveredNode.service}</span>
                                 </div>
-                            )}
-
-                        </div>
-                    ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-8">
-                            <EmptyState
-                                icon="🕸️"
-                                message="Dependency graph unavailable"
-                                action={
-                                    <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">
-                                        No edge data returned from API. Adjust backend to include edges data.
-                                    </span>
-                                }
-                            />
-                        </div>
-                    )
-                ) : (
-                    <div className="overflow-y-auto h-full p-4 space-y-2">
-                        {risks.length === 0 ? (
-                            <div className="text-center text-slate-500 py-8">No services found.</div>
-                        ) : (
-                            risks.map((risk) => (
-                                <div
-                                    key={`${risk.namespace}:${risk.service}`}
-                                    className="flex items-center justify-between p-3 bg-slate-800 rounded border border-slate-700 hover:bg-slate-700/80 transition-colors cursor-pointer group"
-                                    onClick={() => setSelectedNode(risk)}
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div
-                                            className="w-2.5 h-2.5 rounded-full transition-shadow duration-300 group-hover:shadow-[0_0_8px_rgba(255,255,255,0.4)]"
-                                            style={{ backgroundColor: risk.riskLevel === 'high' ? RISK_COLORS.high : risk.riskLevel === 'medium' ? RISK_COLORS.medium : RISK_COLORS.low }}
-                                        />
-                                        <div>
-                                            <div className="font-medium text-white">{risk.service}</div>
-                                            <div className="text-xs text-slate-400">{risk.namespace}</div>
-                                        </div>
-                                    </div>
-                                    <span className="text-xs font-mono text-slate-500">
-                                        {formatRiskLevel(risk.riskLevel)}
-                                    </span>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                )}
-
-                {/* Selected Node Details Panel (Right Side) */}
-                <div
-                    className={`absolute top-0 right-0 bottom-0 w-80 bg-slate-900/95 backdrop-blur border-l border-slate-700 shadow-2xl p-6 overflow-y-auto z-30 transition-transform duration-300 ease-in-out ${selectedNode ? 'translate-x-0' : 'translate-x-full'}`}
-                >
-                    {selectedNode && (
-                        <>
-                            <div className="flex justify-between items-start mb-6">
-                                <h4 className="text-xl font-semibold text-white truncate max-w-[200px]" title={selectedNode.service}>
-                                    {selectedNode.service}
-                                </h4>
-                                <button
-                                    onClick={() => setSelectedNode(null)}
-                                    className="text-slate-400 hover:text-white"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div>
-                                    <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">Status</div>
-                                    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${selectedNode.riskLevel === 'high' ? 'bg-red-900/30 text-red-300 border-red-700' :
-                                        selectedNode.riskLevel === 'medium' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' :
-                                            'bg-green-900/30 text-green-300 border-green-700'
-                                        }`}>
-                                        {formatRiskLevel(selectedNode.riskLevel)}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">Namespace</div>
-                                    <div className="text-slate-300 font-mono text-sm">{selectedNode.namespace}</div>
-                                </div>
-
-                                {selectedNode.reason && (
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-1">Risk Factor</div>
-                                        <p className="text-sm text-slate-400 leading-relaxed">{selectedNode.reason}</p>
+                                <div className="text-xs text-slate-400 mb-1">{hoveredNode.namespace}</div>
+                                {hoveredNode.reason && (
+                                    <div className="text-xs text-slate-300 mt-2 border-t border-slate-700/50 pt-2">
+                                        {hoveredNode.reason}
                                     </div>
                                 )}
                             </div>
-                        </>
-                    )}
-                </div>
+                        )}
+
+                        {/* Clicked Node Tooltip with More Details */}
+                        {clickedNode && (
+                            <div className="absolute top-4 left-4 z-20 bg-slate-900/95 backdrop-blur border border-slate-700 p-4 rounded-lg shadow-xl max-w-sm animate-in fade-in zoom-in-95 duration-200">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div className="flex items-center gap-2">
+                                        <div
+                                            className="w-3 h-3 rounded-full"
+                                            style={{ backgroundColor: clickedNode.riskLevel === 'high' ? RISK_COLORS.high : clickedNode.riskLevel === 'medium' ? RISK_COLORS.medium : RISK_COLORS.low }}
+                                        />
+                                        <span className="font-bold text-white text-base">{clickedNode.service}</span>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setClickedNode(null)
+                                            setSelections([])
+                                            setActives([])
+                                        }}
+                                        className="text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Namespace</div>
+                                        <div className="text-slate-300 font-mono text-sm">{clickedNode.namespace}</div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Risk Level</div>
+                                        <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${
+                                            clickedNode.riskLevel === 'high' ? 'bg-red-900/30 text-red-300 border-red-700' :
+                                            clickedNode.riskLevel === 'medium' ? 'bg-yellow-900/30 text-yellow-300 border-yellow-700' :
+                                            'bg-green-900/30 text-green-300 border-green-700'
+                                        }`}>
+                                            {formatRiskLevel(clickedNode.riskLevel)}
+                                        </div>
+                                    </div>
+
+                                    {clickedNode.reason && (
+                                        <div>
+                                            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Risk Factor</div>
+                                            <p className="text-sm text-slate-300 leading-relaxed">{clickedNode.reason}</p>
+                                        </div>
+                                    )}
+
+                                    <div className="pt-2 mt-2 border-t border-slate-700/50">
+                                        <div className="text-xs text-slate-400">
+                                            Connected nodes are highlighted in the graph
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                    </div>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center p-8">
+                        <EmptyState
+                            icon="🕸️"
+                            message="Dependency graph unavailable"
+                            action={
+                                <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">
+                                    No edge data returned from API. Adjust backend to include edges data.
+                                </span>
+                            }
+                        />
+                    </div>
+                )}
             </div>
         </div>
     )

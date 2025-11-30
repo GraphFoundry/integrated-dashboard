@@ -368,11 +368,11 @@ export default function Metrics() {
                     <td className="px-4 py-3 text-sm">
                       <button
                         onClick={() =>
-                          navigate(`/services/${point.namespace}:${point.service}`)
+                          navigate(`/metrics/offenders/${point.namespace}:${point.service}`)
                         }
                         className="text-blue-400 hover:text-blue-300 font-medium"
                       >
-                        View Details
+                        Investigate
                       </button>
                     </td>
                   </tr>

@@ -3,6 +3,7 @@ import DashboardLayout from '@/app/layout/DashboardLayout'
 import Overview from '@/pages/overview/Overview'
 import ServiceHealthDetails from '@/pages/services/ServiceHealthDetails'
 import Metrics from '@/pages/metrics/Metrics'
+import OffenderDetails from '@/pages/metrics/OffenderDetails'
 import Simulations from '@/pages/simulations/Simulations'
 import History from '@/pages/history/History'
 import DecisionDetail from '@/pages/history/DecisionDetail'
@@ -28,6 +29,10 @@ export const router = createBrowserRouter([
       {
         path: 'metrics',
         element: <Metrics />,
+      },
+      {
+        path: 'metrics/offenders/:serviceKey', // Accepts "namespace:serviceName"
+        element: <OffenderDetails />,
       },
       {
         path: 'simulations',

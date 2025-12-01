@@ -14,14 +14,14 @@ export default function RiskDistributionPie({ risks }: RiskDistributionPieProps)
 
     if (data.length === 0) {
         return (
-            <div className="h-[352px] flex items-center justify-center text-slate-500 text-sm">
+            <div className="h-[350px] flex items-center justify-center text-slate-500 text-sm">
                 No risk data available
             </div>
         )
     }
 
     return (
-        <div className="h-[352px] w-full flex flex-col">
+        <div className="h-[350px] w-full flex flex-col">
             <div className="flex-1">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>

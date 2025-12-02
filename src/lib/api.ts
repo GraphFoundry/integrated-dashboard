@@ -10,6 +10,7 @@ import type {
   DecisionHistoryResponse,
   LogDecisionRequest,
   LogDecisionResponse,
+  GraphSnapshot,
 } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
@@ -144,5 +145,27 @@ export async function getDecisionHistory(
  */
 export async function logDecision(decision: LogDecisionRequest): Promise<LogDecisionResponse> {
   const { data } = await predictiveApi.post<LogDecisionResponse>('/decisions/log', decision)
+  return data
+}
+
+/**
+ * Get enriched dependency graph snapshot with telemetry
+ * @param signal - Optional AbortSignal for canceling in-flight requests
+ * @param namespace - Optional namespace filter
+ * @returns Graph snapshot with nodes, edges, and telemetry data
+ */
+export async function getDependencyGraphSnapshot(
+  signal?: AbortSignal,
+  namespace?: string
+): Promise<GraphSnapshot> {
+  const params: Record<string, string> = {}
+  if (namespace) {
+    params.namespace = namespace
+  }
+
+  const { data } = await predictiveApi.get<GraphSnapshot>('/api/dependency-graph/snapshot', {
+    signal,
+    params,
+  })
   return data
 }

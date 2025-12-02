@@ -277,3 +277,48 @@ export type LogDecisionResponse = {
   id: number
   timestamp: string
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dependency Graph Snapshot Types (Incident Explorer)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GraphRiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN'
+
+export type GraphNode = {
+  id: string            // stable key (namespace:name)
+  name: string
+  namespace: string
+  riskLevel: GraphRiskLevel
+  riskReason?: string
+
+  // aggregated telemetry (optional if unavailable)
+  reqRate?: number          // requests/sec
+  errorRatePct?: number     // %
+  latencyP95Ms?: number     // ms
+  availabilityPct?: number  // %
+  updatedAt?: string
+}
+
+export type GraphEdge = {
+  id: string
+  source: string // node id
+  target: string // node id
+
+  // optional edge telemetry if available
+  reqRate?: number
+  errorRatePct?: number
+  latencyP95Ms?: number
+}
+
+export type GraphSnapshot = {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  metadata?: {
+    stale?: boolean
+    lastUpdatedSecondsAgo?: number | null
+    windowMinutes?: number
+    nodeCount?: number
+    edgeCount?: number
+    generatedAt?: string
+  }
+}

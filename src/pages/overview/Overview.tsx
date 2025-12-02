@@ -5,7 +5,7 @@ import Section from '@/components/layout/Section'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { calculateServiceRisk, sortByRisk, type ServiceRisk } from '@/lib/risk'
 import { formatRps, formatPercent } from '@/lib/format'
-import TopRisksNetwork from '@/pages/overview/TopRisksNetwork'
+import IncidentExplorer from '@/pages/overview/IncidentExplorer'
 import RiskDistributionPie from '@/pages/overview/RiskBreakdownPie'
 import { getGlossaryTerm } from '@/lib/glossary'
 
@@ -20,7 +20,6 @@ export default function Overview() {
     avgAvailability: number
   } | null>(null)
   const [topRisks, setTopRisks] = useState<ServiceRisk[]>([])
-  const [graphEdges, setGraphEdges] = useState<{ source: string; target: string }[]>([])
 
   useEffect(() => {
     const fetchOverviewData = async () => {
@@ -31,7 +30,6 @@ export default function Overview() {
         // Fetch services
         const servicesResponse = await getServices()
         const services = servicesResponse.services
-        setGraphEdges(servicesResponse.edges || [])
 
         // Fetch latest telemetry for all services (last 5 minutes)
         const now = new Date()
@@ -181,10 +179,10 @@ export default function Overview() {
         />
       </div>
 
-      {/* Top Risks & Distribution */}
+      {/* Incident Explorer & Risk Distribution */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
-          <TopRisksNetwork risks={topRisks} edges={graphEdges} />
+          <IncidentExplorer />
         </div>
 
         <div className="lg:col-span-1">

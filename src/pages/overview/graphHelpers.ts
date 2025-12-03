@@ -7,20 +7,20 @@ export function formatMetric(value: number | undefined, formatter: (val: number)
 }
 
 /**
- * Get risk color for styling
+ * Get risk color for styling (Canvas-compatible HSL values)
  */
 export function getRiskColor(riskLevel: string): string {
   switch (riskLevel) {
     case 'CRITICAL':
-      return '#dc2626' // red-600
+      return '#ef4444' // red-500
     case 'HIGH':
-      return '#ef4444' // red-400
+      return '#f97316' // orange-500
     case 'MEDIUM':
-      return '#facc15' // yellow-400
+      return '#eab308' // yellow-500
     case 'LOW':
-      return '#4ade80' // green-400
+      return '#22c55e' // green-500
     default:
-      return '#94a3b8' // slate-400
+      return '#94a3b8' // slate-400 (visible neutral)
   }
 }
 

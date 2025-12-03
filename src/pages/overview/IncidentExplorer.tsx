@@ -60,6 +60,44 @@ export default function IncidentExplorer() {
         }))
     }, [edges])
 
+    // Recompute highlights when mode changes (if a node is selected)
+    useEffect(() => {
+        if (!selectedNode) return
+
+        const nodeId = selectedNode.id
+
+        if (mode === 'impact') {
+            const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 3)
+            setSelections([nodeId, ...downstreamNodes])
+            const downstreamEdges = reagraphEdges
+                .filter(e => downstreamNodes.includes(e.target) || e.source === nodeId)
+                .map(e => e.id)
+            setActives(downstreamEdges)
+        } else if (mode === 'suspect') {
+            const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 3)
+            setSelections([nodeId, ...upstreamNodes])
+            const upstreamEdges = reagraphEdges
+                .filter(e => upstreamNodes.includes(e.source) || e.target === nodeId)
+                .map(e => e.id)
+            setActives(upstreamEdges)
+        } else if (mode === 'flow') {
+            const connectedNodes: string[] = []
+            const connectedEdges: string[] = []
+            reagraphEdges.forEach(edge => {
+                if (edge.source === nodeId) {
+                    connectedNodes.push(edge.target)
+                    connectedEdges.push(edge.id)
+                }
+                if (edge.target === nodeId) {
+                    connectedNodes.push(edge.source)
+                    connectedEdges.push(edge.id)
+                }
+            })
+            setSelections([nodeId, ...connectedNodes])
+            setActives(connectedEdges)
+        }
+    }, [mode, selectedNode, reagraphEdges])
+
     // Mode-specific highlighting logic
     const handleNodeClick = (node: ReagraphNode) => {
         const nodeId = node.id
@@ -160,10 +198,34 @@ export default function IncidentExplorer() {
 
             {/* Mode Legend */}
             <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
-                <div className="text-xs text-slate-400">
-                    {mode === 'impact' && '📊 Click a node to see downstream blast radius (what breaks if this degrades)'}
-                    {mode === 'suspect' && '🔍 Click a node to see upstream suspects (probable root causes)'}
-                    {mode === 'flow' && '🌊 Click a node to see traffic flows and critical paths'}
+                <div className="flex justify-between items-center">
+                    <div className="text-xs text-slate-400">
+                        {mode === 'impact' && '📊 Click a node to see downstream blast radius (what breaks if this degrades)'}
+                        {mode === 'suspect' && '🔍 Click a node to see upstream suspects (probable root causes)'}
+                        {mode === 'flow' && '🌊 Click a node to see traffic flows and critical paths'}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                        <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor('CRITICAL') }} />
+                            <span className="text-slate-400">Critical</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor('HIGH') }} />
+                            <span className="text-slate-400">High</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor('MEDIUM') }} />
+                            <span className="text-slate-400">Medium</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor('LOW') }} />
+                            <span className="text-slate-400">Low</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor('UNKNOWN') }} />
+                            <span className="text-slate-400">Unknown</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -182,7 +244,7 @@ export default function IncidentExplorer() {
                                     background: '#0f172a',
                                 },
                                 node: {
-                                    fill: '#7c3aed',
+                                    fill: '#64748b', // neutral default, overridden by per-node fill
                                     activeFill: '#38bdf8',
                                     opacity: 0.9,
                                     selectedOpacity: 1,
@@ -227,9 +289,50 @@ export default function IncidentExplorer() {
                             onNodeClick={(node) => handleNodeClick(node)}
                             onNodePointerOver={(node) => {
                                 setHoveredNode(node.data as GraphNode)
+
+                                // Highlight upstream/downstream on hover (if no node selected)
+                                if (!selectedNode) {
+                                    const nodeId = node.id
+
+                                    if (mode === 'impact') {
+                                        const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 3)
+                                        setSelections([nodeId, ...downstreamNodes])
+                                        const downstreamEdges = reagraphEdges
+                                            .filter(e => downstreamNodes.includes(e.target) || e.source === nodeId)
+                                            .map(e => e.id)
+                                        setActives(downstreamEdges)
+                                    } else if (mode === 'suspect') {
+                                        const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 3)
+                                        setSelections([nodeId, ...upstreamNodes])
+                                        const upstreamEdges = reagraphEdges
+                                            .filter(e => upstreamNodes.includes(e.source) || e.target === nodeId)
+                                            .map(e => e.id)
+                                        setActives(upstreamEdges)
+                                    } else if (mode === 'flow') {
+                                        const connectedNodes: string[] = []
+                                        const connectedEdges: string[] = []
+                                        reagraphEdges.forEach(edge => {
+                                            if (edge.source === nodeId) {
+                                                connectedNodes.push(edge.target)
+                                                connectedEdges.push(edge.id)
+                                            }
+                                            if (edge.target === nodeId) {
+                                                connectedNodes.push(edge.source)
+                                                connectedEdges.push(edge.id)
+                                            }
+                                        })
+                                        setSelections([nodeId, ...connectedNodes])
+                                        setActives(connectedEdges)
+                                    }
+                                }
                             }}
                             onNodePointerOut={() => {
                                 setHoveredNode(null)
+                                // Clear hover highlights if no node is selected
+                                if (!selectedNode) {
+                                    setSelections([])
+                                    setActives([])
+                                }
                             }}
                             onCanvasClick={() => {
                                 setSelections([])

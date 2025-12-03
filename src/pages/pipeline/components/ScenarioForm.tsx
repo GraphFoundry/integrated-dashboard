@@ -207,11 +207,21 @@ export default function ScenarioForm({
           {/* Datalist for Live mode autocomplete */}
           {mode === 'live' && discoveredServices.length > 0 && (
             <datalist id="discovered-services">
-              {discoveredServices.map((s) => (
-                <option key={s.serviceId} value={s.serviceId}>
-                  {s.name} ({s.namespace})
-                </option>
-              ))}
+              {discoveredServices.map((s) => {
+                // Build enhanced label with pod count and availability if available
+                let label = `${s.name} (${s.namespace})`
+                if (s.podCount !== undefined || s.availability !== undefined) {
+                  const details = []
+                  if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
+                  if (s.availability !== undefined) details.push(`${(s.availability * 100).toFixed(0)}% up`)
+                  label += ` - ${details.join(', ')}`
+                }
+                return (
+                  <option key={s.serviceId} value={s.serviceId}>
+                    {label}
+                  </option>
+                )
+              })}
             </datalist>
           )}
           {serviceIdHint && <p className="mt-1 text-xs text-yellow-400">{serviceIdHint}</p>}

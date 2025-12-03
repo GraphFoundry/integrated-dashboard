@@ -14,6 +14,16 @@ export default function IncidentExplorer() {
     const [error, setError] = useState<string | null>(null)
     const [nodes, setNodes] = useState<GraphNode[]>([])
     const [edges, setEdges] = useState<GraphEdge[]>([])
+    const [metadata, setMetadata] = useState<{
+        stale?: boolean
+        lastUpdatedSecondsAgo?: number | null
+        windowMinutes?: number
+        nodeCount?: number
+        edgeCount?: number
+        nodesWithMetrics?: number
+        edgesWithMetrics?: number
+        generatedAt?: string
+    } | undefined>(undefined)
     const [mode, setMode] = useState<GraphMode>('impact')
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
     const [selections, setSelections] = useState<string[]>([])
@@ -29,10 +39,12 @@ export default function IncidentExplorer() {
                 const snapshot = await getDependencyGraphSnapshot()
                 setNodes(snapshot.nodes)
                 setEdges(snapshot.edges)
+                setMetadata(snapshot.metadata)
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'Failed to load graph data')
                 setNodes([])
                 setEdges([])
+                setMetadata(undefined)
             } finally {
                 setLoading(false)
             }
@@ -67,17 +79,17 @@ export default function IncidentExplorer() {
         const nodeId = selectedNode.id
 
         if (mode === 'impact') {
-            const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 3)
+            const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 1)
             setSelections([nodeId, ...downstreamNodes])
             const downstreamEdges = reagraphEdges
-                .filter(e => downstreamNodes.includes(e.target) || e.source === nodeId)
+                .filter(e => e.source === nodeId && downstreamNodes.includes(e.target))
                 .map(e => e.id)
             setActives(downstreamEdges)
         } else if (mode === 'suspect') {
-            const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 3)
+            const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 1)
             setSelections([nodeId, ...upstreamNodes])
             const upstreamEdges = reagraphEdges
-                .filter(e => upstreamNodes.includes(e.source) || e.target === nodeId)
+                .filter(e => upstreamNodes.includes(e.source) && e.target === nodeId)
                 .map(e => e.id)
             setActives(upstreamEdges)
         } else if (mode === 'flow') {
@@ -107,20 +119,20 @@ export default function IncidentExplorer() {
 
         if (mode === 'impact') {
             // Impact mode: highlight downstream (targets)
-            const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 3)
+            const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 1)
             setSelections([nodeId, ...downstreamNodes])
 
             const downstreamEdges = reagraphEdges
-                .filter(e => downstreamNodes.includes(e.target) || e.source === nodeId)
+                .filter(e => e.source === nodeId && downstreamNodes.includes(e.target))
                 .map(e => e.id)
             setActives(downstreamEdges)
         } else if (mode === 'suspect') {
             // Suspect mode: highlight upstream (sources)
-            const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 3)
+            const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 1)
             setSelections([nodeId, ...upstreamNodes])
 
             const upstreamEdges = reagraphEdges
-                .filter(e => upstreamNodes.includes(e.source) || e.target === nodeId)
+                .filter(e => upstreamNodes.includes(e.source) && e.target === nodeId)
                 .map(e => e.id)
             setActives(upstreamEdges)
         } else if (mode === 'flow') {
@@ -227,6 +239,32 @@ export default function IncidentExplorer() {
                         </div>
                     </div>
                 </div>
+                {/* Metadata stats row */}
+                {metadata && (
+                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50 text-xs text-slate-500">
+                        <div className="flex items-center gap-4">
+                            {metadata.nodeCount !== undefined && (
+                                <span>{metadata.nodeCount} services</span>
+                            )}
+                            {metadata.edgeCount !== undefined && (
+                                <span>{metadata.edgeCount} edges</span>
+                            )}
+                            {metadata.nodesWithMetrics !== undefined && (
+                                <span className="text-sky-400">
+                                    {metadata.nodesWithMetrics}/{metadata.nodeCount} with metrics
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {metadata.stale && (
+                                <span className="text-yellow-400">⚠️ Stale data</span>
+                            )}
+                            {metadata.lastUpdatedSecondsAgo !== undefined && metadata.lastUpdatedSecondsAgo !== null && (
+                                <span>Updated {metadata.lastUpdatedSecondsAgo}s ago</span>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="flex-1 relative">
@@ -295,17 +333,17 @@ export default function IncidentExplorer() {
                                     const nodeId = node.id
 
                                     if (mode === 'impact') {
-                                        const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 3)
+                                        const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 1)
                                         setSelections([nodeId, ...downstreamNodes])
                                         const downstreamEdges = reagraphEdges
-                                            .filter(e => downstreamNodes.includes(e.target) || e.source === nodeId)
+                                            .filter(e => e.source === nodeId && downstreamNodes.includes(e.target))
                                             .map(e => e.id)
                                         setActives(downstreamEdges)
                                     } else if (mode === 'suspect') {
-                                        const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 3)
+                                        const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 1)
                                         setSelections([nodeId, ...upstreamNodes])
                                         const upstreamEdges = reagraphEdges
-                                            .filter(e => upstreamNodes.includes(e.source) || e.target === nodeId)
+                                            .filter(e => upstreamNodes.includes(e.source) && e.target === nodeId)
                                             .map(e => e.id)
                                         setActives(upstreamEdges)
                                     } else if (mode === 'flow') {
@@ -352,6 +390,32 @@ export default function IncidentExplorer() {
                                     <span className="font-semibold text-white text-sm">{hoveredNode.name}</span>
                                 </div>
                                 <div className="text-xs text-slate-400 mb-1">{hoveredNode.namespace}</div>
+
+                                {/* Infrastructure metrics */}
+                                {(hoveredNode.podCount !== undefined || hoveredNode.availabilityPct !== undefined || hoveredNode.availability !== undefined) && (
+                                    <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-700/50">
+                                        {hoveredNode.podCount !== undefined && (
+                                            <div className="flex items-center gap-1 text-xs">
+                                                <span className="text-slate-500">Pods:</span>
+                                                <span className="text-slate-300 font-mono">{hoveredNode.podCount}</span>
+                                            </div>
+                                        )}
+                                        {(hoveredNode.availabilityPct !== undefined || hoveredNode.availability !== undefined) && (() => {
+                                            const availPct = hoveredNode.availabilityPct ?? (hoveredNode.availability !== undefined ? hoveredNode.availability * 100 : null)
+                                            if (availPct === null) return null
+                                            const colorClass = availPct >= 99 ? 'text-green-400' : availPct >= 95 ? 'text-yellow-400' : 'text-red-400'
+                                            return (
+                                                <div className="flex items-center gap-1 text-xs">
+                                                    <span className="text-slate-500">Uptime:</span>
+                                                    <span className={`font-mono ${colorClass}`}>
+                                                        {availPct.toFixed(1)}%
+                                                    </span>
+                                                </div>
+                                            )
+                                        })()}
+                                    </div>
+                                )}
+
                                 {hoveredNode.riskReason && (
                                     <div className="text-xs text-slate-300 mt-2 border-t border-slate-700/50 pt-2">
                                         {hoveredNode.riskReason}

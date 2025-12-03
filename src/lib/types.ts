@@ -186,6 +186,10 @@ export type DiscoveredService = {
   name: string
   /** Kubernetes namespace */
   namespace: string
+  /** Number of pods running (from Graph Engine) */
+  podCount?: number
+  /** Availability score 0-1 (from Graph Engine) */
+  availability?: number
 }
 
 export type ServicesResponse = {
@@ -195,13 +199,13 @@ export type ServicesResponse = {
   count: number
   /** Whether the graph data is stale (older than expected window) */
   stale: boolean
-  /** Seconds since last graph update (null if unavailable) */
+  /** Seconds since last graph update (from Graph Engine health) */
   lastUpdatedSecondsAgo: number | null
-  /** Expected freshness window in minutes */
+  /** Expected freshness window in minutes (from Graph Engine) */
   windowMinutes: number
   /** Error message if service discovery failed */
   error?: string
-  /** Dependency edges for the graph */
+  /** Dependency edges for the graph (from metrics snapshot) */
   edges?: { source: string; target: string }[]
 }
 
@@ -297,6 +301,10 @@ export type GraphNode = {
   latencyP95Ms?: number     // ms
   availabilityPct?: number  // %
   updatedAt?: string
+
+  // Graph Engine infrastructure metrics
+  podCount?: number         // number of pods running
+  availability?: number     // availability score 0-1
 }
 
 export type GraphEdge = {
@@ -319,6 +327,8 @@ export type GraphSnapshot = {
     windowMinutes?: number
     nodeCount?: number
     edgeCount?: number
+    nodesWithMetrics?: number    // count of nodes with telemetry data
+    edgesWithMetrics?: number    // count of edges with telemetry data
     generatedAt?: string
   }
 }

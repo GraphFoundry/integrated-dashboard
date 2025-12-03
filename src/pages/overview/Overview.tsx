@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
-import Section from '@/components/layout/Section'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
-import { calculateServiceRisk, sortByRisk, type ServiceRisk } from '@/lib/risk'
 import { formatRps, formatPercent } from '@/lib/format'
 import IncidentExplorer from '@/pages/overview/IncidentExplorer'
-import RiskDistributionPie from '@/pages/overview/RiskBreakdownPie'
 import { getGlossaryTerm } from '@/lib/glossary'
 
 export default function Overview() {
@@ -19,7 +16,6 @@ export default function Overview() {
     avgP95: number
     avgAvailability: number
   } | null>(null)
-  const [topRisks, setTopRisks] = useState<ServiceRisk[]>([])
 
   useEffect(() => {
     const fetchOverviewData = async () => {
@@ -53,12 +49,9 @@ export default function Overview() {
         let totalAvailability = 0
         let count = 0
 
-        const risks: ServiceRisk[] = []
-
         services.forEach((service, idx) => {
           const telemetry = telemetryResults[idx]
           if (!telemetry || telemetry.datapoints.length === 0) {
-            risks.push(calculateServiceRisk(service.name, service.namespace, undefined))
             return
           }
 
@@ -70,8 +63,6 @@ export default function Overview() {
           totalP95 += latest.p95
           totalAvailability += latest.availability
           count++
-
-          risks.push(calculateServiceRisk(service.name, service.namespace, latest))
         })
 
         setKpiData({
@@ -81,8 +72,6 @@ export default function Overview() {
           avgP95: count > 0 ? totalP95 / count : 0,
           avgAvailability: count > 0 ? totalAvailability / count : 0,
         })
-
-        setTopRisks(sortByRisk(risks).slice(0, 10))
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load overview data')
       } finally {
@@ -179,17 +168,9 @@ export default function Overview() {
         />
       </div>
 
-      {/* Incident Explorer & Risk Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <IncidentExplorer />
-        </div>
-
-        <div className="lg:col-span-1">
-          <Section title="Risk Distribution" description="Services by risk level">
-            <RiskDistributionPie risks={topRisks} />
-          </Section>
-        </div>
+      {/* Incident Explorer */}
+      <div className="w-full">
+        <IncidentExplorer />
       </div>
     </div>
   )

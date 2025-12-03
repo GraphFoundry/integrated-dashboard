@@ -104,6 +104,32 @@ function SummaryTab({ node, showAdvanced, onToggleAdvanced }: { readonly node: G
                 <div className="text-slate-300 font-mono text-sm">{node.namespace}</div>
             </div>
 
+            {/* Show pod count and availability if available from Graph Engine */}
+            {(node.podCount !== undefined || node.availability !== undefined) && (
+                <div className="grid grid-cols-2 gap-3">
+                    {node.podCount !== undefined && (
+                        <div>
+                            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+                                Pods Running
+                            </div>
+                            <div className="text-slate-300 font-mono text-sm">
+                                {node.podCount}
+                            </div>
+                        </div>
+                    )}
+                    {node.availability !== undefined && (
+                        <div>
+                            <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+                                Availability
+                            </div>
+                            <div className="text-slate-300 font-mono text-sm">
+                                {(node.availability * 100).toFixed(1)}%
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div>
                 <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">Risk Level</div>
                 <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getRiskBadgeClass(node.riskLevel)}`}>

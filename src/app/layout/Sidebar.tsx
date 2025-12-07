@@ -1,10 +1,11 @@
 import { NavLink } from 'react-router'
-import { LayoutDashboard, LineChart, Beaker, History } from 'lucide-react'
+import { LayoutDashboard, LineChart, Beaker, History, AlertCircle } from 'lucide-react'
 
 const navItems = [
   { path: '/overview', label: 'Overview', icon: LayoutDashboard },
   { path: '/metrics', label: 'Metrics', icon: LineChart },
   { path: '/simulations', label: 'Simulations', icon: Beaker },
+  { path: '/alerts', label: 'Alerts', icon: AlertCircle },
   { path: '/history', label: 'History', icon: History },
 ]
 

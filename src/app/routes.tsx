@@ -8,6 +8,7 @@ import Simulations from '@/pages/simulations/Simulations'
 import History from '@/pages/history/History'
 import DecisionDetail from '@/pages/history/DecisionDetail'
 import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
+import IncidentDetail from '@/pages/alerts/IncidentDetail'
 
 export const router = createBrowserRouter([
   {
@@ -62,6 +63,10 @@ export const router = createBrowserRouter([
       {
         path: 'alerts',
         element: <AlertsPlaceholder />,
+      },
+      {
+        path: 'alerts/:dedupeKey',
+        element: <IncidentDetail />,
       },
     ],
   },

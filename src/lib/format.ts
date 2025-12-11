@@ -84,3 +84,25 @@ export function formatRiskLevel(level: string): string {
       return 'Unknown'
   }
 }
+export function formatDistanceToNow(timestamp: string | Date): string {
+  try {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp
+    if (Number.isNaN(date.getTime())) return 'N/A'
+
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSecs = Math.floor(diffMs / 1000)
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffSecs < 60) return 'just now'
+    if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+
+    return date.toLocaleDateString()
+  } catch {
+    return 'N/A'
+  }
+}

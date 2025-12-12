@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router'
+import { Sparkles } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import { simulateFailure, simulateScale } from '@/lib/api'
-import { formatRps, formatMs } from '@/lib/format'
+import { formatMs } from '@/lib/format'
 import type {
   Scenario,
   FailureResponse,
   ScaleResponse,
   ScenarioType,
-  Recommendation,
 } from '@/lib/types'
 
 export default function SimulationsRefactored() {
@@ -21,10 +21,28 @@ export default function SimulationsRefactored() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<FailureResponse | ScaleResponse | null>(null)
-  const [showAdvanced, setShowAdvanced] = useState(false)
 
   // Prefill from query params
   const prefillType = searchParams.get('type') as ScenarioType | null
+
+  // Restore result from localStorage on mount
+  useEffect(() => {
+    const savedResult = localStorage.getItem('simulationResult')
+    if (savedResult) {
+      try {
+        setResult(JSON.parse(savedResult))
+      } catch (e) {
+        console.error('Failed to parse saved simulation result', e)
+      }
+    }
+  }, [])
+
+  // Save result to localStorage when it changes
+  useEffect(() => {
+    if (result) {
+      localStorage.setItem('simulationResult', JSON.stringify(result))
+    }
+  }, [result])
 
   useEffect(() => {
     if (prefillType && (prefillType === 'failure' || prefillType === 'scale')) {
@@ -81,7 +99,6 @@ export default function SimulationsRefactored() {
     const affectedCallersCount = failureResult.affectedCallers?.length ?? 0
     const affectedDownstreamCount = failureResult.affectedDownstream?.length ?? 0
     const unreachableCount = failureResult.unreachableServices?.length ?? 0
-    const lostTraffic = failureResult.totalLostTrafficRps ?? 0
 
     return (
       <>
@@ -106,17 +123,13 @@ export default function SimulationsRefactored() {
                   {unreachableCount === 1 ? '' : 's'} unreachable
                 </li>
               )}
-              <li>
-                • Estimated lost traffic:{' '}
-                <span className="font-semibold">{formatRps(lostTraffic)} RPS</span>
-              </li>
               <li className="flex items-center gap-2">
                 • Confidence: {getConfidenceBadge(failureResult.confidence)}
               </li>
             </ul>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <KPIStatCard
               label="Affected Downstream"
               value={affectedDownstreamCount}
@@ -132,44 +145,8 @@ export default function SimulationsRefactored() {
               value={unreachableCount}
               variant={unreachableCount > 0 ? 'danger' : 'success'}
             />
-            <KPIStatCard
-              label="Lost Traffic"
-              value={formatRps(lostTraffic)}
-              variant={lostTraffic > 0 ? 'danger' : 'success'}
-            />
           </div>
         </Section>
-
-        {/* Recommendations */}
-        {failureResult.recommendations && failureResult.recommendations.length > 0 && (
-          <Section title="Recommendations">
-            <div className="space-y-3">
-              {failureResult.recommendations.map((rec: Recommendation, idx: number) => {
-                const priorityClass = (() => {
-                  if (rec.priority === 'high') return 'bg-red-900/30 text-red-300'
-                  if (rec.priority === 'medium') return 'bg-yellow-900/30 text-yellow-300'
-                  return 'bg-blue-900/30 text-blue-300'
-                })()
-
-                return (
-                  <div
-                    key={`rec-${idx}`}
-                    className="p-4 bg-slate-900 rounded-lg border border-slate-700"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${priorityClass}`}
-                      >
-                        {rec.priority || 'info'}
-                      </span>
-                      <p className="text-sm text-slate-300 flex-1">{rec.description}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Section>
-        )}
 
         {/* Dependency Neighborhood */}
         <Section title="Dependency Neighborhood">
@@ -190,11 +167,6 @@ export default function SimulationsRefactored() {
                     >
                       <div className="font-medium text-white">{caller.name}</div>
                       <div className="text-xs text-slate-400">{caller.namespace}</div>
-                      {caller.lostTrafficRps !== undefined && (
-                        <div className="text-sm text-yellow-300 mt-1">
-                          Lost: {formatRps(caller.lostTrafficRps)} RPS
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -217,11 +189,6 @@ export default function SimulationsRefactored() {
                     >
                       <div className="font-medium text-white">{downstream.name}</div>
                       <div className="text-xs text-slate-400">{downstream.namespace}</div>
-                      {downstream.lostTrafficRps !== undefined && (
-                        <div className="text-sm text-red-300 mt-1">
-                          Lost: {formatRps(downstream.lostTrafficRps)} RPS
-                        </div>
-                      )}
                     </div>
                   ))}
                 </div>
@@ -300,37 +267,6 @@ export default function SimulationsRefactored() {
             )}
           </div>
         </Section>
-
-        {/* Recommendations */}
-        {scaleResult.recommendations && scaleResult.recommendations.length > 0 && (
-          <Section title="Recommendations">
-            <div className="space-y-3">
-              {scaleResult.recommendations.map((rec: Recommendation, idx: number) => {
-                const priorityClass = (() => {
-                  if (rec.priority === 'high') return 'bg-red-900/30 text-red-300'
-                  if (rec.priority === 'medium') return 'bg-yellow-900/30 text-yellow-300'
-                  return 'bg-blue-900/30 text-blue-300'
-                })()
-
-                return (
-                  <div
-                    key={`scale-rec-${idx}`}
-                    className="p-4 bg-slate-900 rounded-lg border border-slate-700"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span
-                        className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${priorityClass}`}
-                      >
-                        {rec.priority || 'info'}
-                      </span>
-                      <p className="text-sm text-slate-300 flex-1">{rec.description}</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Section>
-        )}
       </>
     )
   }
@@ -339,7 +275,7 @@ export default function SimulationsRefactored() {
     <div className="p-8 space-y-6">
       <PageHeader title="Simulations" description="Predict failure and scaling impact" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Scenario Builder */}
         <div className="lg:col-span-1">
           <ScenarioForm
@@ -352,7 +288,7 @@ export default function SimulationsRefactored() {
         </div>
 
         {/* Results */}
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-2 space-y-6">
           {error && (
             <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
               <p className="text-red-300">{error}</p>
@@ -371,35 +307,11 @@ export default function SimulationsRefactored() {
               {'affectedCallers' in result && result.affectedCallers
                 ? renderFailureResults(result as FailureResponse)
                 : renderScaleResults(result as ScaleResponse)}
-
-              {/* Advanced Section */}
-              <Section>
-                <button
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
-                >
-                  <span className="text-sm font-medium text-slate-300">
-                    Advanced Details (Pipeline Trace, Raw JSON)
-                  </span>
-                  <span className="text-slate-500">{showAdvanced ? '▼' : '▶'}</span>
-                </button>
-
-                {showAdvanced && (
-                  <div className="mt-4 space-y-4">
-                    <div className="p-4 bg-slate-900 rounded-lg">
-                      <h4 className="text-xs font-semibold text-slate-400 mb-2">Raw Result JSON</h4>
-                      <pre className="text-xs text-slate-300 overflow-x-auto">
-                        {JSON.stringify(result, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </Section>
             </>
           )}
 
           {!result && !loading && !error && (
-            <EmptyState icon="🔮" message="Configure a scenario and click Run to see predictions" />
+            <EmptyState icon={<Sparkles className="w-12 h-12 text-slate-600" />} message="Configure a scenario and click Run to see predictions" />
           )}
         </div>
       </div>

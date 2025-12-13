@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
+import { RefreshCw } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
@@ -112,9 +113,10 @@ export default function HistoryRefactored() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors whitespace-nowrap h-[42px]"
+            className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors h-[42px] w-[42px] flex items-center justify-center cursor-pointer"
+            title="Refresh data"
           >
-            {loading ? 'Loading...' : 'Refresh'}
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </Section>

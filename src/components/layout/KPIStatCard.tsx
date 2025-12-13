@@ -9,14 +9,13 @@ interface KPIStatCardProps {
   trendLabel?: string
   variant?: 'default' | 'success' | 'warning' | 'danger'
   className?: string
-  tooltip?: string
 }
 
 const variantClasses = {
-  default: 'bg-slate-800 border-slate-700',
-  success: 'bg-green-900/20 border-green-700',
-  warning: 'bg-yellow-900/20 border-yellow-700',
-  danger: 'bg-red-900/20 border-red-700',
+  default: 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20',
+  success: 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/20',
+  warning: 'bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/20',
+  danger: 'bg-gradient-to-br from-red-500/10 to-pink-500/10 border-red-500/30 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-500/20',
 }
 
 const trendIcons = {
@@ -38,23 +37,19 @@ export default function KPIStatCard({
   trendLabel,
   variant = 'default',
   className = '',
-  tooltip,
 }: Readonly<KPIStatCardProps>) {
   const TrendIcon = trend ? trendIcons[trend] : null
 
+  const glowClasses = {
+    default: 'bg-blue-500/5 group-hover:bg-blue-500/10',
+    success: 'bg-green-500/5 group-hover:bg-green-500/10',
+    warning: 'bg-orange-500/5 group-hover:bg-orange-500/10',
+    danger: 'bg-red-500/5 group-hover:bg-red-500/10',
+  }
+
   return (
-    <div className={`border rounded-lg p-4 ${variantClasses[variant]} ${className}`}>
-      <div className="flex items-center gap-2 mb-1">
-        <div className="text-sm text-slate-400">{label}</div>
-        {tooltip && (
-          <div className="group relative">
-            <span className="cursor-help text-slate-500 text-xs">ⓘ</span>
-            <div className="invisible group-hover:visible absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs p-2 bg-slate-900 border border-slate-700 rounded shadow-lg text-xs text-slate-300 z-20">
-              {tooltip}
-            </div>
-          </div>
-        )}
-      </div>
+    <div className={`group relative overflow-hidden backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 ${variantClasses[variant]} ${className}`}>
+      <div className="text-sm text-slate-400 mb-1">{label}</div>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-white">{value}</div>
         {trend && TrendIcon && (
@@ -64,6 +59,8 @@ export default function KPIStatCard({
           </div>
         )}
       </div>
+      {/* Glowing blur effect */}
+      <div className={`absolute bottom-0 right-0 w-32 h-32 rounded-full blur-2xl transition-all ${glowClasses[variant]}`}></div>
     </div>
   )
 }

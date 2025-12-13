@@ -160,14 +160,14 @@ export default function ScenarioForm({
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Scenario Type */}
         <div>
-          <label htmlFor="scenarioType" className="block text-sm font-medium text-slate-300 mb-2">
+          <label htmlFor="scenarioType" className="block text-sm font-medium text-gray-300 mb-2">
             Scenario Type
           </label>
           <select
             id="scenarioType"
             value={scenarioType}
             onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
-            className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
           >
             <option value="failure">Failure</option>
             <option value="scale">Scale</option>
@@ -298,7 +298,7 @@ export default function ScenarioForm({
             <div>
               <label
                 htmlFor="latencyMetric"
-                className="block text-sm font-medium text-slate-300 mb-2"
+                className="block text-sm font-medium text-gray-300 mb-2"
               >
                 Latency Metric
               </label>
@@ -306,7 +306,7 @@ export default function ScenarioForm({
                 id="latencyMetric"
                 value={latencyMetric}
                 onChange={(e) => setLatencyMetric(e.target.value as any)}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
               >
                 <option value="p50">P50</option>
                 <option value="p95">P95</option>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, LayoutDashboard } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
@@ -84,10 +84,11 @@ export default function Overview() {
   }, [fetchData])
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       <PageHeader
         title="Overview"
         description="System health and top risks"
+        icon={LayoutDashboard}
         actions={
           <button
             onClick={fetchData}

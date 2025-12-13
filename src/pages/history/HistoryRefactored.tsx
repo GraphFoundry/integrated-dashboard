@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, History, Filter } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
@@ -85,14 +85,14 @@ export default function HistoryRefactored() {
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0
 
   return (
-    <div className="p-8 space-y-6">
-      <PageHeader title="History" description="Prediction history and decision logs" />
+    <div className="max-w-7xl mx-auto space-y-6">
+      <PageHeader title="History" description="Prediction history and decision logs" icon={History} />
 
       {/* Filters */}
-      <Section>
+      <Section icon={Filter}>
         <div className="flex gap-4 items-end">
           <div className="flex-1">
-            <label htmlFor="type-filter" className="block text-sm font-medium text-slate-300 mb-2">
+            <label htmlFor="type-filter" className="block text-sm font-medium text-gray-300 mb-2">
               Filter by Type
             </label>
             <select
@@ -102,7 +102,7 @@ export default function HistoryRefactored() {
                 setTypeFilter(e.target.value)
                 setPage(0)
               }}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
             >
               <option value="">All Types</option>
               <option value="failure">Failure</option>

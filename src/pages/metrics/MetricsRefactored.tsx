@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, BarChart3, Settings, TrendingUp } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
@@ -113,16 +113,16 @@ export default function Metrics() {
     : []
 
   return (
-    <div className="p-8 space-y-6">
-      <PageHeader title="Metrics" description="Service telemetry and performance indicators" />
+    <div className="max-w-7xl mx-auto space-y-6">
+      <PageHeader title="Metrics" description="Service telemetry and performance indicators" icon={BarChart3} />
 
       {/* Controls */}
-      <Section>
+      <Section icon={Settings}>
         <div className="flex gap-4 items-end">
           <div className="flex-1">
             <label
               htmlFor="service-select"
-              className="block text-sm font-medium text-slate-300 mb-2"
+              className="block text-sm font-medium text-gray-300 mb-2"
             >
               Service Name
             </label>
@@ -130,7 +130,7 @@ export default function Metrics() {
               id="service-select"
               value={serviceName}
               onChange={(e) => setServiceName(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
             >
               <option value="">All Services</option>
               {services.map((service) => (
@@ -143,7 +143,7 @@ export default function Metrics() {
           <div className="flex-1">
             <label
               htmlFor="time-range-select"
-              className="block text-sm font-medium text-slate-300 mb-2"
+              className="block text-sm font-medium text-gray-300 mb-2"
             >
               Time Range
             </label>
@@ -151,7 +151,7 @@ export default function Metrics() {
               id="time-range-select"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
             >
               <option value="30s">Last 30 seconds</option>
               <option value="1m">Last 1 minute</option>
@@ -186,13 +186,11 @@ export default function Metrics() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KPIStatCard
             label={getGlossaryTerm('requestRate').label}
-            tooltip={getGlossaryTerm('requestRate').tooltip}
             value={formatRps(summaryStats.requestRate)}
             variant="default"
           />
           <KPIStatCard
             label={getGlossaryTerm('errorRate').label}
-            tooltip={getGlossaryTerm('errorRate').tooltip}
             value={formatPercent(summaryStats.errorRate)}
             variant={(() => {
               const rate = summaryStats.errorRate
@@ -203,7 +201,6 @@ export default function Metrics() {
           />
           <KPIStatCard
             label={getGlossaryTerm('p95').label}
-            tooltip={getGlossaryTerm('p95').tooltip}
             value={formatMs(summaryStats.p95)}
             variant={(() => {
               const p95 = summaryStats.p95
@@ -214,7 +211,6 @@ export default function Metrics() {
           />
           <KPIStatCard
             label={getGlossaryTerm('availability').label}
-            tooltip={getGlossaryTerm('availability').tooltip}
             value={formatPercent(summaryStats.availability)}
             variant={(() => {
               const avail = summaryStats.availability
@@ -228,7 +224,7 @@ export default function Metrics() {
 
       {/* Trends Charts */}
       {data && data.datapoints.length > 0 && (
-        <Section title="Trends" description="Time-series metrics visualization">
+        <Section title="Trends" description="Time-series metrics visualization" icon={TrendingUp}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Request Rate Chart */}
             <div>

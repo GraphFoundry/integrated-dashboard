@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Activity, Network } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
@@ -103,7 +103,7 @@ export default function SimulationsRefactored() {
     return (
       <>
         {/* Impact Summary */}
-        <Section title="Impact Summary">
+        <Section title="Impact Summary" icon={Activity}>
           <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
             <p className="text-lg text-white leading-relaxed">
               If <span className="font-semibold">{failureResult.target?.name}</span> fails:
@@ -149,7 +149,7 @@ export default function SimulationsRefactored() {
         </Section>
 
         {/* Dependency Neighborhood */}
-        <Section title="Dependency Neighborhood">
+        <Section title="Dependency Neighborhood" icon={Network}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Upstream Callers */}
             <div>
@@ -211,7 +211,7 @@ export default function SimulationsRefactored() {
     return (
       <>
         {/* Impact Summary */}
-        <Section title="Impact Summary">
+        <Section title="Impact Summary" icon={Activity}>
           <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
             <p className="text-lg text-white leading-relaxed">
               Scaling <span className="font-semibold">{scaleResult.target?.name}</span> from{' '}
@@ -272,8 +272,8 @@ export default function SimulationsRefactored() {
   }
 
   return (
-    <div className="p-8 space-y-6">
-      <PageHeader title="Simulations" description="Predict failure and scaling impact" />
+    <div className="max-w-7xl mx-auto space-y-6">
+      <PageHeader title="Simulations" description="Predict failure and scaling impact" icon={Sparkles} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Scenario Builder */}

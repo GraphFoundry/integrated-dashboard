@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router'
-import { LayoutDashboard, LineChart, Beaker, History, AlertCircle } from 'lucide-react'
+import { LayoutDashboard, LineChart, Beaker, History, AlertCircle, GitBranch } from 'lucide-react'
 
 const navItems = [
   { path: '/overview', label: 'Overview', icon: LayoutDashboard },
@@ -7,6 +7,7 @@ const navItems = [
   { path: '/simulations', label: 'Simulations', icon: Beaker },
   { path: '/alerts', label: 'Alerts', icon: AlertCircle },
   { path: '/history', label: 'History', icon: History },
+  { path: '/decisions/scheduler', label: 'Scheduler', icon: GitBranch },
 ]
 
 export default function Sidebar() {

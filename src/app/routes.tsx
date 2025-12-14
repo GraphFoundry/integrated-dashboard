@@ -9,6 +9,7 @@ import History from '@/pages/history/History'
 import DecisionDetail from '@/pages/history/DecisionDetail'
 import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
 import IncidentDetail from '@/pages/alerts/IncidentDetail'
+import SchedulerDecisions from '@/pages/decisions/SchedulerDecisions'
 
 export const router = createBrowserRouter([
   {
@@ -67,6 +68,10 @@ export const router = createBrowserRouter([
       {
         path: 'alerts/:dedupeKey',
         element: <IncidentDetail />,
+      },
+      {
+        path: 'decisions/scheduler',
+        element: <SchedulerDecisions />,
       },
     ],
   },

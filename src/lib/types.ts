@@ -332,3 +332,42 @@ export type GraphSnapshot = {
     generatedAt?: string
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Node Resource Graph Types (Infrastructure View)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PodInfo = {
+  name: string
+  ramUsedMB: number
+  cpuUsagePercent: number
+}
+
+export type NodeResources = {
+  cpu: {
+    usagePercent: number
+    cores: number
+  }
+  ram: {
+    usedMB: number
+    totalMB: number
+  }
+}
+
+export type NodePlacement = {
+  node: string
+  resources: NodeResources
+  pods: PodInfo[]
+}
+
+export type ServicePlacement = {
+  nodes: NodePlacement[]
+}
+
+export type ServiceWithPlacement = {
+  name: string
+  namespace: string
+  podCount: number
+  availability: number
+  placement?: ServicePlacement  // Optional - may not be available in all deployments
+}

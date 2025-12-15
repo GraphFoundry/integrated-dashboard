@@ -6,6 +6,7 @@ import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
+import NodeResourceGraph from './NodeResourceGraph'
 import { simulateFailure, simulateScale } from '@/lib/api'
 import { formatMs } from '@/lib/format'
 import type {
@@ -274,6 +275,11 @@ export default function SimulationsRefactored() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <PageHeader title="Simulations" description="Predict failure and scaling impact" icon={Sparkles} />
+
+      {/* Infrastructure Overview */}
+      <Section title="Infrastructure Overview" icon={Network}>
+        <NodeResourceGraph />
+      </Section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Scenario Builder */}

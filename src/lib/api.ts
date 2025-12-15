@@ -11,6 +11,7 @@ import type {
   LogDecisionRequest,
   LogDecisionResponse,
   GraphSnapshot,
+  ServiceWithPlacement,
 } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
@@ -166,6 +167,20 @@ export async function getDependencyGraphSnapshot(
   const { data } = await predictiveApi.get<GraphSnapshot>('/api/dependency-graph/snapshot', {
     signal,
     params,
+  })
+  return data
+}
+
+/**
+ * Fetch services with placement data (node-level infrastructure metrics)
+ * @param signal - Optional AbortSignal for canceling in-flight requests
+ * @returns List of services with pod placement and container metrics
+ */
+export async function getServicesWithPlacement(
+  signal?: AbortSignal
+): Promise<{ services: ServiceWithPlacement[] }> {
+  const { data } = await predictiveApi.get<{ services: ServiceWithPlacement[] }>('/services', {
+    signal,
   })
   return data
 }

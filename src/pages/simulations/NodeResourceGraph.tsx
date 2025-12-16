@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { GraphCanvas, GraphNode as ReagraphNode } from 'reagraph'
-import { ChevronRight, ArrowLeft, Server, Package, Box, AlertCircle, Database } from 'lucide-react'
+import { ChevronRight, ArrowLeft, Server, Package, Box, AlertCircle, Database, Cpu, HardDrive } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import { getServicesWithPlacement, getDependencyGraphSnapshot } from '@/lib/api'
 import type { ServiceWithPlacement } from '@/lib/types'
@@ -36,6 +36,8 @@ export default function NodeResourceGraph() {
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null)
   const [currentServiceName, setCurrentServiceName] = useState<string | null>(null)
   const [hoveredNode, setHoveredNode] = useState<ReagraphNode | null>(null)
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
+  const [selections, setSelections] = useState<string[]>([])
   const [serviceDependencyEdges, setServiceDependencyEdges] = useState<{ source: string; target: string }[]>([])
 
   // Fetch initial data
@@ -286,10 +288,17 @@ export default function NodeResourceGraph() {
 
       <div className="flex-1 relative">
         {hasData ? (
-          <div className="absolute inset-0">
+          <div
+            className="absolute inset-0"
+            onMouseMove={(e) => {
+              setMousePosition({ x: e.clientX, y: e.clientY })
+            }}
+            role="presentation"
+          >
             <GraphCanvas
               nodes={graphData.nodes}
               edges={graphData.edges}
+              selections={selections}
               layoutType={viewLevel === 'nodes' ? 'circular2d' : 'forceDirected2d'}
               labelType="all"
               theme={{
@@ -340,29 +349,64 @@ export default function NodeResourceGraph() {
                 },
               }}
               onNodeClick={(node) => handleNodeClick(node)}
-              onNodePointerOver={(node) => setHoveredNode(node)}
-              onNodePointerOut={() => setHoveredNode(null)}
+              onNodePointerOver={(node) => {
+                setHoveredNode(node)
+                setSelections([node.id])
+              }}
+              onNodePointerOut={() => {
+                setHoveredNode(null)
+                setSelections([])
+              }}
+              onCanvasClick={() => {
+                setSelections([])
+              }}
             />
 
             {/* Hover Tooltip */}
-            {hoveredNode && (
-              <div className="absolute top-4 left-4 z-20 pointer-events-none bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-xl max-w-xs animate-in fade-in zoom-in-95 duration-200">
+            {hoveredNode && mousePosition && (
+              <div
+                className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
+                style={{
+                  left: `${mousePosition.x + 16}px`,
+                  top: `${mousePosition.y + 16}px`,
+                }}
+              >
+                <div className="p-3">
                 {viewLevel === 'nodes' && hoveredNode.data && (
                   <>
-                    <div className="font-semibold text-white mb-2">{hoveredNode.data.label}</div>
-                    <div className="space-y-1 text-xs text-slate-300">
-                      <div>Total Pods: <span className="font-medium">{hoveredNode.data.totalPods}</span></div>
-                      <div>
-                        CPU Usage: <span className="font-medium">{hoveredNode.data.cpuUsagePercent.toFixed(1)}%</span>
-                        <span className="text-slate-500 ml-1">
-                          ({hoveredNode.data.cpuUsed.toFixed(1)}/{hoveredNode.data.cpuTotal} cores)
-                        </span>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Server className="w-4 h-4 text-blue-400" />
+                      <span className="font-semibold text-white text-sm">{hoveredNode.data.label}</span>
+                    </div>
+                    <div className="space-y-2.5 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-slate-400">Pods:</span>
+                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.totalPods}</span>
                       </div>
-                      <div>
-                        RAM Usage: <span className="font-medium">{hoveredNode.data.ramUsageMB}MB / {hoveredNode.data.ramTotalMB}MB</span>
-                        <span className="text-slate-500 ml-1">
-                          ({hoveredNode.data.ramUsagePercent.toFixed(1)}%)
-                        </span>
+                      <div className="flex items-start gap-2">
+                        <Cpu className="w-3.5 h-3.5 text-cyan-400 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400">CPU:</span>
+                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent.toFixed(1)}%</span>
+                          </div>
+                          <div className="text-slate-500 mt-0.5">
+                            {hoveredNode.data.cpuUsed.toFixed(1)}/{hoveredNode.data.cpuTotal} cores
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-2">
+                        <HardDrive className="w-3.5 h-3.5 text-emerald-400 mt-0.5" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-400">RAM:</span>
+                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.ramUsageMB}MB</span>
+                          </div>
+                          <div className="text-slate-500 mt-0.5">
+                            {hoveredNode.data.ramTotalMB}MB total ({hoveredNode.data.ramUsagePercent.toFixed(1)}%)
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -370,25 +414,54 @@ export default function NodeResourceGraph() {
 
                 {viewLevel === 'services' && hoveredNode.data && (
                   <>
-                    <div className="font-semibold text-white mb-2">{hoveredNode.data.label}</div>
-                    <div className="space-y-1 text-xs text-slate-300">
-                      <div>Namespace: <span className="font-medium">{hoveredNode.data.namespace}</span></div>
-                      <div>Pods: <span className="font-medium">{hoveredNode.data.podCount}</span></div>
-                      <div>Availability: <span className="font-medium">{(hoveredNode.data.availability * 100).toFixed(1)}%</span></div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Box className="w-4 h-4 text-blue-400" />
+                      <div>
+                        <div className="font-semibold text-white text-sm">{hoveredNode.data.label}</div>
+                        <div className="text-xs text-slate-400">{hoveredNode.data.namespace}</div>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5 text-purple-400" />
+                        <span className="text-slate-400">Pods:</span>
+                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.podCount}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-green-400" />
+                        <span className="text-slate-400">Availability:</span>
+                        <span className="font-mono font-semibold text-green-300">{(hoveredNode.data.availability * 100).toFixed(1)}%</span>
+                      </div>
                     </div>
                   </>
                 )}
 
                 {viewLevel === 'pods' && hoveredNode.data && (
                   <>
-                    <div className="font-semibold text-white mb-2">{hoveredNode.data.label}</div>
-                    <div className="space-y-1 text-xs text-slate-300">
-                      <div>Node: <span className="font-medium">{hoveredNode.data.nodeName}</span></div>
-                      <div>CPU: <span className="font-medium">{hoveredNode.data.cpuUsagePercent.toFixed(1)}%</span></div>
-                      <div>RAM: <span className="font-medium">{hoveredNode.data.ramUsedMB}MB</span></div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Package className="w-4 h-4 text-purple-400" />
+                      <span className="font-semibold text-white text-sm">{hoveredNode.data.label}</span>
+                    </div>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <Server className="w-3.5 h-3.5 text-blue-400" />
+                        <span className="text-slate-400">Node:</span>
+                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.nodeName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                        <span className="text-slate-400">CPU:</span>
+                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent.toFixed(1)}%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-slate-400">RAM:</span>
+                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.ramUsedMB}MB</span>
+                      </div>
                     </div>
                   </>
                 )}
+              </div>
               </div>
             )}
           </div>

@@ -117,7 +117,7 @@ function SummaryTab({ node, showAdvanced, onToggleAdvanced }: { readonly node: G
                             </div>
                         </div>
                     )}
-                    {node.availability !== undefined && (
+                    {node.availability !== undefined && node.availability !== null && (
                         <div>
                             <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
                                 Availability

@@ -6,6 +6,7 @@ import { ModeButton } from './incidentExplorerUtils'
 import { NodeDetailsDrawer } from './NodeDetailsDrawer'
 import { getRiskColor } from './graphHelpers'
 import { getDependencyGraphSnapshot } from '@/lib/api'
+import { Activity, Server, TrendingUp } from 'lucide-react'
 
 type GraphMode = 'impact' | 'suspect' | 'flow'
 
@@ -29,6 +30,7 @@ export default function IncidentExplorer() {
     const [selections, setSelections] = useState<string[]>([])
     const [actives, setActives] = useState<string[]>([])
     const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
+    const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
 
     useEffect(() => {
         const fetchGraphData = async () => {
@@ -269,7 +271,13 @@ export default function IncidentExplorer() {
 
             <div className="flex-1 relative">
                 {hasData ? (
-                    <div className="absolute inset-0">
+                    <div
+                        className="absolute inset-0"
+                        onMouseMove={(e) => {
+                            setMousePosition({ x: e.clientX, y: e.clientY })
+                        }}
+                        role="presentation"
+                    >
                         <GraphCanvas
                             nodes={reagraphNodes}
                             edges={reagraphEdges}
@@ -380,34 +388,46 @@ export default function IncidentExplorer() {
                         />
 
                         {/* Hover Tooltip */}
-                        {hoveredNode && !selectedNode && (
-                            <div className="absolute top-4 left-4 z-20 pointer-events-none bg-slate-900/90 backdrop-blur border border-slate-700 p-3 rounded-lg shadow-xl max-w-xs animate-in fade-in zoom-in-95 duration-200">
-                                <div className="flex items-center gap-2 mb-1">
+                        {hoveredNode && !selectedNode && mousePosition && (
+                            <div
+                                className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
+                                style={{
+                                    left: `${mousePosition.x + 16}px`,
+                                    top: `${mousePosition.y + 16}px`,
+                                }}
+                            >
+                                <div className="p-3">
+                                <div className="flex items-center gap-2 mb-2">
                                     <div
-                                        className="w-2 h-2 rounded-full"
+                                        className="w-3 h-3 rounded-full ring-2 ring-slate-700 animate-pulse"
                                         style={{ backgroundColor: getRiskColor(hoveredNode.riskLevel) }}
                                     />
-                                    <span className="font-semibold text-white text-sm">{hoveredNode.name}</span>
+                                    <div>
+                                        <span className="font-semibold text-white text-sm">{hoveredNode.name}</span>
+                                        <div className="text-xs text-slate-400">{hoveredNode.namespace}</div>
+                                    </div>
                                 </div>
-                                <div className="text-xs text-slate-400 mb-1">{hoveredNode.namespace}</div>
 
                                 {/* Infrastructure metrics */}
                                 {(hoveredNode.podCount !== undefined || hoveredNode.availabilityPct !== undefined || hoveredNode.availability !== undefined) && (
-                                    <div className="flex items-center gap-3 mt-2 pt-2 border-t border-slate-700/50">
+                                    <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-slate-700/50">
                                         {hoveredNode.podCount !== undefined && (
-                                            <div className="flex items-center gap-1 text-xs">
+                                            <div className="flex items-center gap-2 text-xs">
+                                                <Server className="w-3.5 h-3.5 text-blue-400" />
                                                 <span className="text-slate-500">Pods:</span>
-                                                <span className="text-slate-300 font-mono">{hoveredNode.podCount}</span>
+                                                <span className="text-slate-300 font-mono font-semibold">{hoveredNode.podCount}</span>
                                             </div>
                                         )}
-                                        {(hoveredNode.availabilityPct !== undefined || hoveredNode.availability !== undefined) && (() => {
-                                            const availPct = hoveredNode.availabilityPct ?? (hoveredNode.availability !== undefined ? hoveredNode.availability * 100 : null)
-                                            if (availPct === null) return null
+                                        {(() => {
+                                            const availPct = hoveredNode.availabilityPct ?? (hoveredNode.availability !== undefined && hoveredNode.availability !== null ? hoveredNode.availability * 100 : null)
+                                            if (availPct === null || availPct === undefined) return null
                                             const colorClass = availPct >= 99 ? 'text-green-400' : availPct >= 95 ? 'text-yellow-400' : 'text-red-400'
+                                            const iconClass = availPct >= 99 ? 'text-green-400' : availPct >= 95 ? 'text-yellow-400' : 'text-red-400'
                                             return (
-                                                <div className="flex items-center gap-1 text-xs">
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <TrendingUp className={`w-3.5 h-3.5 ${iconClass}`} />
                                                     <span className="text-slate-500">Uptime:</span>
-                                                    <span className={`font-mono ${colorClass}`}>
+                                                    <span className={`font-mono font-semibold ${colorClass}`}>
                                                         {availPct.toFixed(1)}%
                                                     </span>
                                                 </div>
@@ -417,10 +437,12 @@ export default function IncidentExplorer() {
                                 )}
 
                                 {hoveredNode.riskReason && (
-                                    <div className="text-xs text-slate-300 mt-2 border-t border-slate-700/50 pt-2">
-                                        {hoveredNode.riskReason}
+                                    <div className="flex items-start gap-2 text-xs text-slate-300 mt-2 pt-2 border-t border-slate-700/50">
+                                        <Activity className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                                        <span>{hoveredNode.riskReason}</span>
                                     </div>
                                 )}
+                            </div>
                             </div>
                         )}
 

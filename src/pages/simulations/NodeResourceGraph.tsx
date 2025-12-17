@@ -140,6 +140,10 @@ export default function NodeResourceGraph() {
 
   // Handle node click based on current level
   const handleNodeClick = (node: ReagraphNode) => {
+    setHoveredNode(null) // Hide tooltip when node is clicked
+    setMousePosition(null)
+    setSelections([])
+
     if (viewLevel === 'nodes') {
       // Level 1 → Level 2: Show services on this node
       const nodeId = node.id
@@ -363,12 +367,42 @@ export default function NodeResourceGraph() {
             />
 
             {/* Hover Tooltip */}
-            {hoveredNode && mousePosition && (
+            {hoveredNode && mousePosition && (() => {
+              const tooltipWidth = 256 // max-w-sm is ~256px
+              const tooltipHeight = 200 // approximate height
+              const viewportWidth = window.innerWidth
+              const viewportHeight = window.innerHeight
+
+              // Smart positioning to prevent overflow
+              let left = mousePosition.x + 16
+              let top = mousePosition.y + 16
+
+              // Adjust horizontal position if tooltip would overflow right
+              if (left + tooltipWidth > viewportWidth) {
+                  left = mousePosition.x - tooltipWidth - 16
+              }
+
+              // Adjust vertical position if tooltip would overflow bottom
+              if (top + tooltipHeight > viewportHeight) {
+                  top = mousePosition.y - tooltipHeight - 16
+              }
+
+              // Ensure tooltip doesn't go off left edge
+              if (left < 16) {
+                  left = 16
+              }
+
+              // Ensure tooltip doesn't go off top edge
+              if (top < 16) {
+                  top = 16
+              }
+
+              return (
               <div
                 className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
                 style={{
-                  left: `${mousePosition.x + 16}px`,
-                  top: `${mousePosition.y + 16}px`,
+                  left: `${left}px`,
+                  top: `${top}px`,
                 }}
               >
                 <div className="p-3">
@@ -389,10 +423,10 @@ export default function NodeResourceGraph() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-slate-400">CPU:</span>
-                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent.toFixed(1)}%</span>
+                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%</span>
                           </div>
                           <div className="text-slate-500 mt-0.5">
-                            {hoveredNode.data.cpuUsed.toFixed(1)}/{hoveredNode.data.cpuTotal} cores
+                            {hoveredNode.data.cpuUsed?.toFixed?.(1) ?? 'N/A'}/{hoveredNode.data.cpuTotal ?? 'N/A'} cores
                           </div>
                         </div>
                       </div>
@@ -401,10 +435,10 @@ export default function NodeResourceGraph() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-slate-400">RAM:</span>
-                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.ramUsageMB}MB</span>
+                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.ramUsageMB ?? 'N/A'}MB</span>
                           </div>
                           <div className="text-slate-500 mt-0.5">
-                            {hoveredNode.data.ramTotalMB}MB total ({hoveredNode.data.ramUsagePercent.toFixed(1)}%)
+                            {hoveredNode.data.ramTotalMB ?? 'N/A'}MB total ({hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}%)
                           </div>
                         </div>
                       </div>
@@ -412,7 +446,12 @@ export default function NodeResourceGraph() {
                   </>
                 )}
 
-                {viewLevel === 'services' && hoveredNode.data && (
+                {viewLevel === 'services' && hoveredNode.data && (() => {
+                  const availPct = hoveredNode.data.availability != null ? hoveredNode.data.availability * 100 : null
+                  const availColorClass = availPct !== null && availPct > 99 ? 'text-green-300' : availPct !== null && availPct > 95 ? 'text-yellow-300' : 'text-red-300'
+                  const availIconClass = availPct !== null && availPct > 99 ? 'text-green-400' : availPct !== null && availPct > 95 ? 'text-yellow-400' : 'text-red-400'
+
+                  return (
                   <>
                     <div className="flex items-center gap-2 mb-3">
                       <Box className="w-4 h-4 text-blue-400" />
@@ -428,13 +467,14 @@ export default function NodeResourceGraph() {
                         <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.podCount}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Server className="w-3.5 h-3.5 text-green-400" />
+                        <Server className={`w-3.5 h-3.5 ${availIconClass}`} />
                         <span className="text-slate-400">Availability:</span>
-                        <span className="font-mono font-semibold text-green-300">{(hoveredNode.data.availability * 100).toFixed(1)}%</span>
+                        <span className={`font-mono font-semibold ${availColorClass}`}>{availPct !== null ? availPct.toFixed(1) : 'N/A'}%</span>
                       </div>
                     </div>
                   </>
-                )}
+                  )
+                })()}
 
                 {viewLevel === 'pods' && hoveredNode.data && (
                   <>
@@ -451,7 +491,7 @@ export default function NodeResourceGraph() {
                       <div className="flex items-center gap-2">
                         <Cpu className="w-3.5 h-3.5 text-cyan-400" />
                         <span className="text-slate-400">CPU:</span>
-                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent.toFixed(1)}%</span>
+                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
@@ -463,7 +503,8 @@ export default function NodeResourceGraph() {
                 )}
               </div>
               </div>
-            )}
+              )
+            })()}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center p-8">

@@ -118,6 +118,8 @@ export default function IncidentExplorer() {
         const clickedNodeData = node.data as GraphNode
 
         setSelectedNode(clickedNodeData)
+        setHoveredNode(null) // Hide tooltip when node is clicked
+        setMousePosition(null)
 
         if (mode === 'impact') {
             // Impact mode: highlight downstream (targets)
@@ -283,7 +285,7 @@ export default function IncidentExplorer() {
                             edges={reagraphEdges}
                             selections={selections}
                             actives={actives}
-                            layoutType="forceDirected2d"
+                            layoutType="treeTd2d"
                             labelType="all"
                             theme={{
                                 canvas: {
@@ -388,12 +390,42 @@ export default function IncidentExplorer() {
                         />
 
                         {/* Hover Tooltip */}
-                        {hoveredNode && !selectedNode && mousePosition && (
+                        {hoveredNode && !selectedNode && mousePosition && (() => {
+                            const tooltipWidth = 256 // max-w-sm is ~256px
+                            const tooltipHeight = 200 // approximate height
+                            const viewportWidth = window.innerWidth
+                            const viewportHeight = window.innerHeight
+
+                            // Smart positioning to prevent overflow
+                            let left = mousePosition.x + 16
+                            let top = mousePosition.y + 16
+
+                            // Adjust horizontal position if tooltip would overflow right
+                            if (left + tooltipWidth > viewportWidth) {
+                                left = mousePosition.x - tooltipWidth - 16
+                            }
+
+                            // Adjust vertical position if tooltip would overflow bottom
+                            if (top + tooltipHeight > viewportHeight) {
+                                top = mousePosition.y - tooltipHeight - 16
+                            }
+
+                            // Ensure tooltip doesn't go off left edge
+                            if (left < 16) {
+                                left = 16
+                            }
+
+                            // Ensure tooltip doesn't go off top edge
+                            if (top < 16) {
+                                top = 16
+                            }
+
+                            return (
                             <div
                                 className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
                                 style={{
-                                    left: `${mousePosition.x + 16}px`,
-                                    top: `${mousePosition.y + 16}px`,
+                                    left: `${left}px`,
+                                    top: `${top}px`,
                                 }}
                             >
                                 <div className="p-3">
@@ -421,8 +453,8 @@ export default function IncidentExplorer() {
                                         {(() => {
                                             const availPct = hoveredNode.availabilityPct ?? (hoveredNode.availability !== undefined && hoveredNode.availability !== null ? hoveredNode.availability * 100 : null)
                                             if (availPct === null || availPct === undefined) return null
-                                            const colorClass = availPct >= 99 ? 'text-green-400' : availPct >= 95 ? 'text-yellow-400' : 'text-red-400'
-                                            const iconClass = availPct >= 99 ? 'text-green-400' : availPct >= 95 ? 'text-yellow-400' : 'text-red-400'
+                                            const colorClass = availPct > 99 ? 'text-green-400' : availPct > 95 ? 'text-yellow-400' : 'text-red-400'
+                                            const iconClass = availPct > 99 ? 'text-green-400' : availPct > 95 ? 'text-yellow-400' : 'text-red-400'
                                             return (
                                                 <div className="flex items-center gap-2 text-xs">
                                                     <TrendingUp className={`w-3.5 h-3.5 ${iconClass}`} />
@@ -444,7 +476,8 @@ export default function IncidentExplorer() {
                                 )}
                             </div>
                             </div>
-                        )}
+                            )
+                        })()}
 
                         {/* Node Details Drawer */}
                         {selectedNode && (

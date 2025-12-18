@@ -139,7 +139,45 @@ export type ScaleResponse = {
   recommendations?: Recommendation[]
 }
 
-export type ScenarioType = 'failure' | 'scale'
+// ─────────────────────────────────────────────────────────────────────────────
+// Service Addition Simulation Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ServiceAdditionDependency = {
+  serviceId: string
+  relation: 'calls' | 'called_by'
+}
+
+export type ServiceAdditionScenario = {
+  type: 'add-service'
+  serviceName: string
+  minCpuCores: number
+  minRamMB: number
+  dependencies: ServiceAdditionDependency[]
+  maxDepth: number
+}
+
+export type NodeSuitability = {
+  nodeName: string
+  suitable: boolean
+  reason?: string
+  availableCpu: number
+  availableRam: number
+  score: number // 0-100 suitability score
+}
+
+export type ServiceAdditionResponse = {
+  correlationId?: string
+  targetServiceName: string
+  suitableNodes: NodeSuitability[]
+  riskAnalysis: {
+    dependencyRisk: 'low' | 'medium' | 'high'
+    description: string
+  }
+  recommendations: Recommendation[]
+}
+
+export type ScenarioType = 'failure' | 'scale' | 'add-service'
 
 export type FailureScenario = {
   type: 'failure'
@@ -156,7 +194,7 @@ export type ScaleScenario = {
   maxDepth: number
 }
 
-export type Scenario = FailureScenario | ScaleScenario
+export type Scenario = FailureScenario | ScaleScenario | ServiceAdditionScenario
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Proof Metadata — tracks run context for operator auditability

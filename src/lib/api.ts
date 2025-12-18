@@ -12,6 +12,8 @@ import type {
   LogDecisionResponse,
   GraphSnapshot,
   ServiceWithPlacement,
+  ServiceAdditionScenario,
+  ServiceAdditionResponse,
 } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
@@ -183,4 +185,56 @@ export async function getServicesWithPlacement(
     signal,
   })
   return data
+}
+
+/**
+ * Simulate adding a new service (MOCKED)
+ * @param scenario - Service addition scenario parameters
+ * @param options - Optional request options
+ */
+export async function simulateServiceAddition(
+  scenario: Omit<ServiceAdditionScenario, 'type'>
+): Promise<ServiceAdditionResponse> {
+  // Simulate network delay
+  await new Promise((resolve) => setTimeout(resolve, 800))
+
+  return {
+    targetServiceName: scenario.serviceName,
+    suitableNodes: [
+      {
+        nodeName: 'gke-cluster-pool-1-a8f4',
+        suitable: true,
+        availableCpu: 1.2,
+        availableRam: 2048,
+        score: 95,
+      },
+      {
+        nodeName: 'gke-cluster-pool-1-b9c2',
+        suitable: true,
+        availableCpu: 0.8,
+        availableRam: 1500,
+        score: 85,
+      },
+      {
+        nodeName: 'gke-cluster-pool-1-d3e1',
+        suitable: false,
+        reason: 'Insufficient CPU',
+        availableCpu: 0.2,
+        availableRam: 4096,
+        score: 20,
+      },
+    ],
+    riskAnalysis: {
+      dependencyRisk: 'low',
+      description:
+        'New service has standard dependencies. No circular dependencies detected. Bandwidth impact projected to be minimal.',
+    },
+    recommendations: [
+      {
+        type: 'placement',
+        priority: 'high',
+        description: 'Recommended placement: gke-cluster-pool-1-a8f4 (Best resource balance)',
+      },
+    ],
+  }
 }

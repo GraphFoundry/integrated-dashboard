@@ -1,22 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router'
-import { Sparkles, Activity, Network } from 'lucide-react'
+import { Sparkles, Activity, Network, Settings } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import NodeResourceGraph from './NodeResourceGraph'
-import { simulateFailure, simulateScale } from '@/lib/api'
+import { simulateFailure, simulateScale, simulateServiceAddition } from '@/lib/api'
 import { formatMs } from '@/lib/format'
-import type { Scenario, FailureResponse, ScaleResponse, ScenarioType } from '@/lib/types'
+import type {
+  Scenario,
+  FailureResponse,
+  ScaleResponse,
+  ServiceAdditionResponse,
+  ScenarioType,
+} from '@/lib/types'
 
 export default function SimulationsRefactored() {
   const [searchParams] = useSearchParams()
   const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<FailureResponse | ScaleResponse | null>(null)
+  const [result, setResult] = useState<
+    FailureResponse | ScaleResponse | ServiceAdditionResponse | null
+  >(null)
 
   // Prefill from query params
   const prefillType = searchParams.get('type') as ScenarioType | null
@@ -52,18 +61,26 @@ export default function SimulationsRefactored() {
     setResult(null)
 
     try {
-      let response: FailureResponse | ScaleResponse
+      let response: FailureResponse | ScaleResponse | ServiceAdditionResponse
       if (scenario.type === 'failure') {
         response = await simulateFailure({
           serviceId: scenario.serviceId,
           maxDepth: scenario.maxDepth,
         })
-      } else {
+      } else if (scenario.type === 'scale') {
         response = await simulateScale({
           serviceId: scenario.serviceId,
           currentPods: scenario.currentPods,
           newPods: scenario.newPods,
           latencyMetric: scenario.latencyMetric,
+          maxDepth: scenario.maxDepth,
+        })
+      } else {
+        response = await simulateServiceAddition({
+          serviceName: scenario.serviceName,
+          minCpuCores: scenario.minCpuCores,
+          minRamMB: scenario.minRamMB,
+          dependencies: scenario.dependencies,
           maxDepth: scenario.maxDepth,
         })
       }
@@ -267,6 +284,86 @@ export default function SimulationsRefactored() {
     )
   }
 
+  const renderServiceAdditionResults = (additionResult: ServiceAdditionResponse) => {
+    return (
+      <Section title="Placement Analysis" icon={Activity}>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+          <div className="lg:col-span-2 space-y-4">
+            <h3 className="text-sm font-semibold text-slate-300">Target Node Suitability</h3>
+            <div className="space-y-3">
+              {additionResult.suitableNodes.map((node) => (
+                <div
+                  key={node.nodeName}
+                  className={`p-4 rounded border ${node.suitable ? 'bg-green-900/20 border-green-700/50' : 'bg-red-900/20 border-red-700/50'}`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-white">{node.nodeName}</span>
+                      {node.suitable ? (
+                        <span className="text-xs bg-green-900 text-green-300 px-2 py-0.5 rounded">
+                          Suitable
+                        </span>
+                      ) : (
+                        <span className="text-xs bg-red-900 text-red-300 px-2 py-0.5 rounded">
+                          Unsuitable
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-400">Score: {node.score}/100</div>
+                  </div>
+                  {!node.suitable && <div className="text-xs text-red-400 mb-2">{node.reason}</div>}
+                  <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+                    <div>
+                      Available CPU: <span className="text-white">{node.availableCpu} cores</span>
+                    </div>
+                    <div>
+                      Available RAM: <span className="text-white">{node.availableRam} MB</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-slate-300">Risk & Recommendations</h3>
+            <div className="p-4 bg-slate-800 rounded border border-slate-700">
+              <div className="mb-4">
+                <div className="text-xs text-slate-500 mb-1">Dependency Risk</div>
+                <div
+                  className={`text-sm font-medium ${additionResult.riskAnalysis.dependencyRisk === 'low'
+                    ? 'text-green-400'
+                    : additionResult.riskAnalysis.dependencyRisk === 'medium'
+                      ? 'text-yellow-400'
+                      : 'text-red-400'
+                    }`}
+                >
+                  {additionResult.riskAnalysis.dependencyRisk.toUpperCase()}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  {additionResult.riskAnalysis.description}
+                </p>
+              </div>
+
+              {additionResult.recommendations && additionResult.recommendations.length > 0 && (
+                <div>
+                  <div className="text-xs text-slate-500 mb-1">Recommendation</div>
+                  <ul className="space-y-2">
+                    {additionResult.recommendations.map((rec, i) => (
+                      <li key={i} className="text-xs text-white">
+                        • {rec.description}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </Section>
+    )
+  }
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <PageHeader
@@ -275,53 +372,59 @@ export default function SimulationsRefactored() {
         icon={Sparkles}
       />
 
-      {/* Infrastructure Overview */}
-      <Section title="Infrastructure Overview" icon={Network}>
-        <NodeResourceGraph />
-      </Section>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Scenario Builder */}
         <div className="lg:col-span-1">
-          <ScenarioForm
-            onRun={handleRun}
-            loading={loading}
-            mode="live"
-            scenarioType={scenarioType}
-            onScenarioTypeChange={setScenarioType}
-          />
+          <Section title="Scenario Configuration" icon={Settings}>
+            <ScenarioForm
+              onRun={handleRun}
+              loading={loading}
+              mode="live"
+              scenarioType={scenarioType}
+              onScenarioTypeChange={setScenarioType}
+            />
+          </Section>
         </div>
 
-        {/* Results */}
-        <div className="lg:col-span-2 space-y-6">
-          {error && (
-            <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-              <p className="text-red-300">{error}</p>
-            </div>
-          )}
+        <div className="lg:col-span-2">
+          {/* Infrastructure Overview */}
+          <Section title="Infrastructure Overview" icon={Network}>
+            <NodeResourceGraph />
+          </Section>
+        </div>
+      </div>
 
-          {loading && (
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-              <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-              <p className="text-slate-400">Running simulation...</p>
-            </div>
-          )}
+      {/* Results */}
+      <div className="space-y-6">
+        {error && (
+          <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
+            <p className="text-red-300">{error}</p>
+          </div>
+        )}
 
-          {result && !loading && (
-            <>
-              {'affectedCallers' in result && result.affectedCallers
+        {loading && (
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
+            <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
+            <p className="text-slate-400">Running simulation...</p>
+          </div>
+        )}
+
+        {result && !loading && (
+          <>
+            {'targetServiceName' in result
+              ? renderServiceAdditionResults(result as ServiceAdditionResponse)
+              : 'affectedCallers' in result
                 ? renderFailureResults(result as FailureResponse)
                 : renderScaleResults(result as ScaleResponse)}
-            </>
-          )}
+          </>
+        )}
 
-          {!result && !loading && !error && (
-            <EmptyState
-              icon={<Sparkles className="w-12 h-12 text-slate-600" />}
-              message="Configure a scenario and click Run to see predictions"
-            />
-          )}
-        </div>
+        {!result && !loading && !error && (
+          <EmptyState
+            icon={<Sparkles className="w-12 h-12 text-slate-600" />}
+            message="Configure a scenario and click Run to see predictions"
+          />
+        )}
       </div>
     </div>
   )

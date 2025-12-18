@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { toast } from 'react-hot-toast'
 import { GraphCanvas, GraphNode as ReagraphNode } from 'reagraph'
 import {
   ChevronRight,
@@ -73,6 +74,15 @@ export default function NodeResourceGraph() {
 
         setServices(servicesData.services || [])
 
+        // Handle stale data notification
+        if ((servicesData as any).stale) {
+          toast('Displaying cached infrastructure data. Live updates may be delayed.', {
+            id: 'stale-data-toast',
+            duration: 4000,
+            icon: '🕒',
+          })
+        }
+
         // Extract service dependency edges for Level 2
         const edges =
           graphSnapshot.edges?.map((e) => ({
@@ -100,6 +110,8 @@ export default function NodeResourceGraph() {
         nodes: nodeData.map((n: NodeData) => ({
           id: n.id,
           label: n.label,
+
+          size: 50,
           fill: getResourceColor(n.cpuUsagePercent),
           data: n,
         })),
@@ -120,6 +132,8 @@ export default function NodeResourceGraph() {
         return {
           id: s.id,
           label: s.label,
+
+          size: 50,
           fill,
           data: s,
         }
@@ -151,6 +165,8 @@ export default function NodeResourceGraph() {
           return {
             id: p.id,
             label: p.label,
+
+            size: 40,
             fill,
             data: p,
           }
@@ -271,11 +287,10 @@ export default function NodeResourceGraph() {
                 {idx > 0 && <ChevronRight className="w-4 h-4 text-slate-600" />}
                 <button
                   onClick={() => handleBreadcrumbClick(item)}
-                  className={`px-2 py-1 rounded transition-colors ${
-                    idx === breadcrumbs.length - 1
-                      ? 'text-white font-medium bg-slate-700'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                  }`}
+                  className={`px-2 py-1 rounded transition-colors ${idx === breadcrumbs.length - 1
+                    ? 'text-white font-medium bg-slate-700'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+                    }`}
                 >
                   {item.label}
                 </button>

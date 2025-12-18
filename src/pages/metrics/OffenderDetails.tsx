@@ -165,13 +165,17 @@ export default function OffenderDetails() {
             <KPIStatCard
               label="Traffic"
               tooltip="Requests per second"
-              value={summaryStats.requestRate === undefined ? 'N/A' : formatRps(summaryStats.requestRate)}
+              value={
+                summaryStats.requestRate === undefined ? 'N/A' : formatRps(summaryStats.requestRate)
+              }
               variant="default"
             />
             <KPIStatCard
               label="Failed Requests"
               tooltip="Percentage of requests that resulted in errors"
-              value={summaryStats.errorRate === undefined ? 'N/A' : formatPercent(summaryStats.errorRate)}
+              value={
+                summaryStats.errorRate === undefined ? 'N/A' : formatPercent(summaryStats.errorRate)
+              }
               variant={(() => {
                 if (summaryStats.errorRate === undefined) return 'default'
                 const rate = summaryStats.errorRate
@@ -195,7 +199,11 @@ export default function OffenderDetails() {
             <KPIStatCard
               label="Uptime"
               tooltip="Service availability percentage"
-              value={summaryStats.availability === undefined ? 'N/A' : formatPercent(summaryStats.availability)}
+              value={
+                summaryStats.availability === undefined
+                  ? 'N/A'
+                  : formatPercent(summaryStats.availability)
+              }
               variant={(() => {
                 if (summaryStats.availability === undefined) return 'default'
                 const avail = summaryStats.availability

@@ -24,7 +24,8 @@ import { useMemo, useState } from 'react'
  * ```
  */
 export default function AlertsSlot({ serviceId, expanded = false }: AlertsComponentProps) {
-  const { alerts, loading, connected, acknowledge, setFilters, loadMore, hasMore, loadingMore } = useAlerts()
+  const { alerts, loading, connected, acknowledge, setFilters, loadMore, hasMore, loadingMore } =
+    useAlerts()
   const [severity, setSeverity] = useState<string | undefined>(undefined)
   const [svc, setSvc] = useState<string | undefined>(serviceId)
   const [q, setQ] = useState<string | undefined>(undefined)
@@ -74,14 +75,18 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
                 a.severity === 'critical'
                   ? 'bg-red-900/10 border border-red-800/30'
                   : a.severity === 'warning'
-                  ? 'bg-yellow-900/10 border border-yellow-800/30'
-                  : 'bg-slate-800/20 border border-slate-700/30'
+                    ? 'bg-yellow-900/10 border border-yellow-800/30'
+                    : 'bg-slate-800/20 border border-slate-700/30'
               }`}
               onClick={() => openDetail(a.id)}
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  a.severity === 'critical' ? 'bg-red-500' : a.severity === 'warning' ? 'bg-yellow-500' : 'bg-slate-500'
+                  a.severity === 'critical'
+                    ? 'bg-red-500'
+                    : a.severity === 'warning'
+                      ? 'bg-yellow-500'
+                      : 'bg-slate-500'
                 }`}
               />
 
@@ -210,17 +215,11 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
             className="bg-slate-900 text-slate-200 text-sm rounded px-2 py-1 flex-1"
           />
 
-          <button
-            onClick={applyFilters}
-            className="text-sm text-blue-400 hover:underline"
-          >
+          <button onClick={applyFilters} className="text-sm text-blue-400 hover:underline">
             Apply
           </button>
 
-          <button
-            onClick={clearFilters}
-            className="text-sm text-slate-400 hover:underline"
-          >
+          <button onClick={clearFilters} className="text-sm text-slate-400 hover:underline">
             Clear
           </button>
         </div>

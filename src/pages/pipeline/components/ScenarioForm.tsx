@@ -213,7 +213,8 @@ export default function ScenarioForm({
                 if (s.podCount !== undefined || s.availability !== undefined) {
                   const details = []
                   if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
-                  if (s.availability !== undefined) details.push(`${(s.availability * 100).toFixed(0)}% up`)
+                  if (s.availability !== undefined)
+                    details.push(`${(s.availability * 100).toFixed(0)}% up`)
                   label += ` - ${details.join(', ')}`
                 }
                 return (

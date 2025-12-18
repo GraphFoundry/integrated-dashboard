@@ -1,7 +1,10 @@
 /**
  * Format metric values with N/A fallback
  */
-export function formatMetric(value: number | undefined, formatter: (val: number) => string): string {
+export function formatMetric(
+  value: number | undefined,
+  formatter: (val: number) => string
+): string {
   if (value === undefined || value === null) return 'N/A'
   return formatter(value)
 }

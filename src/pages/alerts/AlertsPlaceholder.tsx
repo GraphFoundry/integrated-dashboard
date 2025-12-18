@@ -3,17 +3,17 @@ import { Link } from 'react-router'
 import { bffApi, Incident, Overview, connectToAlertStream, WSMessage } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
 import { formatDistanceToNow } from '@/lib/format'
-import { 
-  AlertTriangle, 
-  CheckCircle2, 
-  Activity, 
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Activity,
   Shield,
   TrendingUp,
   Clock,
   Zap,
   Users,
   X,
-  Bell
+  Bell,
 } from 'lucide-react'
 
 interface Toast {
@@ -34,12 +34,12 @@ export default function AlertsPage() {
     status: 'open',
     severity: '',
   })
-  
+
   // Track scroll position for restoration after updates
   const scrollPositionRef = useRef<number>(0)
   const isWebSocketUpdateRef = useRef<boolean>(false)
   const filterRef = useRef(filter)
-  
+
   // Keep filter ref in sync with current filter state
   useEffect(() => {
     filterRef.current = filter
@@ -57,7 +57,7 @@ export default function AlertsPage() {
     const ws = connectToAlertStream(handleWSMessage)
     return () => ws.close()
   }, [])
-  
+
   // Restore scroll position after WebSocket updates
   useEffect(() => {
     if (isWebSocketUpdateRef.current && scrollPositionRef.current > 0 && !loading) {
@@ -65,7 +65,7 @@ export default function AlertsPage() {
       requestAnimationFrame(() => {
         window.scrollTo({
           top: scrollPositionRef.current,
-          behavior: 'instant' as ScrollBehavior
+          behavior: 'instant' as ScrollBehavior,
         })
         isWebSocketUpdateRef.current = false
       })
@@ -94,57 +94,60 @@ export default function AlertsPage() {
   const handleWSMessage = async (message: WSMessage) => {
     if (message.type === 'incident_updated') {
       const { dedupe_key, namespace, service, state } = message.data
-      
+
       // Save current scroll position before updating
       scrollPositionRef.current = window.scrollY
       isWebSocketUpdateRef.current = true
-      
+
       // Use current filter values from ref to avoid stale closure
       const currentFilter = filterRef.current
-      
+
       // Fetch the updated incident to check if it matches current filters
       try {
         const incidentDetail = await bffApi.getIncidentDetail(dedupe_key, namespace, service)
         const incident = incidentDetail.incident
-        
+
         // Check if incident matches current filters
-        const statusMatches = currentFilter.status === 'all' || 
+        const statusMatches =
+          currentFilter.status === 'all' ||
           (currentFilter.status === 'open' && incident.status === 'OPEN') ||
           (currentFilter.status === 'resolved' && incident.status === 'RESOLVED')
-        
-        const severityMatches = !currentFilter.severity || incident.current_severity === currentFilter.severity
-        
+
+        const severityMatches =
+          !currentFilter.severity || incident.current_severity === currentFilter.severity
+
         const matchesFilter = statusMatches && severityMatches
-        
+
         // Show toast if incident doesn't match current filter
         if (!matchesFilter) {
-          const toastMessage = state === 'resolved' 
-            ? `Incident resolved: ${service} (filtered out)`
-            : `New incident update: ${service} (filtered out)`
-          
+          const toastMessage =
+            state === 'resolved'
+              ? `Incident resolved: ${service} (filtered out)`
+              : `New incident update: ${service} (filtered out)`
+
           showToast(toastMessage, 'info')
         }
       } catch (error) {
         console.error('Failed to fetch incident details:', error)
       }
-      
+
       // Always reload data with current filters
       loadDataWithFilters(currentFilter)
     }
   }
-  
+
   const showToast = (message: string, type: Toast['type'] = 'info') => {
     const id = Date.now().toString()
-    setToasts(prev => [...prev, { id, message, type }])
-    
+    setToasts((prev) => [...prev, { id, message, type }])
+
     // Auto-dismiss after 5 seconds
     setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
+      setToasts((prev) => prev.filter((t) => t.id !== id))
     }, 5000)
   }
-  
+
   const dismissToast = (id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id))
+    setToasts((prev) => prev.filter((t) => t.id !== id))
   }
 
   const getSeverityColor = (severity: string) => {
@@ -180,7 +183,9 @@ export default function AlertsPage() {
             <Shield className="w-8 h-8 text-blue-400" />
             <h1 className="text-4xl font-bold text-white">Alerts Dashboard</h1>
           </div>
-          <p className="text-gray-300 text-lg">Real-time incident monitoring and automated response tracking</p>
+          <p className="text-gray-300 text-lg">
+            Real-time incident monitoring and automated response tracking
+          </p>
         </div>
         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
       </div>
@@ -202,9 +207,7 @@ export default function AlertsPage() {
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-300">Open Incidents</p>
               <p className="text-4xl font-bold text-white">{overview.open_incidents}</p>
-              <p className="text-xs text-gray-400">
-                {overview.total_incidents} total incidents
-              </p>
+              <p className="text-xs text-gray-400">{overview.total_incidents} total incidents</p>
             </div>
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-2xl group-hover:bg-orange-500/10 transition-all"></div>
           </div>
@@ -224,9 +227,7 @@ export default function AlertsPage() {
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-300">Critical Alerts</p>
               <p className="text-4xl font-bold text-white">{overview.critical_count}</p>
-              <p className="text-xs text-gray-400">
-                {overview.high_count} high severity
-              </p>
+              <p className="text-xs text-gray-400">{overview.high_count} high severity</p>
             </div>
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all"></div>
           </div>
@@ -262,9 +263,7 @@ export default function AlertsPage() {
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-300">Services Affected</p>
               <p className="text-4xl font-bold text-white">{overview.services_affected}</p>
-              <p className="text-xs text-gray-400">
-                Active monitoring
-              </p>
+              <p className="text-xs text-gray-400">Active monitoring</p>
             </div>
             <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all"></div>
           </div>
@@ -358,7 +357,7 @@ export default function AlertsPage() {
                       </div>
                       <div className="text-lg font-medium text-gray-400">No incidents found</div>
                       <p className="text-sm text-gray-500 max-w-md">
-                        {filter.status === 'open' 
+                        {filter.status === 'open'
                           ? 'All systems are operating normally. No open incidents at this time.'
                           : 'No incidents match the current filter criteria.'}
                       </p>
@@ -367,8 +366,8 @@ export default function AlertsPage() {
                 </tr>
               ) : (
                 incidents.map((incident) => (
-                  <tr 
-                    key={`${incident.dedupe_key}-${incident.service}`} 
+                  <tr
+                    key={`${incident.dedupe_key}-${incident.service}`}
                     className="hover:bg-gray-700/30 transition-colors duration-150"
                   >
                     <td className="px-6 py-4">
@@ -384,30 +383,44 @@ export default function AlertsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="inline-flex items-center gap-2">
-                        <span className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
-                          incident.current_severity === 'critical' 
-                            ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20' :
-                          incident.current_severity === 'high' 
-                            ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20' :
-                          incident.current_severity === 'medium' 
-                            ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20' :
-                          'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
-                        }`}>
-                          <span className={`relative flex h-2 w-2 ${
-                            incident.current_severity === 'critical' ? 'animate-pulse' : ''
-                          }`}>
-                            <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                              incident.current_severity === 'critical' ? 'bg-red-400 animate-ping' :
-                              incident.current_severity === 'high' ? 'bg-orange-400' :
-                              incident.current_severity === 'medium' ? 'bg-yellow-400' :
-                              'bg-blue-400'
-                            }`}></span>
-                            <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                              incident.current_severity === 'critical' ? 'bg-red-500' :
-                              incident.current_severity === 'high' ? 'bg-orange-500' :
-                              incident.current_severity === 'medium' ? 'bg-yellow-500' :
-                              'bg-blue-500'
-                            }`}></span>
+                        <span
+                          className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
+                            incident.current_severity === 'critical'
+                              ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
+                              : incident.current_severity === 'high'
+                                ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
+                                : incident.current_severity === 'medium'
+                                  ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
+                                  : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
+                          }`}
+                        >
+                          <span
+                            className={`relative flex h-2 w-2 ${
+                              incident.current_severity === 'critical' ? 'animate-pulse' : ''
+                            }`}
+                          >
+                            <span
+                              className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                                incident.current_severity === 'critical'
+                                  ? 'bg-red-400 animate-ping'
+                                  : incident.current_severity === 'high'
+                                    ? 'bg-orange-400'
+                                    : incident.current_severity === 'medium'
+                                      ? 'bg-yellow-400'
+                                      : 'bg-blue-400'
+                              }`}
+                            ></span>
+                            <span
+                              className={`relative inline-flex rounded-full h-2 w-2 ${
+                                incident.current_severity === 'critical'
+                                  ? 'bg-red-500'
+                                  : incident.current_severity === 'high'
+                                    ? 'bg-orange-500'
+                                    : incident.current_severity === 'medium'
+                                      ? 'bg-yellow-500'
+                                      : 'bg-blue-500'
+                              }`}
+                            ></span>
                           </span>
                           {incident.current_severity}
                         </span>
@@ -420,7 +433,9 @@ export default function AlertsPage() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-white">{incident.current_action}</span>
+                        <span className="text-sm font-medium text-white">
+                          {incident.current_action}
+                        </span>
                         <span className="text-xs text-gray-400 flex items-center gap-1">
                           {incident.auto ? (
                             <>
@@ -437,11 +452,15 @@ export default function AlertsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
-                        incident.current_priority === 'P1' ? 'bg-red-500/20 text-red-400' :
-                        incident.current_priority === 'P2' ? 'bg-orange-500/20 text-orange-400' :
-                        'bg-blue-500/20 text-blue-400'
-                      }`}>
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
+                          incident.current_priority === 'P1'
+                            ? 'bg-red-500/20 text-red-400'
+                            : incident.current_priority === 'P2'
+                              ? 'bg-orange-500/20 text-orange-400'
+                              : 'bg-blue-500/20 text-blue-400'
+                        }`}
+                      >
                         {incident.current_priority}
                       </span>
                     </td>
@@ -473,16 +492,24 @@ export default function AlertsPage() {
             key={toast.id}
             className="flex items-start gap-3 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4 min-w-[320px] max-w-md animate-slide-in"
           >
-            <div className={`flex-shrink-0 p-2 rounded-lg ${
-              toast.type === 'success' ? 'bg-green-500/20' :
-              toast.type === 'warning' ? 'bg-orange-500/20' :
-              'bg-blue-500/20'
-            }`}>
-              <Bell className={`w-5 h-5 ${
-                toast.type === 'success' ? 'text-green-400' :
-                toast.type === 'warning' ? 'text-orange-400' :
-                'text-blue-400'
-              }`} />
+            <div
+              className={`flex-shrink-0 p-2 rounded-lg ${
+                toast.type === 'success'
+                  ? 'bg-green-500/20'
+                  : toast.type === 'warning'
+                    ? 'bg-orange-500/20'
+                    : 'bg-blue-500/20'
+              }`}
+            >
+              <Bell
+                className={`w-5 h-5 ${
+                  toast.type === 'success'
+                    ? 'text-green-400'
+                    : toast.type === 'warning'
+                      ? 'text-orange-400'
+                      : 'text-blue-400'
+                }`}
+              />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white">{toast.message}</p>

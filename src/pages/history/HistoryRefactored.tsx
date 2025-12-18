@@ -86,7 +86,11 @@ export default function HistoryRefactored() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <PageHeader title="History" description="Prediction history and decision logs" icon={History} />
+      <PageHeader
+        title="History"
+        description="Prediction history and decision logs"
+        icon={History}
+      />
 
       {/* Filters */}
       <Section icon={Filter}>

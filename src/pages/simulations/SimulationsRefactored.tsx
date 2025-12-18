@@ -9,12 +9,7 @@ import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import NodeResourceGraph from './NodeResourceGraph'
 import { simulateFailure, simulateScale } from '@/lib/api'
 import { formatMs } from '@/lib/format'
-import type {
-  Scenario,
-  FailureResponse,
-  ScaleResponse,
-  ScenarioType,
-} from '@/lib/types'
+import type { Scenario, FailureResponse, ScaleResponse, ScenarioType } from '@/lib/types'
 
 export default function SimulationsRefactored() {
   const [searchParams] = useSearchParams()
@@ -274,7 +269,11 @@ export default function SimulationsRefactored() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <PageHeader title="Simulations" description="Predict failure and scaling impact" icon={Sparkles} />
+      <PageHeader
+        title="Simulations"
+        description="Predict failure and scaling impact"
+        icon={Sparkles}
+      />
 
       {/* Infrastructure Overview */}
       <Section title="Infrastructure Overview" icon={Network}>
@@ -317,7 +316,10 @@ export default function SimulationsRefactored() {
           )}
 
           {!result && !loading && !error && (
-            <EmptyState icon={<Sparkles className="w-12 h-12 text-slate-600" />} message="Configure a scenario and click Run to see predictions" />
+            <EmptyState
+              icon={<Sparkles className="w-12 h-12 text-slate-600" />}
+              message="Configure a scenario and click Run to see predictions"
+            />
           )}
         </div>
       </div>

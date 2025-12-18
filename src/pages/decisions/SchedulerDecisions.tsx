@@ -89,7 +89,10 @@ export default function SchedulerDecisions() {
       <Section icon={Filter}>
         <div className="flex gap-4 items-end">
           <div className="flex-1">
-            <label htmlFor="namespace-filter" className="block text-sm font-medium text-gray-300 mb-2">
+            <label
+              htmlFor="namespace-filter"
+              className="block text-sm font-medium text-gray-300 mb-2"
+            >
               Filter by Namespace
             </label>
             <select
@@ -172,7 +175,9 @@ export default function SchedulerDecisions() {
                       <span className="text-sm px-2.5 py-1 bg-slate-700/80 text-slate-300 rounded-md border border-slate-600">
                         {decision.namespace}
                       </span>
-                      <span className={`text-sm px-2.5 py-1 rounded-md border ${getStatusColor(decision.status)}`}>
+                      <span
+                        className={`text-sm px-2.5 py-1 rounded-md border ${getStatusColor(decision.status)}`}
+                      >
                         {decision.status}
                       </span>
                     </div>
@@ -196,7 +201,10 @@ export default function SchedulerDecisions() {
                     </div>
                     <div className="space-y-1">
                       {decision.currentNodes.map((node) => (
-                        <div key={node} className="text-sm text-slate-300 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-700/50">
+                        <div
+                          key={node}
+                          className="text-sm text-slate-300 font-mono bg-slate-900/50 px-2 py-1 rounded border border-slate-700/50"
+                        >
                           {node}
                         </div>
                       ))}
@@ -216,7 +224,9 @@ export default function SchedulerDecisions() {
                     </div>
                     <div className="text-xs text-slate-400 mt-2 flex items-center gap-1">
                       <span>Score:</span>
-                      <span className="text-green-400 font-semibold">{decision.scores[decision.bestNode]}</span>
+                      <span className="text-green-400 font-semibold">
+                        {decision.scores[decision.bestNode]}
+                      </span>
                     </div>
                   </div>
 
@@ -232,8 +242,13 @@ export default function SchedulerDecisions() {
                       {Object.entries(decision.scores)
                         .sort(([, a], [, b]) => b - a)
                         .map(([node, score]) => (
-                          <div key={node} className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded border border-slate-700/50">
-                            <span className="text-sm text-slate-300 font-mono truncate">{node}</span>
+                          <div
+                            key={node}
+                            className="flex justify-between items-center bg-slate-900/50 px-2 py-1 rounded border border-slate-700/50"
+                          >
+                            <span className="text-sm text-slate-300 font-mono truncate">
+                              {node}
+                            </span>
                             <span className={`text-sm font-semibold ml-2 ${getScoreColor(score)}`}>
                               {score}
                             </span>
@@ -255,9 +270,7 @@ export default function SchedulerDecisions() {
             <span className="text-slate-400">
               Showing {filteredDecisions.length} of {decisions.length} decisions
             </span>
-            <span className="text-slate-500">
-              Mock data — real-time integration coming soon
-            </span>
+            <span className="text-slate-500">Mock data — real-time integration coming soon</span>
           </div>
         </Section>
       )}

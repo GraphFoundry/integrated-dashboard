@@ -56,7 +56,8 @@ export function extractNodesFromServices(services: ServiceWithPlacement[]): Arra
       node.totalPods += nodePlacement.pods?.length || 0
 
       // Aggregate CPU usage from pods
-      const podCpuSum = nodePlacement.pods?.reduce((sum, pod) => sum + (pod.cpuUsagePercent || 0), 0) || 0
+      const podCpuSum =
+        nodePlacement.pods?.reduce((sum, pod) => sum + (pod.cpuUsagePercent || 0), 0) || 0
       node.cpuUsed += podCpuSum
 
       // Aggregate RAM usage from pods
@@ -133,6 +134,7 @@ export function extractPodsForService(service: ServiceWithPlacement): Array<{
   nodeName: string
   cpuUsagePercent: number
   ramUsedMB: number
+  serviceAvailability: number
 }> {
   const pods: Array<{
     id: string
@@ -140,6 +142,7 @@ export function extractPodsForService(service: ServiceWithPlacement): Array<{
     nodeName: string
     cpuUsagePercent: number
     ramUsedMB: number
+    serviceAvailability: number
   }> = []
 
   // Skip if no placement data
@@ -153,6 +156,7 @@ export function extractPodsForService(service: ServiceWithPlacement): Array<{
         nodeName: nodePlacement.node,
         cpuUsagePercent: pod.cpuUsagePercent || 0,
         ramUsedMB: pod.ramUsedMB || 0,
+        serviceAvailability: service.availability || 0,
       })
     })
   })

@@ -80,41 +80,45 @@ export default function Metrics() {
   // Calculate summary stats from current datapoints
   const summaryStats = data?.datapoints.length
     ? (() => {
-      const latest = data.datapoints.at(-1)
-      if (!latest) return null
+        const latest = data.datapoints.at(-1)
+        if (!latest) return null
 
-      return {
-        requestRate: latest.requestRate,
-        errorRate: latest.errorRate,
-        p95: latest.p95,
-        availability: latest.availability,
-      }
-    })()
+        return {
+          requestRate: latest.requestRate,
+          errorRate: latest.errorRate,
+          p95: latest.p95,
+          availability: latest.availability,
+        }
+      })()
     : null
 
   // Group datapoints by service for "Top Offenders" snapshot
   const topOffenders = data?.datapoints.length
     ? (() => {
-      const byService = new Map<string, TelemetryDatapoint>()
-      data.datapoints.forEach((point) => {
-        const key = `${point.namespace}:${point.service}`
-        if (!byService.has(key)) {
-          byService.set(key, point)
-        }
-      })
-      return Array.from(byService.values())
-        .map((point) => ({
-          ...point,
-          risk: calculateServiceRisk(point.service, point.namespace, point),
-        }))
-        .sort((a, b) => b.errorRate - a.errorRate)
-        .slice(0, 10)
-    })()
+        const byService = new Map<string, TelemetryDatapoint>()
+        data.datapoints.forEach((point) => {
+          const key = `${point.namespace}:${point.service}`
+          if (!byService.has(key)) {
+            byService.set(key, point)
+          }
+        })
+        return Array.from(byService.values())
+          .map((point) => ({
+            ...point,
+            risk: calculateServiceRisk(point.service, point.namespace, point),
+          }))
+          .sort((a, b) => b.errorRate - a.errorRate)
+          .slice(0, 10)
+      })()
     : []
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <PageHeader title="Metrics" description="Service telemetry and performance indicators" icon={BarChart3} />
+      <PageHeader
+        title="Metrics"
+        description="Service telemetry and performance indicators"
+        icon={BarChart3}
+      />
 
       {/* Controls */}
       <Section icon={Settings}>

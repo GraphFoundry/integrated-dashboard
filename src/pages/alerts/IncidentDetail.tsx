@@ -15,7 +15,7 @@ import {
   Server,
   ChevronDown,
   ChevronUp,
-  ExternalLink
+  ExternalLink,
 } from 'lucide-react'
 
 export default function IncidentDetailPage() {
@@ -93,8 +93,8 @@ export default function IncidentDetailPage() {
       {/* Header with gradient */}
       <div className="relative overflow-hidden bg-gradient-to-r from-purple-600/20 via-blue-600/20 to-cyan-600/20 rounded-2xl border border-gray-700/50 p-8">
         <div className="relative z-10">
-          <Link 
-            to="/alerts" 
+          <Link
+            to="/alerts"
             className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm mb-4 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
@@ -152,11 +152,15 @@ export default function IncidentDetailPage() {
               </div>
               <div>
                 <div className="text-sm text-gray-400 mb-1">Priority</div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-semibold ${
-                  incident.current_priority === 'P1' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                  incident.current_priority === 'P2' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
-                  'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                }`}>
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-semibold ${
+                    incident.current_priority === 'P1'
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      : incident.current_priority === 'P2'
+                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                  }`}
+                >
                   {incident.current_priority}
                 </span>
               </div>
@@ -165,11 +169,13 @@ export default function IncidentDetailPage() {
               <div className="text-sm text-gray-400 mb-1">Risk Score</div>
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-gray-700/50 rounded-full h-2 overflow-hidden">
-                  <div 
+                  <div
                     className={`h-full transition-all ${
-                      incident.risk_score >= 80 ? 'bg-red-500' :
-                      incident.risk_score >= 50 ? 'bg-orange-500' :
-                      'bg-yellow-500'
+                      incident.risk_score >= 80
+                        ? 'bg-red-500'
+                        : incident.risk_score >= 50
+                          ? 'bg-orange-500'
+                          : 'bg-yellow-500'
                     }`}
                     style={{ width: `${incident.risk_score}%` }}
                   />
@@ -221,30 +227,44 @@ export default function IncidentDetailPage() {
               </div>
               <div>
                 <div className="text-sm text-gray-400 mb-2">Severity</div>
-                <span className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
-                  incident.current_severity === 'critical' 
-                    ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20' :
-                  incident.current_severity === 'high' 
-                    ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20' :
-                  incident.current_severity === 'medium' 
-                    ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20' :
-                  'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
-                }`}>
-                  <span className={`relative flex h-2 w-2 ${
-                    incident.current_severity === 'critical' ? 'animate-pulse' : ''
-                  }`}>
-                    <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      incident.current_severity === 'critical' ? 'bg-red-400 animate-ping' :
-                      incident.current_severity === 'high' ? 'bg-orange-400' :
-                      incident.current_severity === 'medium' ? 'bg-yellow-400' :
-                      'bg-blue-400'
-                    }`}></span>
-                    <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                      incident.current_severity === 'critical' ? 'bg-red-500' :
-                      incident.current_severity === 'high' ? 'bg-orange-500' :
-                      incident.current_severity === 'medium' ? 'bg-yellow-500' :
-                      'bg-blue-500'
-                    }`}></span>
+                <span
+                  className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
+                    incident.current_severity === 'critical'
+                      ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
+                      : incident.current_severity === 'high'
+                        ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
+                        : incident.current_severity === 'medium'
+                          ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
+                          : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
+                  }`}
+                >
+                  <span
+                    className={`relative flex h-2 w-2 ${
+                      incident.current_severity === 'critical' ? 'animate-pulse' : ''
+                    }`}
+                  >
+                    <span
+                      className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        incident.current_severity === 'critical'
+                          ? 'bg-red-400 animate-ping'
+                          : incident.current_severity === 'high'
+                            ? 'bg-orange-400'
+                            : incident.current_severity === 'medium'
+                              ? 'bg-yellow-400'
+                              : 'bg-blue-400'
+                      }`}
+                    ></span>
+                    <span
+                      className={`relative inline-flex rounded-full h-2 w-2 ${
+                        incident.current_severity === 'critical'
+                          ? 'bg-red-500'
+                          : incident.current_severity === 'high'
+                            ? 'bg-orange-500'
+                            : incident.current_severity === 'medium'
+                              ? 'bg-yellow-500'
+                              : 'bg-blue-500'
+                      }`}
+                    ></span>
                   </span>
                   {incident.current_severity}
                 </span>
@@ -270,11 +290,15 @@ export default function IncidentDetailPage() {
             <div className="pt-3 border-t border-gray-700/50">
               <div className="flex justify-between text-xs">
                 <span className="text-gray-400">First Observed</span>
-                <span className="text-gray-300">{formatDistanceToNow(incident.first_observed_at)}</span>
+                <span className="text-gray-300">
+                  {formatDistanceToNow(incident.first_observed_at)}
+                </span>
               </div>
               <div className="flex justify-between text-xs mt-2">
                 <span className="text-gray-400">Last Update</span>
-                <span className="text-gray-300">{formatDistanceToNow(incident.last_observed_at)}</span>
+                <span className="text-gray-300">
+                  {formatDistanceToNow(incident.last_observed_at)}
+                </span>
               </div>
             </div>
           </div>
@@ -293,8 +317,8 @@ export default function IncidentDetailPage() {
               <h3 className="text-sm font-semibold text-yellow-400 mb-3">Data Quality Flags</h3>
               <div className="flex flex-wrap gap-2">
                 {incident.quality_flags.map((flag, idx) => (
-                  <span 
-                    key={idx} 
+                  <span
+                    key={idx}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-md text-xs font-medium border border-yellow-500/30"
                   >
                     ⚠️ {flag.replace(/_/g, ' ')}
@@ -331,75 +355,75 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
 
   const getSeverityBadge = (severity: string) => {
     const config = {
-      critical: { 
-        gradient: 'bg-gradient-to-r from-red-500/30 to-red-600/30', 
-        text: 'text-red-300', 
+      critical: {
+        gradient: 'bg-gradient-to-r from-red-500/30 to-red-600/30',
+        text: 'text-red-300',
         border: 'border-red-500/50',
         shadow: 'shadow-lg shadow-red-500/20',
         dotBg: 'bg-red-400',
         dotPing: 'bg-red-400 animate-ping',
         dot: 'bg-red-500',
-        pulse: true
+        pulse: true,
       },
-      high: { 
-        gradient: 'bg-gradient-to-r from-orange-500/30 to-orange-600/30', 
-        text: 'text-orange-300', 
+      high: {
+        gradient: 'bg-gradient-to-r from-orange-500/30 to-orange-600/30',
+        text: 'text-orange-300',
         border: 'border-orange-500/50',
         shadow: 'shadow-lg shadow-orange-500/20',
         dotBg: 'bg-orange-400',
         dotPing: 'bg-orange-400',
         dot: 'bg-orange-500',
-        pulse: false
+        pulse: false,
       },
-      medium: { 
-        gradient: 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30', 
-        text: 'text-yellow-300', 
+      medium: {
+        gradient: 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30',
+        text: 'text-yellow-300',
         border: 'border-yellow-500/50',
         shadow: 'shadow-lg shadow-yellow-500/20',
         dotBg: 'bg-yellow-400',
         dotPing: 'bg-yellow-400',
         dot: 'bg-yellow-500',
-        pulse: false
+        pulse: false,
       },
-      warning: { 
-        gradient: 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30', 
-        text: 'text-yellow-300', 
+      warning: {
+        gradient: 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30',
+        text: 'text-yellow-300',
         border: 'border-yellow-500/50',
         shadow: 'shadow-lg shadow-yellow-500/20',
         dotBg: 'bg-yellow-400',
         dotPing: 'bg-yellow-400',
         dot: 'bg-yellow-500',
-        pulse: false
+        pulse: false,
       },
-      low: { 
-        gradient: 'bg-gradient-to-r from-blue-500/30 to-blue-600/30', 
-        text: 'text-blue-300', 
+      low: {
+        gradient: 'bg-gradient-to-r from-blue-500/30 to-blue-600/30',
+        text: 'text-blue-300',
         border: 'border-blue-500/50',
         shadow: 'shadow-lg shadow-blue-500/20',
         dotBg: 'bg-blue-400',
         dotPing: 'bg-blue-400',
         dot: 'bg-blue-500',
-        pulse: false
+        pulse: false,
       },
-      info: { 
-        gradient: 'bg-gradient-to-r from-blue-500/30 to-blue-600/30', 
-        text: 'text-blue-300', 
+      info: {
+        gradient: 'bg-gradient-to-r from-blue-500/30 to-blue-600/30',
+        text: 'text-blue-300',
         border: 'border-blue-500/50',
         shadow: 'shadow-lg shadow-blue-500/20',
         dotBg: 'bg-blue-400',
         dotPing: 'bg-blue-400',
         dot: 'bg-blue-500',
-        pulse: false
-      }
-    }[severity] || { 
-      gradient: 'bg-gradient-to-r from-gray-500/30 to-gray-600/30', 
-      text: 'text-gray-300', 
+        pulse: false,
+      },
+    }[severity] || {
+      gradient: 'bg-gradient-to-r from-gray-500/30 to-gray-600/30',
+      text: 'text-gray-300',
       border: 'border-gray-500/50',
       shadow: 'shadow-lg shadow-gray-500/20',
       dotBg: 'bg-gray-400',
       dotPing: 'bg-gray-400',
       dot: 'bg-gray-500',
-      pulse: false
+      pulse: false,
     }
 
     return config
@@ -408,9 +432,11 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
   const badge = getSeverityBadge(event.alert.severity)
 
   return (
-    <div className={`relative border ${expanded ? 'border-blue-500/50' : 'border-gray-700'} rounded-xl p-5 transition-all duration-200 ${
-      isLatest ? 'bg-blue-500/5 border-blue-500/30' : 'bg-gray-700/20 hover:bg-gray-700/30'
-    }`}>
+    <div
+      className={`relative border ${expanded ? 'border-blue-500/50' : 'border-gray-700'} rounded-xl p-5 transition-all duration-200 ${
+        isLatest ? 'bg-blue-500/5 border-blue-500/30' : 'bg-gray-700/20 hover:bg-gray-700/30'
+      }`}
+    >
       {isLatest && (
         <div className="absolute top-3 right-3">
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 text-xs font-semibold rounded-full border border-blue-500/30">
@@ -419,24 +445,30 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
           </span>
         </div>
       )}
-      
+
       <div className="flex justify-between items-start mb-3">
         <div className="flex-1 pr-20">
           <div className="flex items-center gap-2 mb-2">
-            <span className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${badge.gradient} ${badge.text} border ${badge.border} ${badge.shadow}`}>
+            <span
+              className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${badge.gradient} ${badge.text} border ${badge.border} ${badge.shadow}`}
+            >
               <span className={`relative flex h-2 w-2 ${badge.pulse ? 'animate-pulse' : ''}`}>
-                <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                  badge.pulse ? badge.dotPing : badge.dotBg
-                }`}></span>
+                <span
+                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                    badge.pulse ? badge.dotPing : badge.dotBg
+                  }`}
+                ></span>
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${badge.dot}`}></span>
               </span>
               {event.alert.severity}
             </span>
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
-              event.alert.state === 'firing' 
-                ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' 
-                : 'bg-green-500/20 text-green-400 border border-green-500/30'
-            }`}>
+            <span
+              className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
+                event.alert.state === 'firing'
+                  ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                  : 'bg-green-500/20 text-green-400 border border-green-500/30'
+              }`}
+            >
               {event.alert.state}
             </span>
             <span className="text-xs text-gray-400 bg-gray-700/50 px-2 py-1 rounded">
@@ -485,11 +517,17 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                 </div>
                 <div>
                   <span className="text-gray-400">Priority:</span>{' '}
-                  <span className={`font-semibold ${
-                    event.decision.priority === 'P1' ? 'text-red-400' :
-                    event.decision.priority === 'P2' ? 'text-orange-400' :
-                    'text-blue-400'
-                  }`}>{event.decision.priority}</span>
+                  <span
+                    className={`font-semibold ${
+                      event.decision.priority === 'P1'
+                        ? 'text-red-400'
+                        : event.decision.priority === 'P2'
+                          ? 'text-orange-400'
+                          : 'text-blue-400'
+                    }`}
+                  >
+                    {event.decision.priority}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-400">Automated:</span>{' '}
@@ -500,11 +538,17 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                 {event.decision.risk_score !== undefined && (
                   <div>
                     <span className="text-gray-400">Risk Score:</span>{' '}
-                    <span className={`font-semibold ${
-                      event.decision.risk_score >= 80 ? 'text-red-400' :
-                      event.decision.risk_score >= 50 ? 'text-orange-400' :
-                      'text-yellow-400'
-                    }`}>{event.decision.risk_score}</span>
+                    <span
+                      className={`font-semibold ${
+                        event.decision.risk_score >= 80
+                          ? 'text-red-400'
+                          : event.decision.risk_score >= 50
+                            ? 'text-orange-400'
+                            : 'text-yellow-400'
+                      }`}
+                    >
+                      {event.decision.risk_score}
+                    </span>
                   </div>
                 )}
               </div>
@@ -513,7 +557,10 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                   <span className="text-gray-400 text-sm">Reason Codes:</span>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {event.decision.reason_codes.map((code, idx) => (
-                      <span key={idx} className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
+                      <span
+                        key={idx}
+                        className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs"
+                      >
                         {code}
                       </span>
                     ))}
@@ -536,11 +583,11 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                     <div key={key} className="flex flex-col">
                       <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
                       <span className="text-white font-mono text-xs">
-                        {value === null || value === undefined 
-                          ? '—' 
+                        {value === null || value === undefined
+                          ? '—'
                           : typeof value === 'object'
-                          ? JSON.stringify(value)
-                          : String(value)}
+                            ? JSON.stringify(value)
+                            : String(value)}
                       </span>
                     </div>
                   ))}
@@ -562,11 +609,11 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                     <div key={key} className="flex flex-col">
                       <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
                       <span className="text-white font-mono text-xs">
-                        {value === null || value === undefined 
-                          ? '—' 
+                        {value === null || value === undefined
+                          ? '—'
                           : typeof value === 'object'
-                          ? JSON.stringify(value)
-                          : String(value)}
+                            ? JSON.stringify(value)
+                            : String(value)}
                       </span>
                     </div>
                   ))}
@@ -588,11 +635,11 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                     <div key={key} className="flex flex-col">
                       <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
                       <span className="text-white font-mono text-xs">
-                        {value === null || value === undefined 
-                          ? '—' 
+                        {value === null || value === undefined
+                          ? '—'
                           : typeof value === 'object'
-                          ? JSON.stringify(value)
-                          : String(value)}
+                            ? JSON.stringify(value)
+                            : String(value)}
                       </span>
                     </div>
                   ))}
@@ -602,7 +649,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
           )}
 
           {/* Links */}
-          {event.links && (Object.keys(event.links).length > 0) && (
+          {event.links && Object.keys(event.links).length > 0 && (
             <div>
               <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
                 <ExternalLink className="w-4 h-4 text-cyan-400" />
@@ -610,14 +657,14 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
               </h4>
               <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
                 <div className="space-y-2 text-sm">
-                  {Object.entries(event.links).map(([key, value]) => (
+                  {Object.entries(event.links).map(([key, value]) =>
                     value ? (
                       <div key={key} className="flex items-center gap-2">
                         <span className="text-gray-400 min-w-[100px]">{key}:</span>
-                        <a 
-                          href={value as string} 
-                          className="text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors" 
-                          target="_blank" 
+                        <a
+                          href={value as string}
+                          className="text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"
+                          target="_blank"
                           rel="noopener noreferrer"
                         >
                           <ExternalLink className="w-3 h-3" />
@@ -625,7 +672,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                         </a>
                       </div>
                     ) : null
-                  ))}
+                  )}
                 </div>
               </div>
             </div>

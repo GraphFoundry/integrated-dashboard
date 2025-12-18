@@ -14,8 +14,7 @@ function toAlertData(raw: any): AlertData {
     id: raw.event_id || raw.id || raw.alert_id || String(raw.id),
     severity: (raw.alert?.severity || raw.severity || 'info') as AlertData['severity'],
     title: raw.alert?.type || raw.title || raw.reason || 'Alert',
-    message:
-      raw.decision?.reason_codes?.join(', ') || raw.message || raw.summary || 'No details',
+    message: raw.decision?.reason_codes?.join(', ') || raw.message || raw.summary || 'No details',
     serviceId: raw.service?.name || raw.serviceId || undefined,
     timestamp: raw.sent_at || raw.observed_at || raw.timestamp || new Date().toISOString(),
     acknowledged: !!raw.acknowledged,
@@ -76,8 +75,6 @@ export function useAlerts({ pageSize = 20 } = {}) {
 
   const connect = useCallback(() => {
     if (wsRef.current) return
-
-
 
     const loc = window.location
     const scheme = loc.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -152,12 +149,15 @@ export function useAlerts({ pageSize = 20 } = {}) {
     }
   }, [loadingMore, hasMore, page, fetchPage])
 
-  const setFilters = useCallback((f: Filters) => {
-    setFiltersState(f)
-    // reset page and reload
-    setPage(0)
-    fetchPage(0, true)
-  }, [fetchPage])
+  const setFilters = useCallback(
+    (f: Filters) => {
+      setFiltersState(f)
+      // reset page and reload
+      setPage(0)
+      fetchPage(0, true)
+    },
+    [fetchPage]
+  )
 
   const fetchDetail = useCallback(async (eventId: string) => {
     try {
@@ -169,18 +169,21 @@ export function useAlerts({ pageSize = 20 } = {}) {
     }
   }, [])
 
-  const acknowledge = useCallback(async (id: string) => {
-    const prev = alerts
-    setAlerts((prevList) => prevList.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)))
-    try {
-      await acknowledgeAlert(id)
-    } catch (err) {
-      console.error('acknowledge failed', err)
-      // rollback
-      setAlerts(prev)
-      throw err
-    }
-  }, [alerts])
+  const acknowledge = useCallback(
+    async (id: string) => {
+      const prev = alerts
+      setAlerts((prevList) => prevList.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)))
+      try {
+        await acknowledgeAlert(id)
+      } catch (err) {
+        console.error('acknowledge failed', err)
+        // rollback
+        setAlerts(prev)
+        throw err
+      }
+    },
+    [alerts]
+  )
 
   return {
     alerts,

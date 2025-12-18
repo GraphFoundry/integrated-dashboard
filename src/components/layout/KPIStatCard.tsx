@@ -12,10 +12,14 @@ interface KPIStatCardProps {
 }
 
 const variantClasses = {
-  default: 'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20',
-  success: 'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/20',
-  warning: 'bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/20',
-  danger: 'bg-gradient-to-br from-red-500/10 to-pink-500/10 border-red-500/30 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-500/20',
+  default:
+    'bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border-blue-500/30 hover:border-blue-500/50 hover:shadow-lg hover:shadow-blue-500/20',
+  success:
+    'bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/30 hover:border-green-500/50 hover:shadow-lg hover:shadow-green-500/20',
+  warning:
+    'bg-gradient-to-br from-orange-500/10 to-red-500/10 border-orange-500/30 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/20',
+  danger:
+    'bg-gradient-to-br from-red-500/10 to-pink-500/10 border-red-500/30 hover:border-red-500/50 hover:shadow-lg hover:shadow-red-500/20',
 }
 
 const trendIcons = {
@@ -48,7 +52,9 @@ export default function KPIStatCard({
   }
 
   return (
-    <div className={`group relative overflow-hidden backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 ${variantClasses[variant]} ${className}`}>
+    <div
+      className={`group relative overflow-hidden backdrop-blur-sm border rounded-xl p-4 transition-all duration-300 ${variantClasses[variant]} ${className}`}
+    >
       <div className="text-sm text-slate-400 mb-1">{label}</div>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-white">{value}</div>
@@ -60,7 +66,9 @@ export default function KPIStatCard({
         )}
       </div>
       {/* Glowing blur effect */}
-      <div className={`absolute bottom-0 right-0 w-32 h-32 rounded-full blur-2xl transition-all ${glowClasses[variant]}`}></div>
+      <div
+        className={`absolute bottom-0 right-0 w-32 h-32 rounded-full blur-2xl transition-all ${glowClasses[variant]}`}
+      ></div>
     </div>
   )
 }

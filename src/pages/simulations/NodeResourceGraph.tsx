@@ -1,6 +1,16 @@
 import { useState, useEffect, useMemo } from 'react'
 import { GraphCanvas, GraphNode as ReagraphNode } from 'reagraph'
-import { ChevronRight, ArrowLeft, Server, Package, Box, AlertCircle, Database, Cpu, HardDrive } from 'lucide-react'
+import {
+  ChevronRight,
+  ArrowLeft,
+  Server,
+  Package,
+  Box,
+  AlertCircle,
+  Database,
+  Cpu,
+  HardDrive,
+} from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import { getServicesWithPlacement, getDependencyGraphSnapshot } from '@/lib/api'
 import type { ServiceWithPlacement } from '@/lib/types'
@@ -21,8 +31,13 @@ type BreadcrumbItem = {
 }
 
 // Helper function for empty state messages
-function getEmptyStateMessage(level: ViewLevel, nodeId: string | null, serviceName: string | null): string {
-  if (level === 'nodes') return 'No node placement data available. Services are running but infrastructure metrics are not collected.'
+function getEmptyStateMessage(
+  level: ViewLevel,
+  nodeId: string | null,
+  serviceName: string | null
+): string {
+  if (level === 'nodes')
+    return 'No node placement data available. Services are running but infrastructure metrics are not collected.'
   if (level === 'services') return `No services found on node ${nodeId}`
   return `No pods found for service ${serviceName}`
 }
@@ -32,13 +47,17 @@ export default function NodeResourceGraph() {
   const [error, setError] = useState<string | null>(null)
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
   const [viewLevel, setViewLevel] = useState<ViewLevel>('nodes')
-  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([{ label: 'Nodes', level: 'nodes' }])
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
+    { label: 'Nodes', level: 'nodes' },
+  ])
   const [currentNodeId, setCurrentNodeId] = useState<string | null>(null)
   const [currentServiceName, setCurrentServiceName] = useState<string | null>(null)
   const [hoveredNode, setHoveredNode] = useState<ReagraphNode | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   const [selections, setSelections] = useState<string[]>([])
-  const [serviceDependencyEdges, setServiceDependencyEdges] = useState<{ source: string; target: string }[]>([])
+  const [serviceDependencyEdges, setServiceDependencyEdges] = useState<
+    { source: string; target: string }[]
+  >([])
 
   // Fetch initial data
   useEffect(() => {
@@ -55,10 +74,11 @@ export default function NodeResourceGraph() {
         setServices(servicesData.services || [])
 
         // Extract service dependency edges for Level 2
-        const edges = graphSnapshot.edges?.map(e => ({
-          source: e.source.split(':')[1] || e.source, // extract service name from "namespace:name"
-          target: e.target.split(':')[1] || e.target,
-        })) || []
+        const edges =
+          graphSnapshot.edges?.map((e) => ({
+            source: e.source.split(':')[1] || e.source, // extract service name from "namespace:name"
+            target: e.target.split(':')[1] || e.target,
+          })) || []
         setServiceDependencyEdges(edges)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load infrastructure data')
@@ -108,7 +128,7 @@ export default function NodeResourceGraph() {
       // Filter edges to only show connections between services on this node
       const serviceIds = new Set(servicesOnNode.map((s: ServiceData) => s.id))
       const edges = serviceDependencyEdges
-        .filter(e => serviceIds.has(e.source) && serviceIds.has(e.target))
+        .filter((e) => serviceIds.has(e.source) && serviceIds.has(e.target))
         .map((e, idx) => ({
           id: `edge-${idx}`,
           source: e.source,
@@ -119,18 +139,22 @@ export default function NodeResourceGraph() {
     }
 
     if (viewLevel === 'pods' && currentServiceName) {
-      const service = services.find(s => s.name === currentServiceName)
+      const service = services.find((s) => s.name === currentServiceName)
       if (!service) return { nodes: [], edges: [] }
 
       const podData = extractPodsForService(service)
       type PodData = ReturnType<typeof extractPodsForService>[0]
       return {
-        nodes: podData.map((p: PodData) => ({
-          id: p.id,
-          label: p.label,
-          fill: getResourceColor(p.cpuUsagePercent),
-          data: p,
-        })),
+        nodes: podData.map((p: PodData) => {
+          // If service is not available (0 or very low), show pods as red
+          const fill = p.serviceAvailability === 0 ? '#ef4444' : getResourceColor(p.cpuUsagePercent)
+          return {
+            id: p.id,
+            label: p.label,
+            fill,
+            data: p,
+          }
+        }),
         edges: [], // No edges at pod level
       }
     }
@@ -140,12 +164,11 @@ export default function NodeResourceGraph() {
 
   // Handle node click based on current level
   const handleNodeClick = (node: ReagraphNode) => {
-    setHoveredNode(null) // Hide tooltip when node is clicked
-    setMousePosition(null)
-    setSelections([])
-
     if (viewLevel === 'nodes') {
       // Level 1 → Level 2: Show services on this node
+      setHoveredNode(null) // Hide tooltip when drilling down
+      setMousePosition(null)
+      setSelections([])
       const nodeId = node.id
       setCurrentNodeId(nodeId)
       setViewLevel('services')
@@ -155,6 +178,9 @@ export default function NodeResourceGraph() {
       ])
     } else if (viewLevel === 'services') {
       // Level 2 → Level 3: Show pods for this service
+      setHoveredNode(null) // Hide tooltip when drilling down
+      setMousePosition(null)
+      setSelections([])
       const serviceName = node.id
       setCurrentServiceName(serviceName)
       setViewLevel('pods')
@@ -164,9 +190,8 @@ export default function NodeResourceGraph() {
         { label: serviceName, level: 'pods', serviceName },
       ])
     }
-    // Level 3 (pods): No further drill-down
   }
-
+  // Level 3 (pods): No further drill-down, don't hide tooltip
   // Handle breadcrumb click
   const handleBreadcrumbClick = (item: BreadcrumbItem) => {
     setViewLevel(item.level)
@@ -367,144 +392,213 @@ export default function NodeResourceGraph() {
             />
 
             {/* Hover Tooltip */}
-            {hoveredNode && mousePosition && (() => {
-              const tooltipWidth = 256 // max-w-sm is ~256px
-              const tooltipHeight = 200 // approximate height
-              const viewportWidth = window.innerWidth
-              const viewportHeight = window.innerHeight
+            {hoveredNode &&
+              mousePosition &&
+              (() => {
+                const tooltipWidth = 256 // max-w-sm is ~256px
+                const tooltipHeight = 200 // approximate height
+                const viewportWidth = window.innerWidth
+                const viewportHeight = window.innerHeight
 
-              // Smart positioning to prevent overflow
-              let left = mousePosition.x + 16
-              let top = mousePosition.y + 16
+                // Smart positioning to prevent overflow
+                let left = mousePosition.x + 16
+                let top = mousePosition.y + 16
 
-              // Adjust horizontal position if tooltip would overflow right
-              if (left + tooltipWidth > viewportWidth) {
+                // Adjust horizontal position if tooltip would overflow right
+                if (left + tooltipWidth > viewportWidth) {
                   left = mousePosition.x - tooltipWidth - 16
-              }
+                }
 
-              // Adjust vertical position if tooltip would overflow bottom
-              if (top + tooltipHeight > viewportHeight) {
+                // Adjust vertical position if tooltip would overflow bottom
+                if (top + tooltipHeight > viewportHeight) {
                   top = mousePosition.y - tooltipHeight - 16
-              }
+                }
 
-              // Ensure tooltip doesn't go off left edge
-              if (left < 16) {
+                // Ensure tooltip doesn't go off left edge
+                if (left < 16) {
                   left = 16
-              }
+                }
 
-              // Ensure tooltip doesn't go off top edge
-              if (top < 16) {
+                // Ensure tooltip doesn't go off top edge
+                if (top < 16) {
                   top = 16
-              }
+                }
 
-              return (
-              <div
-                className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
-                style={{
-                  left: `${left}px`,
-                  top: `${top}px`,
-                }}
-              >
-                <div className="p-3">
-                {viewLevel === 'nodes' && hoveredNode.data && (
-                  <>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Server className="w-4 h-4 text-blue-400" />
-                      <span className="font-semibold text-white text-sm">{hoveredNode.data.label}</span>
-                    </div>
-                    <div className="space-y-2.5 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Package className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="text-slate-400">Pods:</span>
-                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.totalPods}</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Cpu className="w-3.5 h-3.5 text-cyan-400 mt-0.5" />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400">CPU:</span>
-                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%</span>
+                return (
+                  <div
+                    className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
+                    style={{
+                      left: `${left}px`,
+                      top: `${top}px`,
+                    }}
+                  >
+                    <div className="p-3">
+                      {viewLevel === 'nodes' && hoveredNode.data && (
+                        <>
+                          <div className="flex items-center gap-2 mb-3">
+                            <Server className="w-4 h-4 text-blue-400" />
+                            <span className="font-semibold text-white text-sm">
+                              {hoveredNode.data.label}
+                            </span>
                           </div>
-                          <div className="text-slate-500 mt-0.5">
-                            {hoveredNode.data.cpuUsed?.toFixed?.(1) ?? 'N/A'}/{hoveredNode.data.cpuTotal ?? 'N/A'} cores
+                          <div className="space-y-2.5 text-xs">
+                            <div className="flex items-center gap-2">
+                              <Package className="w-3.5 h-3.5 text-purple-400" />
+                              <span className="text-slate-400">Pods:</span>
+                              <span className="font-mono font-semibold text-slate-200">
+                                {hoveredNode.data.totalPods}
+                              </span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <Cpu className="w-3.5 h-3.5 text-cyan-400 mt-0.5" />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-slate-400">CPU:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%
+                                  </span>
+                                </div>
+                                <div className="text-slate-500 mt-0.5">
+                                  {hoveredNode.data.cpuUsed?.toFixed?.(1) ?? 'N/A'}/
+                                  {hoveredNode.data.cpuTotal ?? 'N/A'} cores
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <HardDrive className="w-3.5 h-3.5 text-emerald-400 mt-0.5" />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-slate-400">RAM:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {hoveredNode.data.ramUsageMB != null
+                                      ? hoveredNode.data.ramUsageMB.toFixed(2)
+                                      : 'N/A'}
+                                    MB
+                                  </span>
+                                </div>
+                                <div className="text-slate-500 mt-0.5">
+                                  {hoveredNode.data.ramTotalMB != null
+                                    ? hoveredNode.data.ramTotalMB.toFixed(2)
+                                    : 'N/A'}
+                                  MB total (
+                                  {hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}%)
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <HardDrive className="w-3.5 h-3.5 text-emerald-400 mt-0.5" />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-slate-400">RAM:</span>
-                            <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.ramUsageMB ?? 'N/A'}MB</span>
-                          </div>
-                          <div className="text-slate-500 mt-0.5">
-                            {hoveredNode.data.ramTotalMB ?? 'N/A'}MB total ({hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}%)
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+                        </>
+                      )}
 
-                {viewLevel === 'services' && hoveredNode.data && (() => {
-                  const availPct = hoveredNode.data.availability != null ? hoveredNode.data.availability * 100 : null
-                  const availColorClass = availPct !== null && availPct > 99 ? 'text-green-300' : availPct !== null && availPct > 95 ? 'text-yellow-300' : 'text-red-300'
-                  const availIconClass = availPct !== null && availPct > 99 ? 'text-green-400' : availPct !== null && availPct > 95 ? 'text-yellow-400' : 'text-red-400'
+                      {viewLevel === 'services' &&
+                        hoveredNode.data &&
+                        (() => {
+                          const availPct =
+                            hoveredNode.data.availability != null
+                              ? hoveredNode.data.availability * 100
+                              : null
+                          const availColorClass =
+                            availPct !== null && availPct > 99
+                              ? 'text-green-300'
+                              : availPct !== null && availPct > 95
+                                ? 'text-yellow-300'
+                                : 'text-red-300'
+                          const availIconClass =
+                            availPct !== null && availPct > 99
+                              ? 'text-green-400'
+                              : availPct !== null && availPct > 95
+                                ? 'text-yellow-400'
+                                : 'text-red-400'
 
-                  return (
-                  <>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Box className="w-4 h-4 text-blue-400" />
-                      <div>
-                        <div className="font-semibold text-white text-sm">{hoveredNode.data.label}</div>
-                        <div className="text-xs text-slate-400">{hoveredNode.data.namespace}</div>
-                      </div>
-                    </div>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Package className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="text-slate-400">Pods:</span>
-                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.podCount}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Server className={`w-3.5 h-3.5 ${availIconClass}`} />
-                        <span className="text-slate-400">Availability:</span>
-                        <span className={`font-mono font-semibold ${availColorClass}`}>{availPct !== null ? availPct.toFixed(1) : 'N/A'}%</span>
-                      </div>
-                    </div>
-                  </>
-                  )
-                })()}
+                          return (
+                            <>
+                              <div className="flex items-center gap-2 mb-3">
+                                <Box className="w-4 h-4 text-blue-400" />
+                                <div>
+                                  <div className="font-semibold text-white text-sm">
+                                    {hoveredNode.data.label}
+                                  </div>
+                                  <div className="text-xs text-slate-400">
+                                    {hoveredNode.data.namespace}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="space-y-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-3.5 h-3.5 text-purple-400" />
+                                  <span className="text-slate-400">Pods:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {hoveredNode.data.podCount}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Server className={`w-3.5 h-3.5 ${availIconClass}`} />
+                                  <span className="text-slate-400">Availability:</span>
+                                  <span className={`font-mono font-semibold ${availColorClass}`}>
+                                    {availPct !== null ? availPct.toFixed(1) : 'N/A'}%
+                                  </span>
+                                </div>
+                              </div>
+                            </>
+                          )
+                        })()}
 
-                {viewLevel === 'pods' && hoveredNode.data && (
-                  <>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Package className="w-4 h-4 text-purple-400" />
-                      <span className="font-semibold text-white text-sm">{hoveredNode.data.label}</span>
+                      {viewLevel === 'pods' &&
+                        hoveredNode.data &&
+                        (() => {
+                          const isServiceUnavailable = hoveredNode.data.serviceAvailability === 0
+                          const availColorClass = isServiceUnavailable
+                            ? 'text-red-400'
+                            : 'text-green-400'
+
+                          return (
+                            <>
+                              <div className="flex items-center gap-2 mb-3">
+                                <Package className="w-4 h-4 text-purple-400" />
+                                <span className="font-semibold text-white text-sm">
+                                  {hoveredNode.data.label}
+                                </span>
+                              </div>
+                              <div className="space-y-2 text-xs">
+                                <div className="flex items-center gap-2">
+                                  <Server className="w-3.5 h-3.5 text-blue-400" />
+                                  <span className="text-slate-400">Node:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {hoveredNode.data.nodeName}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                                  <span className="text-slate-400">CPU:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                                  <span className="text-slate-400">RAM:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {hoveredNode.data.ramUsedMB != null
+                                      ? hoveredNode.data.ramUsedMB.toFixed(2)
+                                      : 'N/A'}
+                                    MB
+                                  </span>
+                                </div>
+                                {isServiceUnavailable && (
+                                  <div className="flex items-center gap-2 pt-1 border-t border-slate-700">
+                                    <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                                    <span className={`font-semibold ${availColorClass}`}>
+                                      Service Not Available
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )
+                        })()}
                     </div>
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <Server className="w-3.5 h-3.5 text-blue-400" />
-                        <span className="text-slate-400">Node:</span>
-                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.nodeName}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                        <span className="text-slate-400">CPU:</span>
-                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-                        <span className="text-slate-400">RAM:</span>
-                        <span className="font-mono font-semibold text-slate-200">{hoveredNode.data.ramUsedMB}MB</span>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-              </div>
-              )
-            })()}
+                  </div>
+                )
+              })()}
           </div>
         ) : (
           <div className="h-full flex flex-col items-center justify-center p-8">

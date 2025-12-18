@@ -131,7 +131,10 @@ export default function DecisionDetail() {
       </Section>
 
       {/* Configuration Audit (Inputs) */}
-      <Section title="Configuration Audit" description="System state inputs used for this simulation">
+      <Section
+        title="Configuration Audit"
+        description="System state inputs used for this simulation"
+      >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
             <div className="text-xs text-slate-500 uppercase mb-1">Scenario Type</div>
@@ -169,7 +172,10 @@ export default function DecisionDetail() {
         <Section title="Evidence Chain" description="Steps executed to reach this conclusion">
           <div className="space-y-4">
             {pipelineTrace.stages.map((stage, idx) => (
-              <div key={idx} className="relative pl-6 pb-4 border-l border-slate-700 last:pb-0 last:border-0">
+              <div
+                key={idx}
+                className="relative pl-6 pb-4 border-l border-slate-700 last:pb-0 last:border-0"
+              >
                 <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-slate-900" />
                 <div className="bg-slate-900 p-3 rounded border border-slate-700">
                   <div className="flex justify-between items-start mb-1">
@@ -182,7 +188,10 @@ export default function DecisionDetail() {
                   {stage.warnings && stage.warnings.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {stage.warnings.map((w, wIdx) => (
-                        <div key={wIdx} className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-900/10 p-1.5 rounded">
+                        <div
+                          key={wIdx}
+                          className="flex items-start gap-2 text-xs text-yellow-400 bg-yellow-900/10 p-1.5 rounded"
+                        >
                           <AlertTriangle className="w-3 h-3 mt-0.5 shrink-0" />
                           <span>{w}</span>
                         </div>
@@ -300,7 +309,10 @@ export default function DecisionDetail() {
 
       {/* Recommendations */}
       {recommendations.length > 0 && (
-        <Section title="Recommendations" description="AI-generated action items based on simulation results">
+        <Section
+          title="Recommendations"
+          description="AI-generated action items based on simulation results"
+        >
           <div className="space-y-3">
             {recommendations.map((rec, idx) => {
               const priorityClass = (() => {
@@ -341,7 +353,9 @@ export default function DecisionDetail() {
 
         {showRawJson && (
           <div className="mt-4 p-4 bg-slate-900 rounded-lg">
-            <div className="text-xs text-slate-500 mb-2 font-mono">ID: {decision.id} | Correlation: {decision.correlationId || 'N/A'}</div>
+            <div className="text-xs text-slate-500 mb-2 font-mono">
+              ID: {decision.id} | Correlation: {decision.correlationId || 'N/A'}
+            </div>
             <pre className="text-xs text-slate-300 overflow-x-auto font-mono">
               {JSON.stringify(decision, null, 2)}
             </pre>

@@ -289,22 +289,22 @@ export type LogDecisionResponse = {
 export type GraphRiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN'
 
 export type GraphNode = {
-  id: string            // stable key (namespace:name)
+  id: string // stable key (namespace:name)
   name: string
   namespace: string
   riskLevel: GraphRiskLevel
   riskReason?: string
 
   // aggregated telemetry (optional if unavailable)
-  reqRate?: number          // requests/sec
-  errorRatePct?: number     // %
-  latencyP95Ms?: number     // ms
-  availabilityPct?: number  // %
+  reqRate?: number // requests/sec
+  errorRatePct?: number // %
+  latencyP95Ms?: number // ms
+  availabilityPct?: number // %
   updatedAt?: string
 
   // Graph Engine infrastructure metrics
-  podCount?: number         // number of pods running
-  availability?: number     // availability score 0-1
+  podCount?: number // number of pods running
+  availability?: number // availability score 0-1
 }
 
 export type GraphEdge = {
@@ -327,8 +327,8 @@ export type GraphSnapshot = {
     windowMinutes?: number
     nodeCount?: number
     edgeCount?: number
-    nodesWithMetrics?: number    // count of nodes with telemetry data
-    edgesWithMetrics?: number    // count of edges with telemetry data
+    nodesWithMetrics?: number // count of nodes with telemetry data
+    edgesWithMetrics?: number // count of edges with telemetry data
     generatedAt?: string
   }
 }
@@ -369,5 +369,5 @@ export type ServiceWithPlacement = {
   namespace: string
   podCount: number
   availability: number
-  placement?: ServicePlacement  // Optional - may not be available in all deployments
+  placement?: ServicePlacement // Optional - may not be available in all deployments
 }

@@ -7,7 +7,12 @@ interface PageHeaderProps {
   icon?: LucideIcon
 }
 
-export default function PageHeader({ title, description, actions, icon: Icon = Shield }: Readonly<PageHeaderProps>) {
+export default function PageHeader({
+  title,
+  description,
+  actions,
+  icon: Icon = Shield,
+}: Readonly<PageHeaderProps>) {
   return (
     <div className="relative overflow-hidden bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-2xl border border-gray-700/50 p-8">
       <div className="relative z-10 flex items-start justify-between">

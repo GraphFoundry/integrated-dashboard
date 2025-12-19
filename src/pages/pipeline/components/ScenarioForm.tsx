@@ -119,6 +119,8 @@ export default function ScenarioForm({
     if (!newServiceName.trim()) return false
     if (minCpu <= 0) return false
     if (minRam <= 0) return false
+    // Must have at least one valid dependency
+    if (dependencies.filter((d) => d.trim()).length === 0) return false
     return true
   }
 

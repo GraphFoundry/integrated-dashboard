@@ -80,6 +80,7 @@ export default function SimulationsRefactored() {
           serviceName: scenario.serviceName,
           minCpuCores: scenario.minCpuCores,
           minRamMB: scenario.minRamMB,
+          replicas: scenario.replicas,
           dependencies: scenario.dependencies,
           maxDepth: scenario.maxDepth,
         })

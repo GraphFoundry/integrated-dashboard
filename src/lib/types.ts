@@ -153,6 +153,7 @@ export type ServiceAdditionScenario = {
   serviceName: string
   minCpuCores: number
   minRamMB: number
+  replicas: number
   dependencies: ServiceAdditionDependency[]
   maxDepth: number
 }

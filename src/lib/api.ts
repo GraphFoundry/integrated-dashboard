@@ -188,53 +188,29 @@ export async function getServicesWithPlacement(
 }
 
 /**
- * Simulate adding a new service (MOCKED)
+ * Simulate adding a new service
  * @param scenario - Service addition scenario parameters
  * @param options - Optional request options
  */
 export async function simulateServiceAddition(
-  scenario: Omit<ServiceAdditionScenario, 'type'>
+  scenario: Omit<ServiceAdditionScenario, 'type'>,
+  options?: RequestOptions
 ): Promise<ServiceAdditionResponse> {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 800))
-
-  return {
-    targetServiceName: scenario.serviceName,
-    suitableNodes: [
-      {
-        nodeName: 'gke-cluster-pool-1-a8f4',
-        suitable: true,
-        availableCpu: 1.2,
-        availableRam: 2048,
-        score: 95,
-      },
-      {
-        nodeName: 'gke-cluster-pool-1-b9c2',
-        suitable: true,
-        availableCpu: 0.8,
-        availableRam: 1500,
-        score: 85,
-      },
-      {
-        nodeName: 'gke-cluster-pool-1-d3e1',
-        suitable: false,
-        reason: 'Insufficient CPU',
-        availableCpu: 0.2,
-        availableRam: 4096,
-        score: 20,
-      },
-    ],
-    riskAnalysis: {
-      dependencyRisk: 'low',
-      description:
-        'New service has standard dependencies. No circular dependencies detected. Bandwidth impact projected to be minimal.',
-    },
-    recommendations: [
-      {
-        type: 'placement',
-        priority: 'high',
-        description: 'Recommended placement: gke-cluster-pool-1-a8f4 (Best resource balance)',
-      },
-    ],
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
   }
+
+  const { data } = await predictiveApi.post<ServiceAdditionResponse>(
+    '/simulate/add',
+    {
+      serviceName: scenario.serviceName,
+      cpuRequest: scenario.minCpuCores,
+      ramRequest: scenario.minRamMB,
+      replicas: scenario.replicas,
+      dependencies: scenario.dependencies
+    },
+    { signal: options?.signal, headers }
+  )
+  return data
 }

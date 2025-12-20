@@ -46,6 +46,7 @@ export default function ScenarioForm({
   const [newServiceName, setNewServiceName] = useState('')
   const [minCpu, setMinCpu] = useState(0.5)
   const [minRam, setMinRam] = useState(512)
+  const [addReplicas, setAddReplicas] = useState(1)
   const [dependencies, setDependencies] = useState<string[]>([])
 
   // Service discovery state (Live mode only)
@@ -119,6 +120,7 @@ export default function ScenarioForm({
     if (!newServiceName.trim()) return false
     if (minCpu <= 0) return false
     if (minRam <= 0) return false
+    if (addReplicas < 1) return false
     // Must have at least one valid dependency
     if (dependencies.filter((d) => d.trim()).length === 0) return false
     return true
@@ -176,6 +178,7 @@ export default function ScenarioForm({
         serviceName: newServiceName.trim(),
         minCpuCores: minCpu,
         minRamMB: minRam,
+        replicas: addReplicas,
         dependencies: dependencies.map((d) => ({ serviceId: d, relation: 'calls' })),
         maxDepth,
       })
@@ -272,6 +275,27 @@ export default function ScenarioForm({
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="addReplicas"
+              className="block text-sm font-medium text-slate-300 mb-2"
+            >
+              Replicas
+            </label>
+            <select
+              id="addReplicas"
+              value={addReplicas}
+              onChange={(e) => setAddReplicas(Number(e.target.value))}
+              className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {[1, 2, 3, 4, 5, 10].map((num) => (
+                <option key={num} value={num}>
+                  {num}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Dependencies */}

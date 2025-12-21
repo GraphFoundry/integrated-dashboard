@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import type { Scenario, ScenarioType, DiscoveredService } from '@/lib/types'
+import type { Scenario, ScenarioType, DiscoveredService, TimeWindow } from '@/lib/types'
 import { getServices } from '@/lib/api'
 
 // Example services for Mock mode (valid format for Live mode reference)
@@ -41,6 +41,7 @@ export default function ScenarioForm({
   const [currentPods, setCurrentPods] = useState(3)
   const [newPods, setNewPods] = useState(5)
   const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95')
+  const [timeWindow, setTimeWindow] = useState<TimeWindow>('1w')
 
   // Service Addition state
   const [newServiceName, setNewServiceName] = useState('')
@@ -162,6 +163,7 @@ export default function ScenarioForm({
         type: 'failure',
         serviceId: serviceId.trim(),
         maxDepth,
+        timeWindow,
       })
     } else if (scenarioType === 'scale') {
       onRun({
@@ -171,6 +173,7 @@ export default function ScenarioForm({
         newPods,
         latencyMetric,
         maxDepth,
+        timeWindow,
       })
     } else {
       onRun({
@@ -181,6 +184,7 @@ export default function ScenarioForm({
         replicas: addReplicas,
         dependencies: dependencies.map((d) => ({ serviceId: d, relation: 'calls' })),
         maxDepth,
+        timeWindow,
       })
     }
   }
@@ -217,6 +221,24 @@ export default function ScenarioForm({
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
           <option value="add-service">Add New Service</option>
+        </select>
+      </div>
+
+      {/* Time Period (For all simulation types) */}
+      <div className="mb-4">
+        <label htmlFor="timeWindow" className="block text-sm font-medium text-gray-300 mb-2">
+          Decision Time Period
+        </label>
+        <select
+          id="timeWindow"
+          value={timeWindow}
+          onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
+          className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+        >
+          <option value="5d">5 Days</option>
+          <option value="1w">1 Week</option>
+          <option value="2w">2 Weeks</option>
+          <option value="1m">1 Month</option>
         </select>
       </div>
 

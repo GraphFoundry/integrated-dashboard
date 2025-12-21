@@ -26,6 +26,7 @@ export default function SimulationsRefactored() {
   const [result, setResult] = useState<
     FailureResponse | ScaleResponse | ServiceAdditionResponse | null
   >(null)
+  const [lastScenario, setLastScenario] = useState<Scenario | null>(null)
 
   // Prefill from query params
   const prefillType = searchParams.get('type') as ScenarioType | null
@@ -40,6 +41,14 @@ export default function SimulationsRefactored() {
         console.error('Failed to parse saved simulation result', e)
       }
     }
+    const savedScenario = localStorage.getItem('simulationScenario')
+    if (savedScenario) {
+      try {
+        setLastScenario(JSON.parse(savedScenario))
+      } catch (e) {
+        console.error('Failed to parse saved simulation scenario', e)
+      }
+    }
   }, [])
 
   // Save result to localStorage when it changes
@@ -47,7 +56,10 @@ export default function SimulationsRefactored() {
     if (result) {
       localStorage.setItem('simulationResult', JSON.stringify(result))
     }
-  }, [result])
+    if (lastScenario) {
+      localStorage.setItem('simulationScenario', JSON.stringify(lastScenario))
+    }
+  }, [result, lastScenario])
 
   useEffect(() => {
     if (prefillType && (prefillType === 'failure' || prefillType === 'scale')) {
@@ -59,6 +71,7 @@ export default function SimulationsRefactored() {
     setLoading(true)
     setError(null)
     setResult(null)
+    setLastScenario(scenario)
 
     try {
       let response: FailureResponse | ScaleResponse | ServiceAdditionResponse
@@ -66,6 +79,7 @@ export default function SimulationsRefactored() {
         response = await simulateFailure({
           serviceId: scenario.serviceId,
           maxDepth: scenario.maxDepth,
+          timeWindow: scenario.timeWindow,
         })
       } else if (scenario.type === 'scale') {
         response = await simulateScale({
@@ -74,6 +88,7 @@ export default function SimulationsRefactored() {
           newPods: scenario.newPods,
           latencyMetric: scenario.latencyMetric,
           maxDepth: scenario.maxDepth,
+          timeWindow: scenario.timeWindow,
         })
       } else {
         response = await simulateServiceAddition({
@@ -83,6 +98,7 @@ export default function SimulationsRefactored() {
           replicas: scenario.replicas,
           dependencies: scenario.dependencies,
           maxDepth: scenario.maxDepth,
+          timeWindow: scenario.timeWindow,
         })
       }
       setResult(response)
@@ -365,6 +381,31 @@ export default function SimulationsRefactored() {
     )
   }
 
+  // Construct simulated service object if applicable
+  const getSimulatedService = () => {
+    if (
+      result &&
+      'targetServiceName' in result &&
+      lastScenario &&
+      lastScenario.type === 'add-service'
+    ) {
+      const bestNode = (result as ServiceAdditionResponse).suitableNodes.find((n) => n.suitable)
+      if (!bestNode) return null
+
+      return {
+        name: lastScenario.serviceName,
+        namespace: 'default', // Assumption for now
+        nodeName: bestNode.nodeName,
+        cpuRequest: lastScenario.minCpuCores,
+        ramRequest: lastScenario.minRamMB,
+        replicas: lastScenario.replicas,
+      }
+    }
+    return null
+  }
+
+  const simulatedService = getSimulatedService()
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <PageHeader
@@ -390,7 +431,7 @@ export default function SimulationsRefactored() {
         <div className="lg:col-span-2">
           {/* Infrastructure Overview */}
           <Section title="Infrastructure Overview" icon={Network}>
-            <NodeResourceGraph />
+            <NodeResourceGraph simulatedService={simulatedService} />
           </Section>
         </div>
       </div>

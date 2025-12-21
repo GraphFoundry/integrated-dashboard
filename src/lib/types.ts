@@ -156,6 +156,7 @@ export type ServiceAdditionScenario = {
   replicas: number
   dependencies: ServiceAdditionDependency[]
   maxDepth: number
+  timeWindow?: TimeWindow
 }
 
 export type NodeSuitability = {
@@ -178,12 +179,15 @@ export type ServiceAdditionResponse = {
   recommendations: Recommendation[]
 }
 
+export type TimeWindow = '5d' | '1w' | '2w' | '1m'
+
 export type ScenarioType = 'failure' | 'scale' | 'add-service'
 
 export type FailureScenario = {
   type: 'failure'
   serviceId: string
   maxDepth: number
+  timeWindow?: TimeWindow
 }
 
 export type ScaleScenario = {
@@ -193,6 +197,7 @@ export type ScaleScenario = {
   newPods: number
   latencyMetric: 'p50' | 'p95' | 'p99'
   maxDepth: number
+  timeWindow?: TimeWindow
 }
 
 export type Scenario = FailureScenario | ScaleScenario | ServiceAdditionScenario

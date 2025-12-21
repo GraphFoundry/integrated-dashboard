@@ -73,6 +73,7 @@ export async function simulateFailure(
     {
       serviceId: scenario.serviceId,
       maxDepth: scenario.maxDepth,
+      timeWindow: scenario.timeWindow,
     },
     { signal: options?.signal, headers }
   )
@@ -101,6 +102,7 @@ export async function simulateScale(
       newPods: scenario.newPods,
       latencyMetric: scenario.latencyMetric,
       maxDepth: scenario.maxDepth,
+      timeWindow: scenario.timeWindow,
     },
     { signal: options?.signal, headers }
   )
@@ -208,7 +210,8 @@ export async function simulateServiceAddition(
       cpuRequest: scenario.minCpuCores,
       ramRequest: scenario.minRamMB,
       replicas: scenario.replicas,
-      dependencies: scenario.dependencies
+      dependencies: scenario.dependencies,
+      timeWindow: scenario.timeWindow,
     },
     { signal: options?.signal, headers }
   )

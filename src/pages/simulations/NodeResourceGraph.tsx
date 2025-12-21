@@ -43,7 +43,20 @@ function getEmptyStateMessage(
   return `No pods found for service ${serviceName}`
 }
 
-export default function NodeResourceGraph() {
+// ... imports
+
+interface NodeResourceGraphProps {
+  simulatedService?: {
+    name: string
+    namespace: string
+    nodeName: string
+    cpuRequest: number
+    ramRequest: number
+    replicas: number
+  } | null
+}
+
+export default function NodeResourceGraph({ simulatedService }: NodeResourceGraphProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
@@ -72,7 +85,51 @@ export default function NodeResourceGraph() {
           getDependencyGraphSnapshot().catch(() => ({ nodes: [], edges: [] })),
         ])
 
-        setServices(servicesData.services || [])
+        let fetchedServices = servicesData.services || []
+
+        // If we have a simulated service, merge it into the services list
+        if (simulatedService) {
+          const simServiceId = `${simulatedService.namespace}:${simulatedService.name}`
+
+          // Check if it already exists (unlikely if new, but good practice)
+          const exists = fetchedServices.find(s => `${s.namespace}:${s.name}` === simServiceId)
+
+          if (!exists) {
+            fetchedServices = [...fetchedServices, {
+              name: simulatedService.name,
+              namespace: simulatedService.namespace,
+              podCount: simulatedService.replicas,
+              availability: 1.0, // Assume perfect health for simulation visualization
+              placement: {
+                nodes: [{
+                  node: simulatedService.nodeName,
+                  resources: {
+                    cpu: { usagePercent: 0, cores: 0 }, // Placeholder
+                    ram: { usedMB: 0, totalMB: 0 } // Placeholder
+                  },
+                  pods: Array(simulatedService.replicas).fill(null).map((_, i) => ({
+                    name: `${simulatedService.name}-sim-${i}`,
+                    ramUsedMB: simulatedService.ramRequest,
+                    cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10 // Rough estimate
+                  }))
+                }]
+              }
+            }]
+          }
+        }
+
+        setServices(fetchedServices)
+
+        // If simulated service is present, drill down to it
+        if (simulatedService) {
+          // We'll let the user navigate, or auto-navigate:
+          // setViewLevel('services')
+          // setCurrentNodeId(simulatedService.nodeName)
+          // setBreadcrumbs([
+          //   { label: 'Nodes', level: 'nodes' },
+          //   { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName }
+          // ])
+        }
 
         // Handle stale data notification
         if ((servicesData as any).stale) {
@@ -99,7 +156,7 @@ export default function NodeResourceGraph() {
     }
 
     fetchData()
-  }, [])
+  }, [simulatedService])
 
   // Generate graph data based on current view level
   const graphData = useMemo(() => {

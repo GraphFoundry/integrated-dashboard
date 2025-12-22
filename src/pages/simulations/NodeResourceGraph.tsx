@@ -54,9 +54,15 @@ interface NodeResourceGraphProps {
     ramRequest: number
     replicas: number
   } | null
+  nodeMetricOverrides?: Record<string, {
+    cpuUsed: number
+    cpuTotal: number
+    ramUsedMB: number
+    ramTotalMB: number
+  }> | null
 }
 
-export default function NodeResourceGraph({ simulatedService }: NodeResourceGraphProps) {
+export default function NodeResourceGraph({ simulatedService, nodeMetricOverrides }: NodeResourceGraphProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
@@ -163,11 +169,26 @@ export default function NodeResourceGraph({ simulatedService }: NodeResourceGrap
     if (viewLevel === 'nodes') {
       const nodeData = extractNodesFromServices(services)
       type NodeData = ReturnType<typeof extractNodesFromServices>[0]
+
+      // Apply overrides if provided
+      if (nodeMetricOverrides) {
+        nodeData.forEach(n => {
+          if (nodeMetricOverrides[n.id]) {
+            const override = nodeMetricOverrides[n.id]
+            n.cpuUsagePercent = (override.cpuUsed / override.cpuTotal) * 100
+            n.cpuUsed = override.cpuUsed
+
+            n.ramUsageMB = override.ramUsedMB
+            n.ramUsagePercent = (override.ramUsedMB / override.ramTotalMB) * 100
+            n.ramTotalMB = override.ramTotalMB
+          }
+        })
+      }
+
       return {
         nodes: nodeData.map((n: NodeData) => ({
           id: n.id,
           label: n.label,
-
           size: 50,
           fill: getResourceColor(n.cpuUsagePercent),
           data: n,
@@ -233,7 +254,7 @@ export default function NodeResourceGraph({ simulatedService }: NodeResourceGrap
     }
 
     return { nodes: [], edges: [] }
-  }, [viewLevel, currentNodeId, currentServiceName, services, serviceDependencyEdges])
+  }, [viewLevel, currentNodeId, currentServiceName, services, serviceDependencyEdges, nodeMetricOverrides])
 
   // Handle node click based on current level
   const handleNodeClick = (node: ReagraphNode) => {

@@ -56,8 +56,12 @@ export function extractNodesFromServices(services: ServiceWithPlacement[]): Arra
       node.totalPods += nodePlacement.pods?.length || 0
 
       // Aggregate CPU usage from pods
+      const nodeCores = nodePlacement.resources?.cpu?.cores || 0
       const podCpuSum =
-        nodePlacement.pods?.reduce((sum, pod) => sum + (pod.cpuUsagePercent || 0), 0) || 0
+        nodePlacement.pods?.reduce((sum, pod) => {
+          const podCores = ((pod.cpuUsagePercent || 0) / 100) * nodeCores
+          return sum + podCores
+        }, 0) || 0
       node.cpuUsed += podCpuSum
 
       // Aggregate RAM usage from pods

@@ -165,6 +165,8 @@ export type NodeSuitability = {
   reason?: string
   availableCpu: number
   availableRam: number
+  cpuTotal: number
+  ramTotalMB: number
   score: number // 0-100 suitability score
 }
 

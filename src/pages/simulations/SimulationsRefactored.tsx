@@ -406,6 +406,34 @@ export default function SimulationsRefactored() {
 
   const simulatedService = getSimulatedService()
 
+  const getNodeMetricOverrides = () => {
+    if (result && 'suitableNodes' in result) {
+      const overrides: Record<string, {
+        cpuUsed: number
+        cpuTotal: number
+        ramUsedMB: number
+        ramTotalMB: number
+      }> = {}
+
+        ; (result as ServiceAdditionResponse).suitableNodes.forEach(node => {
+          // Calculate used resources from available
+          const cpuUsed = node.cpuTotal - node.availableCpu
+          const ramUsedMB = node.ramTotalMB - node.availableRam
+
+          overrides[node.nodeName] = {
+            cpuUsed,
+            cpuTotal: node.cpuTotal,
+            ramUsedMB,
+            ramTotalMB: node.ramTotalMB
+          }
+        })
+      return overrides
+    }
+    return null
+  }
+
+  const nodeMetricOverrides = getNodeMetricOverrides()
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <PageHeader
@@ -431,7 +459,10 @@ export default function SimulationsRefactored() {
         <div className="lg:col-span-2">
           {/* Infrastructure Overview */}
           <Section title="Infrastructure Overview" icon={Network}>
-            <NodeResourceGraph simulatedService={simulatedService} />
+            <NodeResourceGraph
+              simulatedService={simulatedService}
+              nodeMetricOverrides={nodeMetricOverrides}
+            />
           </Section>
         </div>
       </div>

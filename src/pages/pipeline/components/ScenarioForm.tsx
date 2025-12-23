@@ -218,9 +218,9 @@ export default function ScenarioForm({
           onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
           className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
         >
+          <option value="add-service">Add New Service</option>
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
-          <option value="add-service">Add New Service</option>
         </select>
       </div>
 
@@ -287,15 +287,19 @@ export default function ScenarioForm({
               >
                 Min RAM (MB)
               </label>
-              <input
+              <select
                 id="minRam"
-                type="number"
-                min="128"
-                step="128"
                 value={minRam}
                 onChange={(e) => setMinRam(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+                className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={128}>128 MB</option>
+                <option value={256}>256 MB</option>
+                <option value={512}>512 MB</option>
+                <option value={1024}>1 GB</option>
+                <option value={2048}>2 GB</option>
+                <option value={4096}>4 GB</option>
+              </select>
             </div>
           </div>
 

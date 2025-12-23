@@ -20,7 +20,7 @@ import type {
 
 export default function SimulationsRefactored() {
   const [searchParams] = useSearchParams()
-  const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
+  const [scenarioType, setScenarioType] = useState<ScenarioType>('add-service')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<
@@ -30,36 +30,6 @@ export default function SimulationsRefactored() {
 
   // Prefill from query params
   const prefillType = searchParams.get('type') as ScenarioType | null
-
-  // Restore result from localStorage on mount
-  useEffect(() => {
-    const savedResult = localStorage.getItem('simulationResult')
-    if (savedResult) {
-      try {
-        setResult(JSON.parse(savedResult))
-      } catch (e) {
-        console.error('Failed to parse saved simulation result', e)
-      }
-    }
-    const savedScenario = localStorage.getItem('simulationScenario')
-    if (savedScenario) {
-      try {
-        setLastScenario(JSON.parse(savedScenario))
-      } catch (e) {
-        console.error('Failed to parse saved simulation scenario', e)
-      }
-    }
-  }, [])
-
-  // Save result to localStorage when it changes
-  useEffect(() => {
-    if (result) {
-      localStorage.setItem('simulationResult', JSON.stringify(result))
-    }
-    if (lastScenario) {
-      localStorage.setItem('simulationScenario', JSON.stringify(lastScenario))
-    }
-  }, [result, lastScenario])
 
   useEffect(() => {
     if (prefillType && (prefillType === 'failure' || prefillType === 'scale')) {

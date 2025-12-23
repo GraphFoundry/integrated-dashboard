@@ -399,6 +399,7 @@ export default function SimulationsRefactored() {
         cpuRequest: lastScenario.minCpuCores,
         ramRequest: lastScenario.minRamMB,
         replicas: lastScenario.replicas,
+        dependencies: lastScenario.dependencies,
       }
     }
     return null

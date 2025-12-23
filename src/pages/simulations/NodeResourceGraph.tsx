@@ -53,6 +53,7 @@ interface NodeResourceGraphProps {
     cpuRequest: number
     ramRequest: number
     replicas: number
+    dependencies?: { serviceId: string; relation: 'calls' | 'called_by' }[]
   } | null
   nodeMetricOverrides?: Record<string, {
     cpuUsed: number
@@ -128,13 +129,12 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
         // If simulated service is present, drill down to it
         if (simulatedService) {
-          // We'll let the user navigate, or auto-navigate:
-          // setViewLevel('services')
-          // setCurrentNodeId(simulatedService.nodeName)
-          // setBreadcrumbs([
-          //   { label: 'Nodes', level: 'nodes' },
-          //   { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName }
-          // ])
+          setViewLevel('services')
+          setCurrentNodeId(simulatedService.nodeName)
+          setBreadcrumbs([
+            { label: 'Nodes', level: 'nodes' },
+            { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName }
+          ])
         }
 
         // Handle stale data notification
@@ -147,11 +147,24 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         }
 
         // Extract service dependency edges for Level 2
-        const edges =
+        let edges =
           graphSnapshot.edges?.map((e) => ({
             source: e.source.split(':')[1] || e.source, // extract service name from "namespace:name"
             target: e.target.split(':')[1] || e.target,
           })) || []
+
+        // Inject simulated edges
+        if (simulatedService && simulatedService.dependencies) {
+          simulatedService.dependencies.forEach(dep => {
+            const peerName = dep.serviceId.split(':')[1] || dep.serviceId
+            if (dep.relation === 'calls') {
+              edges.push({ source: simulatedService.name, target: peerName })
+            } else {
+              edges.push({ source: peerName, target: simulatedService.name })
+            }
+          })
+        }
+
         setServiceDependencyEdges(edges)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load infrastructure data')
@@ -201,8 +214,14 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       const servicesOnNode = extractServicesForNode(services, currentNodeId)
       type ServiceData = ReturnType<typeof extractServicesForNode>[0]
       const nodes = servicesOnNode.map((s: ServiceData) => {
+        const isSimulated = simulatedService &&
+          s.id === simulatedService.name &&
+          s.namespace === simulatedService.namespace
+
         let fill = '#ef4444' // red (low availability)
-        if (s.availability >= 0.95) {
+        if (isSimulated) {
+          fill = '#06b6d4' // cyan-500 (Simulated)
+        } else if (s.availability >= 0.95) {
           fill = '#10b981' // green (high availability)
         } else if (s.availability >= 0.8) {
           fill = '#f59e0b' // yellow (medium availability)
@@ -213,7 +232,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
           size: 50,
           fill,
-          data: s,
+          data: { ...s, isSimulated },
         }
       })
 
@@ -607,8 +626,13 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                               <div className="flex items-center gap-2 mb-3">
                                 <Box className="w-4 h-4 text-blue-400" />
                                 <div>
-                                  <div className="font-semibold text-white text-sm">
+                                  <div className="font-semibold text-white text-sm flex items-center gap-2">
                                     {hoveredNode.data.label}
+                                    {hoveredNode.data.isSimulated && (
+                                      <span className="text-[10px] bg-cyan-900 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-700">
+                                        SIMULATED
+                                      </span>
+                                    )}
                                   </div>
                                   <div className="text-xs text-slate-400">
                                     {hoveredNode.data.namespace}

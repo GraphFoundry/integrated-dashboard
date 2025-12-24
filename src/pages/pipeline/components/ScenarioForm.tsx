@@ -285,13 +285,13 @@ export default function ScenarioForm({
                 htmlFor="minRam"
                 className="block text-sm font-medium text-slate-300 mb-2"
               >
-                Min RAM (MB)
+                Memory Allocation
               </label>
               <select
                 id="minRam"
                 value={minRam}
                 onChange={(e) => setMinRam(Number(e.target.value))}
-                className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
               >
                 <option value={128}>128 MB</option>
                 <option value={256}>256 MB</option>
@@ -314,7 +314,7 @@ export default function ScenarioForm({
               id="addReplicas"
               value={addReplicas}
               onChange={(e) => setAddReplicas(Number(e.target.value))}
-              className="w-full bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
             >
               {[1, 2, 3, 4, 5, 10].map((num) => (
                 <option key={num} value={num}>
@@ -335,7 +335,7 @@ export default function ScenarioForm({
                   <select
                     value={dep}
                     onChange={(e) => handleDependencyChange(idx, e.target.value)}
-                    className="flex-1 bg-slate-800 border border-slate-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
                   >
                     <option value="">Select Service...</option>
                     {discoveredServices.length > 0
@@ -353,7 +353,7 @@ export default function ScenarioForm({
                   <button
                     type="button"
                     onClick={() => handleRemoveDependency(idx)}
-                    className="px-3 py-2 bg-red-900/30 text-red-200 rounded hover:bg-red-900/50"
+                    className="px-3 py-2 bg-red-900/30 text-red-200 rounded hover:bg-red-900/50 border border-red-800/50"
                   >
                     ✕
                   </button>

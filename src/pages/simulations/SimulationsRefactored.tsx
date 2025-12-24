@@ -422,7 +422,11 @@ export default function SimulationsRefactored() {
               loading={loading}
               mode="live"
               scenarioType={scenarioType}
-              onScenarioTypeChange={setScenarioType}
+              onScenarioTypeChange={(type) => {
+                setScenarioType(type)
+                setResult(null)
+                setLastScenario(null)
+              }}
             />
           </Section>
         </div>

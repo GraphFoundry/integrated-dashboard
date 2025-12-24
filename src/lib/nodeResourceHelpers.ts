@@ -64,9 +64,15 @@ export function extractNodesFromServices(services: ServiceWithPlacement[]): Arra
         }, 0) || 0
       node.cpuUsed += podCpuSum
 
-      // Aggregate RAM usage from pods
-      const podRamSum = nodePlacement.pods?.reduce((sum, pod) => sum + (pod.ramUsedMB || 0), 0) || 0
-      node.ramUsageMB += podRamSum
+      // Use node-level RAM usage if available, otherwise fallback to pod sum
+      if (nodePlacement.resources?.ram?.usedMB) {
+        // If we have multiple placements for the same node (unlikely but possible), take the max or latest
+        node.ramUsageMB = Math.max(node.ramUsageMB, nodePlacement.resources.ram.usedMB)
+      } else {
+        // Aggregate RAM usage from pods as fallback
+        const podRamSum = nodePlacement.pods?.reduce((sum, pod) => sum + (pod.ramUsedMB || 0), 0) || 0
+        node.ramUsageMB += podRamSum
+      }
 
       // Update totals if they're higher (in case of inconsistencies)
       if (nodePlacement.resources?.cpu?.cores) {

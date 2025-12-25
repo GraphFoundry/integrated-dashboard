@@ -112,22 +112,28 @@ export function extractServicesForNode(
     namespace: string
     podCount: number
     availability: number
+    avgUptimeSeconds: number
   }> = []
 
   services.forEach((service) => {
     // Skip services without placement data
     if (!service.placement?.nodes || service.placement.nodes.length === 0) return
 
-    // Check if this service has pods on the specified node
-    const hasPodsOnNode = service.placement.nodes.some((n) => n.node === nodeId)
+    const nodePlacement = service.placement.nodes.find((n) => n.node === nodeId)
 
-    if (hasPodsOnNode) {
+    if (nodePlacement) {
+      const pods = nodePlacement.pods || []
+      // Calculate average uptime from pods ensuring we handle missing values
+      const totalUptime = pods.reduce((sum, pod) => sum + ((pod as any).uptimeSeconds || 0), 0)
+      const avgUptimeSeconds = pods.length > 0 ? totalUptime / pods.length : 0
+
       servicesOnNode.push({
         id: service.name,
         label: service.name,
         namespace: service.namespace,
         podCount: service.podCount || 0,
         availability: service.availability || 0,
+        avgUptimeSeconds
       })
     }
   })
@@ -145,6 +151,7 @@ export function extractPodsForService(service: ServiceWithPlacement): Array<{
   cpuUsagePercent: number
   ramUsedMB: number
   serviceAvailability: number
+  uptimeSeconds?: number
 }> {
   const pods: Array<{
     id: string
@@ -153,6 +160,7 @@ export function extractPodsForService(service: ServiceWithPlacement): Array<{
     cpuUsagePercent: number
     ramUsedMB: number
     serviceAvailability: number
+    uptimeSeconds?: number
   }> = []
 
   // Skip if no placement data
@@ -167,6 +175,7 @@ export function extractPodsForService(service: ServiceWithPlacement): Array<{
         cpuUsagePercent: pod.cpuUsagePercent || 0,
         ramUsedMB: pod.ramUsedMB || 0,
         serviceAvailability: service.availability || 0,
+        uptimeSeconds: pod.uptimeSeconds
       })
     })
   })

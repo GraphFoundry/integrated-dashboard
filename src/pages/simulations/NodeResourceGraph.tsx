@@ -43,6 +43,18 @@ function getEmptyStateMessage(
   return `No pods found for service ${serviceName}`
 }
 
+function formatUptime(seconds?: number): string {
+  if (seconds === undefined || seconds === null) return 'N/A'
+  if (seconds < 60) return `${seconds}s`
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+
+  if (days > 0) return `${days}d ${hours % 24}h`
+  if (hours > 0) return `${hours}h ${minutes % 60}m`
+  return `${minutes}m`
+}
+
 // ... imports
 
 interface NodeResourceGraphProps {
@@ -117,7 +129,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                   pods: Array(simulatedService.replicas).fill(null).map((_, i) => ({
                     name: `${simulatedService.name}-sim-${i}`,
                     ramUsedMB: simulatedService.ramRequest,
-                    cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10 // Rough estimate
+                    cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10, // Rough estimate
+                    uptimeSeconds: 0 // New service
                   }))
                 }]
               }
@@ -654,6 +667,15 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                     {availPct !== null ? availPct.toFixed(1) : 'N/A'}%
                                   </span>
                                 </div>
+                                <div className="flex items-center gap-2 pt-1 border-t border-slate-700/50 mt-1">
+                                  <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 text-[10px]">
+                                    ⏱
+                                  </div>
+                                  <span className="text-slate-400">Avg Uptime:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {formatUptime(hoveredNode.data.avgUptimeSeconds)}
+                                  </span>
+                                </div>
                               </div>
                             </>
                           )
@@ -708,6 +730,15 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                     </span>
                                   </div>
                                 )}
+                                <div className="flex items-center gap-2 pt-1 border-t border-slate-700/50 mt-1">
+                                  <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 text-[10px]">
+                                    ⏱
+                                  </div>
+                                  <span className="text-slate-400">Uptime:</span>
+                                  <span className="font-mono font-semibold text-slate-200">
+                                    {formatUptime(hoveredNode.data.uptimeSeconds)}
+                                  </span>
+                                </div>
                               </div>
                             </>
                           )

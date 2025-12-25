@@ -387,6 +387,7 @@ export type PodInfo = {
   name: string
   ramUsedMB: number
   cpuUsagePercent: number
+  uptimeSeconds?: number
 }
 
 export type NodeResources = {

@@ -92,10 +92,13 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     { source: string; target: string }[]
   >([])
 
-  // Fetch initial data
+  // Fetch initial data with polling
   useEffect(() => {
+    let isMounted = true
+
     const fetchData = async () => {
-      setLoading(true)
+      // Don't set loading on poll, only on initial load or manual refresh if we wanted that
+      if (services.length === 0) setLoading(true)
       setError(null)
 
       try {
@@ -103,6 +106,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
           getServicesWithPlacement(),
           getDependencyGraphSnapshot().catch(() => ({ nodes: [], edges: [] })),
         ])
+
+        if (!isMounted) return
 
         let fetchedServices = servicesData.services || []
 
@@ -140,8 +145,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
         setServices(fetchedServices)
 
-        // If simulated service is present, drill down to it
-        if (simulatedService) {
+        // Only drill down on initial load of simulation, not every poll
+        if (simulatedService && viewLevel === 'nodes' && !currentNodeId) {
           setViewLevel('services')
           setCurrentNodeId(simulatedService.nodeName)
           setBreadcrumbs([
@@ -180,15 +185,24 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
         setServiceDependencyEdges(edges)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load infrastructure data')
-        setServices([])
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load infrastructure data')
+          // Don't clear services on error to prevent flickering
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) setLoading(false)
       }
     }
 
-    fetchData()
-  }, [simulatedService])
+    fetchData() // Initial fetch
+
+    const intervalId = setInterval(fetchData, 5000) // Poll every 5 seconds
+
+    return () => {
+      isMounted = false
+      clearInterval(intervalId)
+    }
+  }, [simulatedService, services.length, viewLevel, currentNodeId])
 
   // Generate graph data based on current view level
   const graphData = useMemo(() => {
@@ -671,7 +685,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 text-[10px]">
                                     ⏱
                                   </div>
-                                  <span className="text-slate-400">Avg Uptime:</span>
+                                  <span className="text-slate-400">Avg Pod Age:</span>
                                   <span className="font-mono font-semibold text-slate-200">
                                     {formatUptime(hoveredNode.data.avgUptimeSeconds)}
                                   </span>
@@ -734,7 +748,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 text-[10px]">
                                     ⏱
                                   </div>
-                                  <span className="text-slate-400">Uptime:</span>
+                                  <span className="text-slate-400">Pod Age:</span>
                                   <span className="font-mono font-semibold text-slate-200">
                                     {formatUptime(hoveredNode.data.uptimeSeconds)}
                                   </span>

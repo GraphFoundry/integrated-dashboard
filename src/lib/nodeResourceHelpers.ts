@@ -81,12 +81,19 @@ export function extractNodesFromServices(services: ServiceWithPlacement[]): Arra
       if (nodePlacement.resources?.ram?.totalMB) {
         node.ramTotalMB = Math.max(node.ramTotalMB, nodePlacement.resources.ram.totalMB)
       }
+      // Capture backend usagePercent if available
+      if (nodePlacement.resources?.cpu?.usagePercent !== undefined) {
+        node.cpuUsagePercent = Math.max(node.cpuUsagePercent, nodePlacement.resources.cpu.usagePercent)
+      }
     })
   })
 
   // Calculate percentages
   nodeMap.forEach((node) => {
-    node.cpuUsagePercent = node.cpuTotal > 0 ? (node.cpuUsed / node.cpuTotal) * 100 : 0
+    // If usage percent is still 0 (not set by backend), and we have capacity, calc from pods
+    if (node.cpuUsagePercent === 0 && node.cpuTotal > 0) {
+      node.cpuUsagePercent = (node.cpuUsed / node.cpuTotal) * 100
+    }
     node.ramUsagePercent = node.ramTotalMB > 0 ? (node.ramUsageMB / node.ramTotalMB) * 100 : 0
   })
 

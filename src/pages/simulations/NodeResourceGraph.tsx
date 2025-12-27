@@ -610,16 +610,16 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   <span className="text-slate-400">RAM:</span>
                                   <span className="font-mono font-semibold text-slate-200">
                                     {hoveredNode.data.ramUsageMB != null
-                                      ? hoveredNode.data.ramUsageMB.toFixed(2)
+                                      ? (hoveredNode.data.ramUsageMB / 1024).toFixed(2)
                                       : 'N/A'}
-                                    MB
+                                    GB
                                   </span>
                                 </div>
                                 <div className="text-slate-500 mt-0.5">
                                   {hoveredNode.data.ramTotalMB != null
-                                    ? hoveredNode.data.ramTotalMB.toFixed(2)
+                                    ? (hoveredNode.data.ramTotalMB / 1024).toFixed(2)
                                     : 'N/A'}
-                                  MB total (
+                                  GB total (
                                   {hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}%)
                                 </div>
                               </div>
@@ -731,9 +731,9 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   <span className="text-slate-400">RAM:</span>
                                   <span className="font-mono font-semibold text-slate-200">
                                     {hoveredNode.data.ramUsedMB != null
-                                      ? hoveredNode.data.ramUsedMB.toFixed(2)
+                                      ? (hoveredNode.data.ramUsedMB / 1024).toFixed(2)
                                       : 'N/A'}
-                                    MB
+                                    GB
                                   </span>
                                 </div>
                                 {isServiceUnavailable && (

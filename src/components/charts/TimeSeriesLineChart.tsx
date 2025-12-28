@@ -20,6 +20,8 @@ interface TimeSeriesLineChartProps {
   fillColor?: string
   valueFormatter?: (value: number) => string
   height?: number
+  yAxisLabel?: string
+  xAxisLabel?: string
 }
 
 export default function TimeSeriesLineChart({
@@ -29,6 +31,8 @@ export default function TimeSeriesLineChart({
   fillColor = '#3b82f6',
   valueFormatter,
   height = 200,
+  yAxisLabel,
+  xAxisLabel,
 }: Readonly<TimeSeriesLineChartProps>) {
   const formatXAxis = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -60,18 +64,41 @@ export default function TimeSeriesLineChart({
 
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+      <LineChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 30 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
         <XAxis
           dataKey="timestamp"
           tickFormatter={formatXAxis}
           stroke="#94a3b8"
           tick={{ fill: '#94a3b8', fontSize: 12 }}
+          label={
+            xAxisLabel
+              ? {
+                value: xAxisLabel,
+                position: 'insideBottom',
+                offset: -5,
+                fill: '#94a3b8',
+                fontSize: 12,
+              }
+              : undefined
+          }
         />
         <YAxis
           stroke="#94a3b8"
           tick={{ fill: '#94a3b8', fontSize: 12 }}
           tickFormatter={valueFormatter}
+          label={
+            yAxisLabel
+              ? {
+                value: yAxisLabel,
+                angle: -90,
+                position: 'insideLeft',
+                fill: '#94a3b8',
+                fontSize: 12,
+                style: { textAnchor: 'middle' },
+              }
+              : undefined
+          }
         />
         <Tooltip content={<CustomTooltip />} />
         <Line

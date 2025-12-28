@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { toast } from 'react-hot-toast'
 import { GraphCanvas, GraphNode as ReagraphNode } from 'reagraph'
 import {
@@ -92,6 +92,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     { source: string; target: string }[]
   >([])
 
+  const hasInitialDrillDown = useRef(false)
+
   // Fetch initial data with polling
   useEffect(() => {
     let isMounted = true
@@ -146,7 +148,9 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         setServices(fetchedServices)
 
         // Only drill down on initial load of simulation, not every poll
-        if (simulatedService && viewLevel === 'nodes' && !currentNodeId) {
+        // Use ref to ensure we only do this once per component mount/simulation run
+        if (simulatedService && viewLevel === 'nodes' && !currentNodeId && !hasInitialDrillDown.current) {
+          hasInitialDrillDown.current = true
           setViewLevel('services')
           setCurrentNodeId(simulatedService.nodeName)
           setBreadcrumbs([

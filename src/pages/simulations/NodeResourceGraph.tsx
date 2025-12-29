@@ -11,6 +11,9 @@ import {
   Database,
   Cpu,
   HardDrive,
+  TrendingUp,
+  Clock,
+  Activity,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import { getServicesWithPlacement, getDependencyGraphSnapshot } from '@/lib/api'
@@ -679,16 +682,14 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Server className={`w-3.5 h-3.5 ${availIconClass}`} />
+                                  <TrendingUp className={`w-3.5 h-3.5 ${availIconClass}`} />
                                   <span className="text-slate-400">Availability:</span>
                                   <span className={`font-mono font-semibold ${availColorClass}`}>
                                     {availPct !== null ? availPct.toFixed(1) : 'N/A'}%
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2 pt-1 border-t border-slate-700/50 mt-1">
-                                  <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 text-[10px]">
-                                    ⏱
-                                  </div>
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
                                   <span className="text-slate-400">Avg Pod Age:</span>
                                   <span className="font-mono font-semibold text-slate-200">
                                     {formatUptime(hoveredNode.data.avgUptimeSeconds)}
@@ -749,9 +750,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   </div>
                                 )}
                                 <div className="flex items-center gap-2 pt-1 border-t border-slate-700/50 mt-1">
-                                  <div className="w-3.5 h-3.5 flex items-center justify-center text-slate-400 text-[10px]">
-                                    ⏱
-                                  </div>
+                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
                                   <span className="text-slate-400">Pod Age:</span>
                                   <span className="font-mono font-semibold text-slate-200">
                                     {formatUptime(hoveredNode.data.uptimeSeconds)}

@@ -17,15 +17,15 @@ export default function IncidentExplorer() {
   const [edges, setEdges] = useState<GraphEdge[]>([])
   const [metadata, setMetadata] = useState<
     | {
-        stale?: boolean
-        lastUpdatedSecondsAgo?: number | null
-        windowMinutes?: number
-        nodeCount?: number
-        edgeCount?: number
-        nodesWithMetrics?: number
-        edgesWithMetrics?: number
-        generatedAt?: string
-      }
+      stale?: boolean
+      lastUpdatedSecondsAgo?: number | null
+      windowMinutes?: number
+      nodeCount?: number
+      edgeCount?: number
+      nodesWithMetrics?: number
+      edgesWithMetrics?: number
+      generatedAt?: string
+    }
     | undefined
   >(undefined)
   const [mode, setMode] = useState<GraphMode>('impact')
@@ -300,7 +300,7 @@ export default function IncidentExplorer() {
               edges={reagraphEdges}
               selections={selections}
               actives={actives}
-              layoutType="treeTd2d"
+              layoutType="radialOut2d"
               labelType="all"
               theme={{
                 canvas: {
@@ -464,48 +464,48 @@ export default function IncidentExplorer() {
                       {(hoveredNode.podCount !== undefined ||
                         hoveredNode.availabilityPct !== undefined ||
                         hoveredNode.availability !== undefined) && (
-                        <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-slate-700/50">
-                          {hoveredNode.podCount !== undefined && (
-                            <div className="flex items-center gap-2 text-xs">
-                              <Server className="w-3.5 h-3.5 text-blue-400" />
-                              <span className="text-slate-500">Pods:</span>
-                              <span className="text-slate-300 font-mono font-semibold">
-                                {hoveredNode.podCount}
-                              </span>
-                            </div>
-                          )}
-                          {(() => {
-                            const availPct =
-                              hoveredNode.availabilityPct ??
-                              (hoveredNode.availability !== undefined &&
-                              hoveredNode.availability !== null
-                                ? hoveredNode.availability * 100
-                                : null)
-                            if (availPct === null || availPct === undefined) return null
-                            const colorClass =
-                              availPct > 99
-                                ? 'text-green-400'
-                                : availPct > 95
-                                  ? 'text-yellow-400'
-                                  : 'text-red-400'
-                            const iconClass =
-                              availPct > 99
-                                ? 'text-green-400'
-                                : availPct > 95
-                                  ? 'text-yellow-400'
-                                  : 'text-red-400'
-                            return (
+                          <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-slate-700/50">
+                            {hoveredNode.podCount !== undefined && (
                               <div className="flex items-center gap-2 text-xs">
-                                <TrendingUp className={`w-3.5 h-3.5 ${iconClass}`} />
-                                <span className="text-slate-500">Uptime:</span>
-                                <span className={`font-mono font-semibold ${colorClass}`}>
-                                  {availPct.toFixed(1)}%
+                                <Server className="w-3.5 h-3.5 text-blue-400" />
+                                <span className="text-slate-500">Pods:</span>
+                                <span className="text-slate-300 font-mono font-semibold">
+                                  {hoveredNode.podCount}
                                 </span>
                               </div>
-                            )
-                          })()}
-                        </div>
-                      )}
+                            )}
+                            {(() => {
+                              const availPct =
+                                hoveredNode.availabilityPct ??
+                                (hoveredNode.availability !== undefined &&
+                                  hoveredNode.availability !== null
+                                  ? hoveredNode.availability * 100
+                                  : null)
+                              if (availPct === null || availPct === undefined) return null
+                              const colorClass =
+                                availPct > 99
+                                  ? 'text-green-400'
+                                  : availPct > 95
+                                    ? 'text-yellow-400'
+                                    : 'text-red-400'
+                              const iconClass =
+                                availPct > 99
+                                  ? 'text-green-400'
+                                  : availPct > 95
+                                    ? 'text-yellow-400'
+                                    : 'text-red-400'
+                              return (
+                                <div className="flex items-center gap-2 text-xs">
+                                  <TrendingUp className={`w-3.5 h-3.5 ${iconClass}`} />
+                                  <span className="text-slate-500">Uptime:</span>
+                                  <span className={`font-mono font-semibold ${colorClass}`}>
+                                    {availPct.toFixed(1)}%
+                                  </span>
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
 
                       {hoveredNode.riskReason && (
                         <div className="flex items-start gap-2 text-xs text-slate-300 mt-2 pt-2 border-t border-slate-700/50">

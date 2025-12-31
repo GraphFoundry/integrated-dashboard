@@ -32,24 +32,7 @@ export async function getServices(signal?: AbortSignal): Promise<ServicesRespons
 
   // SAFE FALLBACK: If the API doesn't return edges, we generate a consistent topology
   // so the network graph isn't empty, using the real service nodes.
-  if (!data.edges && data.services.length > 0) {
-    const edges: { source: string; target: string }[] = []
-    const services = data.services
 
-    // Create a simple deterministic mock graph
-    services.forEach((svc, i) => {
-      if (i > 0) {
-        // Connect to previous
-        edges.push({ source: services[i - 1].serviceId, target: svc.serviceId })
-      }
-      // Connect random ones back to create cycles/mesh
-      if (i > 2 && i % 3 === 0) {
-        edges.push({ source: svc.serviceId, target: services[0].serviceId })
-      }
-    })
-
-    return { ...data, edges }
-  }
 
   return data
 }

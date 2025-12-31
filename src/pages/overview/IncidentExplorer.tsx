@@ -6,7 +6,15 @@ import { ModeButton } from './incidentExplorerUtils'
 import { NodeDetailsDrawer } from './NodeDetailsDrawer'
 import { getRiskColor } from './graphHelpers'
 import { getDependencyGraphSnapshot } from '@/lib/api'
-import { Activity, Server, TrendingUp } from 'lucide-react'
+import {
+  Activity,
+  Server,
+  TrendingUp,
+  AlertTriangle,
+  ArrowRightLeft,
+  ArrowRight,
+  ShieldAlert,
+} from 'lucide-react'
 
 type GraphMode = 'impact' | 'suspect' | 'flow'
 
@@ -74,8 +82,16 @@ export default function IncidentExplorer() {
       target: e.target,
       id: e.id,
       data: e,
+      label: e.reqRate ? `${e.reqRate} RPS` : undefined,
     }))
   }, [edges])
+
+  // Helper mapping for fast lookup
+  const nodeMap = useMemo(() => {
+    const map = new Map<string, GraphNode>()
+    nodes.forEach((n) => map.set(n.id, n))
+    return map
+  }, [nodes])
 
   // Recompute highlights when mode changes (if a node is selected)
   useEffect(() => {
@@ -84,14 +100,14 @@ export default function IncidentExplorer() {
     const nodeId = selectedNode.id
 
     if (mode === 'impact') {
-      const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 1)
+      const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 5) // Deep traversal for blast radius
       setSelections([nodeId, ...downstreamNodes])
       const downstreamEdges = reagraphEdges
         .filter((e) => e.source === nodeId && downstreamNodes.includes(e.target))
         .map((e) => e.id)
       setActives(downstreamEdges)
     } else if (mode === 'suspect') {
-      const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 1)
+      const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 5)
       setSelections([nodeId, ...upstreamNodes])
       const upstreamEdges = reagraphEdges
         .filter((e) => upstreamNodes.includes(e.source) && e.target === nodeId)
@@ -115,50 +131,11 @@ export default function IncidentExplorer() {
     }
   }, [mode, selectedNode, reagraphEdges])
 
-  // Mode-specific highlighting logic
   const handleNodeClick = (node: ReagraphNode) => {
-    const nodeId = node.id
     const clickedNodeData = node.data as GraphNode
-
     setSelectedNode(clickedNodeData)
-    setHoveredNode(null) // Hide tooltip when node is clicked
+    setHoveredNode(null)
     setMousePosition(null)
-
-    if (mode === 'impact') {
-      // Impact mode: highlight downstream (targets)
-      const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 1)
-      setSelections([nodeId, ...downstreamNodes])
-
-      const downstreamEdges = reagraphEdges
-        .filter((e) => e.source === nodeId && downstreamNodes.includes(e.target))
-        .map((e) => e.id)
-      setActives(downstreamEdges)
-    } else if (mode === 'suspect') {
-      // Suspect mode: highlight upstream (sources)
-      const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 1)
-      setSelections([nodeId, ...upstreamNodes])
-
-      const upstreamEdges = reagraphEdges
-        .filter((e) => upstreamNodes.includes(e.source) && e.target === nodeId)
-        .map((e) => e.id)
-      setActives(upstreamEdges)
-    } else if (mode === 'flow') {
-      // Flow mode: highlight all connected nodes
-      const connectedNodes: string[] = []
-      const connectedEdges: string[] = []
-      reagraphEdges.forEach((edge) => {
-        if (edge.source === nodeId) {
-          connectedNodes.push(edge.target)
-          connectedEdges.push(edge.id)
-        }
-        if (edge.target === nodeId) {
-          connectedNodes.push(edge.source)
-          connectedEdges.push(edge.id)
-        }
-      })
-      setSelections([nodeId, ...connectedNodes])
-      setActives(connectedEdges)
-    }
   }
 
   const hasData = reagraphNodes.length > 0
@@ -170,7 +147,7 @@ export default function IncidentExplorer() {
           <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-slate-400">Loading graph data...</div>
+          <div className="text-slate-400 animate-pulse">Scanning infrastructure topology...</div>
         </div>
       </div>
     )
@@ -204,13 +181,13 @@ export default function IncidentExplorer() {
         <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
         <div className="flex gap-2">
           <ModeButton active={mode === 'impact'} onClick={() => setMode('impact')}>
-            Impact
+            Impact Analysis
           </ModeButton>
           <ModeButton active={mode === 'suspect'} onClick={() => setMode('suspect')}>
-            Suspect
+            Suspect Search
           </ModeButton>
           <ModeButton active={mode === 'flow'} onClick={() => setMode('flow')}>
-            Flow
+            Traffic Flow
           </ModeButton>
         </div>
       </div>
@@ -219,48 +196,31 @@ export default function IncidentExplorer() {
       <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
         <div className="flex justify-between items-center">
           <div className="text-xs text-slate-400">
-            {mode === 'impact' &&
-              '📊 Click a node to see downstream blast radius (what breaks if this degrades)'}
-            {mode === 'suspect' &&
-              '🔍 Click a node to see upstream suspects (probable root causes)'}
-            {mode === 'flow' && '🌊 Click a node to see traffic flows and critical paths'}
+            {mode === 'impact' && (
+              <span className="flex items-center gap-2">
+                <AlertTriangle className="w-3 h-3 text-orange-400" />
+                Select a service to see its <strong>Blast Radius</strong> (what breaks if it fails)
+              </span>
+            )}
+            {mode === 'suspect' && (
+              <span className="flex items-center gap-2">
+                <ShieldAlert className="w-3 h-3 text-red-400" />
+                Select a service to find <strong>Root Cause Candidates</strong> (upstream failures)
+              </span>
+            )}
+            {mode === 'flow' && (
+              <span className="flex items-center gap-2">
+                <ArrowRightLeft className="w-3 h-3 text-blue-400" />
+                Select a service to analyze <strong>Traffic Volume</strong> (inbound/outbound)
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: getRiskColor('CRITICAL') }}
-              />
-              <span className="text-slate-400">Critical</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: getRiskColor('HIGH') }}
-              />
-              <span className="text-slate-400">High</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: getRiskColor('MEDIUM') }}
-              />
-              <span className="text-slate-400">Medium</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: getRiskColor('LOW') }}
-              />
-              <span className="text-slate-400">Low</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div
-                className="w-2 h-2 rounded-full"
-                style={{ backgroundColor: getRiskColor('UNKNOWN') }}
-              />
-              <span className="text-slate-400">Unknown</span>
-            </div>
+            <LegendItem color="CRITICAL" label="Critical" />
+            <LegendItem color="HIGH" label="High" />
+            <LegendItem color="MEDIUM" label="Medium" />
+            <LegendItem color="LOW" label="Low" />
+            <LegendItem color="UNKNOWN" label="Unknown" />
           </div>
         </div>
         {/* Metadata stats row */}
@@ -268,12 +228,7 @@ export default function IncidentExplorer() {
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50 text-xs text-slate-500">
             <div className="flex items-center gap-4">
               {metadata.nodeCount !== undefined && <span>{metadata.nodeCount} services</span>}
-              {metadata.edgeCount !== undefined && <span>{metadata.edgeCount} edges</span>}
-              {metadata.nodesWithMetrics !== undefined && (
-                <span className="text-sky-400">
-                  {metadata.nodesWithMetrics}/{metadata.nodeCount} with metrics
-                </span>
-              )}
+              {metadata.edgeCount !== undefined && <span>{metadata.edgeCount} dependencies</span>}
             </div>
             <div className="flex items-center gap-2">
               {metadata.stale && <span className="text-yellow-400">⚠️ Stale data</span>}
@@ -302,53 +257,7 @@ export default function IncidentExplorer() {
               actives={actives}
               layoutType="radialOut2d"
               labelType="all"
-              theme={{
-                canvas: {
-                  background: '#0f172a',
-                },
-                node: {
-                  fill: '#64748b', // neutral default, overridden by per-node fill
-                  activeFill: '#38bdf8',
-                  opacity: 0.9,
-                  selectedOpacity: 1,
-                  inactiveOpacity: 0.4,
-                  label: {
-                    color: '#e2e8f0',
-                    stroke: '#0f172a',
-                    activeColor: '#ffffff',
-                  },
-                  subLabel: {
-                    color: '#94a3b8',
-                    stroke: 'transparent',
-                    activeColor: '#e2e8f0',
-                  },
-                },
-                lasso: {
-                  border: '1px solid #38bdf8',
-                  background: 'rgba(56, 189, 248, 0.1)',
-                },
-                ring: {
-                  fill: '#334155',
-                  activeFill: '#3b82f6',
-                },
-                edge: {
-                  fill: '#475569',
-                  activeFill: '#94a3b8',
-                  opacity: 0.6,
-                  selectedOpacity: 1,
-                  inactiveOpacity: 0.1,
-                  label: {
-                    stroke: 'transparent',
-                    color: '#94a3b8',
-                    activeColor: '#f8fafc',
-                    fontSize: 6,
-                  },
-                },
-                arrow: {
-                  fill: '#475569',
-                  activeFill: '#94a3b8',
-                },
-              }}
+              theme={darkGraphTheme}
               onNodeClick={(node) => handleNodeClick(node)}
               onNodePointerOver={(node) => {
                 setHoveredNode(node.data as GraphNode)
@@ -356,16 +265,15 @@ export default function IncidentExplorer() {
                 // Highlight upstream/downstream on hover (if no node selected)
                 if (!selectedNode) {
                   const nodeId = node.id
-
                   if (mode === 'impact') {
-                    const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 1)
+                    const downstreamNodes = getDownstreamNodes(nodeId, reagraphEdges, 5)
                     setSelections([nodeId, ...downstreamNodes])
                     const downstreamEdges = reagraphEdges
                       .filter((e) => e.source === nodeId && downstreamNodes.includes(e.target))
                       .map((e) => e.id)
                     setActives(downstreamEdges)
                   } else if (mode === 'suspect') {
-                    const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 1)
+                    const upstreamNodes = getUpstreamNodes(nodeId, reagraphEdges, 5)
                     setSelections([nodeId, ...upstreamNodes])
                     const upstreamEdges = reagraphEdges
                       .filter((e) => upstreamNodes.includes(e.source) && e.target === nodeId)
@@ -407,116 +315,15 @@ export default function IncidentExplorer() {
             {/* Hover Tooltip */}
             {hoveredNode &&
               !selectedNode &&
-              mousePosition &&
-              (() => {
-                const tooltipWidth = 256 // max-w-sm is ~256px
-                const tooltipHeight = 200 // approximate height
-                const viewportWidth = window.innerWidth
-                const viewportHeight = window.innerHeight
-
-                // Smart positioning to prevent overflow
-                let left = mousePosition.x + 16
-                let top = mousePosition.y + 16
-
-                // Adjust horizontal position if tooltip would overflow right
-                if (left + tooltipWidth > viewportWidth) {
-                  left = mousePosition.x - tooltipWidth - 16
-                }
-
-                // Adjust vertical position if tooltip would overflow bottom
-                if (top + tooltipHeight > viewportHeight) {
-                  top = mousePosition.y - tooltipHeight - 16
-                }
-
-                // Ensure tooltip doesn't go off left edge
-                if (left < 16) {
-                  left = 16
-                }
-
-                // Ensure tooltip doesn't go off top edge
-                if (top < 16) {
-                  top = 16
-                }
-
-                return (
-                  <div
-                    className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
-                    style={{
-                      left: `${left}px`,
-                      top: `${top}px`,
-                    }}
-                  >
-                    <div className="p-3">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div
-                          className="w-3 h-3 rounded-full ring-2 ring-slate-700 animate-pulse"
-                          style={{ backgroundColor: getRiskColor(hoveredNode.riskLevel) }}
-                        />
-                        <div>
-                          <span className="font-semibold text-white text-sm">
-                            {hoveredNode.name}
-                          </span>
-                          <div className="text-xs text-slate-400">{hoveredNode.namespace}</div>
-                        </div>
-                      </div>
-
-                      {/* Infrastructure metrics */}
-                      {(hoveredNode.podCount !== undefined ||
-                        hoveredNode.availabilityPct !== undefined ||
-                        hoveredNode.availability !== undefined) && (
-                          <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-slate-700/50">
-                            {hoveredNode.podCount !== undefined && (
-                              <div className="flex items-center gap-2 text-xs">
-                                <Server className="w-3.5 h-3.5 text-blue-400" />
-                                <span className="text-slate-500">Pods:</span>
-                                <span className="text-slate-300 font-mono font-semibold">
-                                  {hoveredNode.podCount}
-                                </span>
-                              </div>
-                            )}
-                            {(() => {
-                              const availPct =
-                                hoveredNode.availabilityPct ??
-                                (hoveredNode.availability !== undefined &&
-                                  hoveredNode.availability !== null
-                                  ? hoveredNode.availability * 100
-                                  : null)
-                              if (availPct === null || availPct === undefined) return null
-                              const colorClass =
-                                availPct > 99
-                                  ? 'text-green-400'
-                                  : availPct > 95
-                                    ? 'text-yellow-400'
-                                    : 'text-red-400'
-                              const iconClass =
-                                availPct > 99
-                                  ? 'text-green-400'
-                                  : availPct > 95
-                                    ? 'text-yellow-400'
-                                    : 'text-red-400'
-                              return (
-                                <div className="flex items-center gap-2 text-xs">
-                                  <TrendingUp className={`w-3.5 h-3.5 ${iconClass}`} />
-                                  <span className="text-slate-500">Uptime:</span>
-                                  <span className={`font-mono font-semibold ${colorClass}`}>
-                                    {availPct.toFixed(1)}%
-                                  </span>
-                                </div>
-                              )
-                            })()}
-                          </div>
-                        )}
-
-                      {hoveredNode.riskReason && (
-                        <div className="flex items-start gap-2 text-xs text-slate-300 mt-2 pt-2 border-t border-slate-700/50">
-                          <Activity className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
-                          <span>{hoveredNode.riskReason}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )
-              })()}
+              mousePosition && (
+                <GraphTooltip
+                  node={hoveredNode}
+                  edges={edges}
+                  nodeMap={nodeMap}
+                  mode={mode}
+                  position={mousePosition}
+                />
+              )}
 
             {/* Node Details Drawer */}
             {selectedNode && (
@@ -533,13 +340,14 @@ export default function IncidentExplorer() {
             )}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center p-8">
+          <div className="h-full flex flex-col items-center justify-center p-8 bg-[#0f172a]">
             <EmptyState
               icon="🕸️"
               message="No dependency graph data available"
               action={
                 <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">
-                  Ensure Graph Engine has discovered services
+                  Traffic is required to discover service dependencies. Try running a load test or
+                  waiting for traffic to flow.
                 </span>
               }
             />
@@ -550,7 +358,212 @@ export default function IncidentExplorer() {
   )
 }
 
-// Helper functions for graph traversal
+// ----------------------------------------------------------------------
+// Tooltip Component
+// ----------------------------------------------------------------------
+
+function GraphTooltip({
+  node,
+  edges,
+  nodeMap,
+  mode,
+  position,
+}: {
+  node: GraphNode
+  edges: GraphEdge[]
+  nodeMap: Map<string, GraphNode>
+  mode: GraphMode
+  position: { x: number; y: number }
+}) {
+  const tooltipWidth = 280
+  const tooltipHeight = 220
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+
+  let left = position.x + 16
+  let top = position.y + 16
+
+  if (left + tooltipWidth > viewportWidth) left = position.x - tooltipWidth - 16
+  if (top + tooltipHeight > viewportHeight) top = position.y - tooltipHeight - 16
+  if (left < 16) left = 16
+  if (top < 16) top = 16
+
+  // Analysis Calculations
+  const analysis = useMemo(() => {
+    // 1. Blast Radius (Impact)
+    const downstreamEdges = edges.filter((e) => e.source === node.id)
+    const downstreamIds = downstreamEdges.map((e) => e.target)
+    const blastRadiusCount = downstreamIds.length
+    const totalImpactedRps = downstreamEdges.reduce((sum, e) => sum + (e.reqRate || 0), 0)
+
+    // 2. Suspects (Upstream Risks)
+    const upstreamEdges = edges.filter((e) => e.target === node.id)
+    const suspects = upstreamEdges
+      .map((e) => ({
+        node: nodeMap.get(e.source),
+        edge: e,
+      }))
+      .filter((item) => item.node && (item.node.riskLevel === 'CRITICAL' || item.node.riskLevel === 'HIGH'))
+      .sort((_, b) => (b.node?.riskLevel === 'CRITICAL' ? 1 : -1)) // Critical first
+
+    // 3. Flow (Traffic)
+    const inboundRps = upstreamEdges.reduce((sum, e) => sum + (e.reqRate || 0), 0)
+    const outboundRps = downstreamEdges.reduce((sum, e) => sum + (e.reqRate || 0), 0)
+
+    return { blastRadiusCount, totalImpactedRps, suspects, inboundRps, outboundRps }
+  }, [node, edges, nodeMap])
+
+  return (
+    <div
+      className="fixed z-50 pointer-events-none bg-[#1e293b]/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl animate-in fade-in zoom-in-95 duration-75"
+      style={{
+        left: `${left}px`,
+        top: `${top}px`,
+        width: `${tooltipWidth}px`,
+      }}
+    >
+      <div className="p-3">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-3 border-b border-slate-700/50 pb-2">
+          <div
+            className="w-3 h-3 rounded-full ring-2 ring-slate-700 shadow-sm"
+            style={{ backgroundColor: getRiskColor(node.riskLevel) }}
+          />
+          <div className="overflow-hidden">
+            <div className="font-bold text-white text-sm truncate" title={node.name}>
+              {node.name}
+            </div>
+            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+              {node.namespace}
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-1 bg-slate-800 rounded px-1.5 py-0.5">
+            <Server className="w-3 h-3 text-slate-400" />
+            <span className="text-xs font-mono text-slate-300">
+              {node.podCount !== undefined ? node.podCount : '-'}
+            </span>
+          </div>
+        </div>
+
+        {/* Mode-Specific Insights */}
+        <div className="space-y-3">
+          {mode === 'impact' && (
+            <div className="bg-orange-500/10 rounded p-2 border border-orange-500/20">
+              <div className="text-[10px] text-orange-400 uppercase font-bold mb-1 flex items-center gap-1">
+                <AlertTriangle className="w-3 h-3" /> Blast Radius
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-center">
+                <div>
+                  <div className="text-lg font-bold text-white">{analysis.blastRadiusCount}</div>
+                  <div className="text-[10px] text-slate-400">Services at Risk</div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-white">
+                    {analysis.totalImpactedRps.toFixed(1)}
+                  </div>
+                  <div className="text-[10px] text-slate-400">Impacted RPS</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode === 'suspect' && (
+            <div className="bg-red-500/10 rounded p-2 border border-red-500/20">
+              <div className="text-[10px] text-red-400 uppercase font-bold mb-1 flex items-center gap-1">
+                <ShieldAlert className="w-3 h-3" /> Potential Suspects
+              </div>
+              {analysis.suspects.length > 0 ? (
+                <div className="space-y-1">
+                  {analysis.suspects.slice(0, 2).map((s, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs text-slate-300">
+                      <span className="truncate max-w-[120px]">{s.node?.name}</span>
+                      <span className="text-red-400 font-bold text-[10px] px-1 bg-red-900/40 rounded">
+                        {s.node?.riskLevel}
+                      </span>
+                    </div>
+                  ))}
+                  {analysis.suspects.length > 2 && (
+                    <div className="text-[10px] text-slate-500 italic">
+                      + {analysis.suspects.length - 2} more...
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400 italic">No risky upstream services found.</div>
+              )}
+            </div>
+          )}
+
+          {mode === 'flow' && (
+            <div className="bg-blue-500/10 rounded p-2 border border-blue-500/20">
+              <div className="text-[10px] text-blue-400 uppercase font-bold mb-1 flex items-center gap-1">
+                <ArrowRightLeft className="w-3 h-3" /> Traffic Flow
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-center flex-1">
+                  <div className="text-xs text-slate-400 mb-0.5">Inbound</div>
+                  <div className="text-sm font-bold text-white font-mono">
+                    {analysis.inboundRps.toFixed(1)}
+                  </div>
+                  <div className="text-[9px] text-slate-500">req/sec</div>
+                </div>
+                <div className="text-slate-600">
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+                <div className="text-center flex-1">
+                  <div className="text-xs text-slate-400 mb-0.5">Outbound</div>
+                  <div className="text-sm font-bold text-white font-mono">
+                    {analysis.outboundRps.toFixed(1)}
+                  </div>
+                  <div className="text-[9px] text-slate-500">req/sec</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Core Metrics */}
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700/50">
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">Availability</div>
+              <div className="flex items-center gap-1.5">
+                <TrendingUp
+                  className={`w-3 h-3 ${(node.availabilityPct ?? 100) > 99 ? 'text-green-400' : 'text-red-400'
+                    }`}
+                />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {node.availabilityPct !== undefined ? node.availabilityPct.toFixed(1) : '-'}%
+                </span>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">Latency (P95)</div>
+              <div className="flex items-center gap-1.5">
+                <Activity className="w-3 h-3 text-sky-400" />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {node.latencyP95Ms !== undefined ? Math.round(node.latencyP95Ms) : '-'}
+                  <span className="text-[10px] text-slate-500 font-sans ml-0.5">ms</span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------------
+// Helpers
+// ----------------------------------------------------------------------
+
+function LegendItem({ color, label }: { color: string; label: string }) {
+  return (
+    <div className="flex items-center gap-1">
+      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor(color) }} />
+      <span className="text-slate-400">{label}</span>
+    </div>
+  )
+}
 
 function getDownstreamNodes(nodeId: string, edges: ReagraphEdge[], maxHops: number): string[] {
   const visited = new Set<string>()
@@ -567,7 +580,6 @@ function getDownstreamNodes(nodeId: string, edges: ReagraphEdge[], maxHops: numb
       }
     })
   }
-
   return Array.from(visited)
 }
 
@@ -588,4 +600,52 @@ function getUpstreamNodes(nodeId: string, edges: ReagraphEdge[], maxHops: number
   }
 
   return Array.from(visited)
+}
+
+const darkGraphTheme = {
+  canvas: {
+    background: '#0f172a',
+  },
+  node: {
+    fill: '#64748b',
+    activeFill: '#38bdf8',
+    opacity: 0.9,
+    selectedOpacity: 1,
+    inactiveOpacity: 0.2,
+    label: {
+      color: '#e2e8f0',
+      stroke: '#0f172a',
+      activeColor: '#ffffff',
+    },
+    subLabel: {
+      color: '#94a3b8',
+      stroke: 'transparent',
+      activeColor: '#e2e8f0',
+    },
+  },
+  lasso: {
+    border: '1px solid #38bdf8',
+    background: 'rgba(56, 189, 248, 0.1)',
+  },
+  ring: {
+    fill: '#334155',
+    activeFill: '#3b82f6',
+  },
+  edge: {
+    fill: '#475569',
+    activeFill: '#94a3b8',
+    opacity: 0.6,
+    selectedOpacity: 1,
+    inactiveOpacity: 0.1,
+    label: {
+      stroke: 'transparent',
+      color: '#94a3b8',
+      activeColor: '#f8fafc',
+      fontSize: 6,
+    },
+  },
+  arrow: {
+    fill: '#475569',
+    activeFill: '#94a3b8',
+  },
 }

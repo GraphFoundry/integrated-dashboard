@@ -102,11 +102,10 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${
-        active
+      className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${active
           ? 'text-white bg-slate-800 border-b-2 border-sky-500'
           : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-      }`}
+        }`}
     >
       {label}
     </button>
@@ -189,7 +188,9 @@ function SummaryTab({
           tooltip="Number of requests per second this service is receiving"
         >
           <div className="text-sm text-slate-200 font-mono">
-            {formatMetric(node.reqRate, formatRps)}
+            {showAdvanced
+              ? formatMetric(node.reqRate, (v) => `${v.toFixed(3)} req/sec`)
+              : formatMetric(node.reqRate, formatRps)}
           </div>
         </MetricTooltip>
 
@@ -198,7 +199,9 @@ function SummaryTab({
           tooltip="Percentage of requests that resulted in errors (5xx responses)"
         >
           <div className="text-sm text-slate-200 font-mono">
-            {formatMetric(node.errorRatePct, formatPercent)}
+            {showAdvanced
+              ? formatMetric(node.errorRatePct, (v) => `${v.toFixed(4)}%`)
+              : formatMetric(node.errorRatePct, formatPercent)}
           </div>
         </MetricTooltip>
 
@@ -207,7 +210,9 @@ function SummaryTab({
           tooltip="95% of requests complete faster than this. This shows how slow it gets for the slowest 5% of requests."
         >
           <div className="text-sm text-slate-200 font-mono">
-            {formatMetric(node.latencyP95Ms, (v) => `${v.toFixed(0)}ms`)}
+            {showAdvanced
+              ? formatMetric(node.latencyP95Ms, (v) => `${v.toFixed(2)}ms`)
+              : formatMetric(node.latencyP95Ms, (v) => `${v.toFixed(0)}ms`)}
           </div>
         </MetricTooltip>
 
@@ -216,7 +221,9 @@ function SummaryTab({
           tooltip="Percentage of time the service was responsive and healthy"
         >
           <div className="text-sm text-slate-200 font-mono">
-            {formatMetric(node.availabilityPct, formatPercent)}
+            {showAdvanced
+              ? formatMetric(node.availabilityPct, (v) => `${v.toFixed(4)}%`)
+              : formatMetric(node.availabilityPct, formatPercent)}
           </div>
         </MetricTooltip>
       </div>

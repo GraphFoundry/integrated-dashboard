@@ -44,27 +44,41 @@ export default function IncidentExplorer() {
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
+    let isMounted = true
     const fetchGraphData = async () => {
-      setLoading(true)
+      // Only show global loading on first fetch
+      if (nodes.length === 0) {
+        setLoading(true)
+      }
       setError(null)
 
       try {
         const snapshot = await getDependencyGraphSnapshot()
-        setNodes(snapshot.nodes)
-        setEdges(snapshot.edges)
-        setMetadata(snapshot.metadata)
+        if (isMounted) {
+          setNodes(snapshot.nodes)
+          setEdges(snapshot.edges)
+          setMetadata(snapshot.metadata)
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load graph data')
-        setNodes([])
-        setEdges([])
-        setMetadata(undefined)
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to load graph data')
+          // Don't clear nodes on transient error to prevent flash
+        }
       } finally {
-        setLoading(false)
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
     fetchGraphData()
-  }, [])
+    const interval = setInterval(fetchGraphData, 5000)
+
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
+  }, []) // Empty dependency array as we want this to run once on mount
 
   // Convert to Reagraph format
   const reagraphNodes: ReagraphNode[] = useMemo(() => {
@@ -140,7 +154,7 @@ export default function IncidentExplorer() {
 
   const hasData = reagraphNodes.length > 0
 
-  if (loading) {
+  if (loading && nodes.length === 0) {
     return (
       <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px]">
         <div className="p-4 border-b border-slate-700 bg-slate-800/50">
@@ -153,7 +167,7 @@ export default function IncidentExplorer() {
     )
   }
 
-  if (error) {
+  if (error && nodes.length === 0) {
     return (
       <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px]">
         <div className="p-4 border-b border-slate-700 bg-slate-800/50">
@@ -638,9 +652,9 @@ const darkGraphTheme = {
     selectedOpacity: 1,
     inactiveOpacity: 0.1,
     label: {
-      stroke: 'transparent',
-      color: '#94a3b8',
-      activeColor: '#f8fafc',
+      fill: '#ffffffff',
+      color: '#ffffffff',
+      activeColor: '#ffffffff',
       fontSize: 6,
     },
   },

@@ -32,7 +32,7 @@ const API_BASE_URL = '/scheduler-api'
 
 export default function SchedulerDecisions() {
   const [decisions, setDecisions] = useState<SchedulerDecision[]>([])
-  const [services, setServices] = useState<Record<string, string>>({}) // Service -> PodName
+  const [services, setServices] = useState<Record<string, string[]>>({}) // Service -> PodName[]
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,7 +43,8 @@ export default function SchedulerDecisions() {
   // Apply Modal State
   const [applyModalOpen, setApplyModalOpen] = useState(false)
   const [selectedDecision, setSelectedDecision] = useState<SchedulerDecision | null>(null)
-  const [podNameInput, setPodNameInput] = useState('')
+  const [selectedPod, setSelectedPod] = useState('')
+  const [availablePods, setAvailablePods] = useState<string[]>([])
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<RestartResponse | null>(null)
 
@@ -62,16 +63,15 @@ export default function SchedulerDecisions() {
       const decisionsData = await decisionsRes.json()
       const servicesData = servicesRes.services || []
 
-      // Process Services into a Map using nested placement data
-      const svcMap: Record<string, string> = {}
+      // Process Services into a Map of Service -> PodName[]
+      const svcMap: Record<string, string[]> = {}
       servicesData.forEach(s => {
         if (s.placement?.nodes) {
           s.placement.nodes.forEach(n => {
             if (n.pods) {
               n.pods.forEach(p => {
-                // Map service name to pod name. Logic assumes service name matches or we can just key by s.name
-                // Assuming s.name is the service name used in decisions
-                svcMap[s.name] = p.name
+                if (!svcMap[s.name]) svcMap[s.name] = []
+                svcMap[s.name].push(p.name)
               })
             }
           })
@@ -80,12 +80,7 @@ export default function SchedulerDecisions() {
       setServices(svcMap)
 
       if (Array.isArray(decisionsData)) {
-        // Hydrate decisions with latest known pod names for initial display if needed (optional)
-        const hydrated = decisionsData.map((d: SchedulerDecision) => ({
-          ...d,
-          podName: svcMap[d.service] || d.podName
-        }))
-        setDecisions(hydrated)
+        setDecisions(decisionsData)
       } else {
         setDecisions([])
       }
@@ -104,9 +99,10 @@ export default function SchedulerDecisions() {
 
   const handleApplyClick = (decision: SchedulerDecision) => {
     setSelectedDecision(decision)
-    // Use the latest pod name from services map
-    const latestPodName = services[decision.service] || decision.podName || ''
-    setPodNameInput(latestPodName)
+    const pods = services[decision.service] || []
+    setAvailablePods(pods.sort())
+    // Default select first pod if available
+    setSelectedPod(pods.length > 0 ? pods[0] : '')
     setApplyResult(null)
     setApplyModalOpen(true)
   }
@@ -114,12 +110,13 @@ export default function SchedulerDecisions() {
   const closeApplyModal = () => {
     setApplyModalOpen(false)
     setSelectedDecision(null)
-    setPodNameInput('')
+    setSelectedPod('')
+    setAvailablePods([])
     setApplyResult(null)
   }
 
   const confirmApply = async () => {
-    if (!selectedDecision || !podNameInput.trim()) return
+    if (!selectedDecision || !selectedPod) return
 
     setApplying(true)
     setApplyResult(null)
@@ -133,7 +130,7 @@ export default function SchedulerDecisions() {
         },
         body: JSON.stringify({
           namespace: selectedDecision.namespace,
-          podName: podNameInput.trim(),
+          podName: selectedPod,
           force: true,
         }),
       })
@@ -451,17 +448,26 @@ export default function SchedulerDecisions() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Target Pod</label>
-                      <input
-                        type="text"
-                        value={podNameInput}
-                        onChange={(e) => setPodNameInput(e.target.value)}
-                        placeholder="e.g. checkoutservice-7d4f9-"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white placeholder-slate-600 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
-                      />
-                      {selectedDecision?.service && (
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Select Pod to Restart</label>
+                      {availablePods.length > 0 ? (
+                        <select
+                          value={selectedPod}
+                          onChange={(e) => setSelectedPod(e.target.value)}
+                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
+                        >
+                          {availablePods.map(pod => (
+                            <option key={pod} value={pod}>{pod}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
+                          No active pods found for this service.
+                        </div>
+                      )}
+
+                      {availablePods.length > 0 && (
                         <p className="text-xs text-slate-500 mt-1.5">
-                          Automatically resolved from active pods.
+                          Select the specific pod instance to migrate to the best node.
                         </p>
                       )}
                     </div>
@@ -475,7 +481,7 @@ export default function SchedulerDecisions() {
                       </button>
                       <button
                         onClick={confirmApply}
-                        disabled={!podNameInput.trim() || applying}
+                        disabled={!selectedPod || applying}
                         className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-900/50 disabled:text-green-300/50 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
                       >
                         {applying ? (

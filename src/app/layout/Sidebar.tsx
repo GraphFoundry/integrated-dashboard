@@ -12,10 +12,10 @@ const navItems = [
 
 export default function Sidebar() {
   return (
-    <aside className="w-64 bg-slate-950 border-r border-slate-700 flex flex-col">
-      <div className="p-6 border-b border-slate-700">
-        <h1 className="text-xl font-bold text-white">Analysis Dashboard</h1>
-        <p className="text-xs text-slate-400 mt-1">Predictive Engine</p>
+    <aside className="w-64 bg-firebase-sidebar border-r border-firebase-border flex flex-col">
+      <div className="p-6 border-b border-firebase-border">
+        <h1 className="text-xl font-bold text-firebase-text-primary">Adaptive Microservices</h1>
+        <p className="text-xs text-firebase-text-secondary mt-1">Management Dashboard</p>
       </div>
       <nav className="flex-1 p-4">
         <ul className="space-y-1">
@@ -24,10 +24,9 @@ export default function Sidebar() {
               <NavLink
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-blue-600 text-white'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  `flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${isActive
+                    ? 'bg-firebase-blue text-white'
+                    : 'text-firebase-text-secondary hover:bg-white/5 hover:text-white'
                   }`
                 }
               >

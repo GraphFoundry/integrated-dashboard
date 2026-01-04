@@ -19,12 +19,12 @@ interface StatusBadgeProps {
 }
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  default: 'bg-slate-700 text-slate-200 border border-slate-600',
-  secondary: 'bg-slate-800 text-slate-300 border border-slate-600',
-  success: 'bg-green-900/50 text-green-400 border border-green-700',
-  warning: 'bg-yellow-900/50 text-yellow-400 border border-yellow-700',
-  destructive: 'bg-red-900/50 text-red-400 border border-red-700',
-  outline: 'bg-transparent text-slate-400 border border-slate-600',
+  default: 'bg-firebase-card text-firebase-text-primary border border-firebase-border',
+  secondary: 'bg-firebase-card text-firebase-text-secondary border border-firebase-border',
+  success: 'bg-firebase-success/20 text-firebase-success border border-firebase-success/30',
+  warning: 'bg-firebase-warning/20 text-firebase-warning border border-firebase-warning/30',
+  destructive: 'bg-firebase-error/20 text-firebase-error border border-firebase-error/30',
+  outline: 'bg-transparent text-firebase-text-secondary border border-firebase-border',
 }
 
 export default function StatusBadge({

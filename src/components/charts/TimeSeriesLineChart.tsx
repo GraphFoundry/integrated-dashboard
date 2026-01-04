@@ -49,11 +49,11 @@ export default function TimeSeriesLineChart({
     if (active && payload && payload.length) {
       const data = payload[0]
       return (
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-lg">
-          <p className="text-xs text-slate-400 mb-1">
+        <div className="bg-firebase-card border border-firebase-border rounded-lg p-3 shadow-lg">
+          <p className="text-xs text-firebase-text-secondary mb-1">
             {new Date(data.payload.timestamp).toLocaleString()}
           </p>
-          <p className="text-sm font-medium text-white">
+          <p className="text-sm font-medium text-firebase-text-primary">
             {valueFormatter ? valueFormatter(data.value) : data.value.toFixed(2)}
           </p>
         </div>
@@ -65,27 +65,27 @@ export default function TimeSeriesLineChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 30 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+        <CartesianGrid strokeDasharray="3 3" stroke="#2c2c2c" />
         <XAxis
           dataKey="timestamp"
           tickFormatter={formatXAxis}
-          stroke="#94a3b8"
-          tick={{ fill: '#94a3b8', fontSize: 12 }}
+          stroke="#5f6368"
+          tick={{ fill: '#9aa0a6', fontSize: 12 }}
           label={
             xAxisLabel
               ? {
                 value: xAxisLabel,
                 position: 'insideBottom',
                 offset: -5,
-                fill: '#94a3b8',
+                fill: '#9aa0a6',
                 fontSize: 12,
               }
               : undefined
           }
         />
         <YAxis
-          stroke="#94a3b8"
-          tick={{ fill: '#94a3b8', fontSize: 12 }}
+          stroke="#5f6368"
+          tick={{ fill: '#9aa0a6', fontSize: 12 }}
           tickFormatter={valueFormatter}
           label={
             yAxisLabel
@@ -93,7 +93,7 @@ export default function TimeSeriesLineChart({
                 value: yAxisLabel,
                 angle: -90,
                 position: 'insideLeft',
-                fill: '#94a3b8',
+                fill: '#9aa0a6',
                 fontSize: 12,
                 style: { textAnchor: 'middle' },
               }

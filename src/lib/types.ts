@@ -351,6 +351,10 @@ export type GraphNode = {
   // Graph Engine infrastructure metrics
   podCount?: number // number of pods running
   availability?: number // availability score 0-1
+
+  // Centrality metrics
+  pageRank?: number // PageRank centrality
+  betweenness?: number // Betweenness centrality
 }
 
 export type GraphEdge = {

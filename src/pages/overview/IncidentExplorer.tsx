@@ -14,6 +14,12 @@ import {
   ArrowRightLeft,
   ArrowRight,
   ShieldAlert,
+  Network,
+  GitCommit,
+  Zap,
+  AlertOctagon,
+  ArrowDownToLine,
+  ArrowUpFromLine,
 } from 'lucide-react'
 
 type GraphMode = 'impact' | 'suspect' | 'flow'
@@ -390,7 +396,7 @@ function GraphTooltip({
   position: { x: number; y: number }
 }) {
   const tooltipWidth = 280
-  const tooltipHeight = 220
+  const tooltipHeight = 420
   const viewportWidth = window.innerWidth
   const viewportHeight = window.innerHeight
 
@@ -424,7 +430,10 @@ function GraphTooltip({
     const inboundRps = upstreamEdges.reduce((sum, e) => sum + (e.reqRate || 0), 0)
     const outboundRps = downstreamEdges.reduce((sum, e) => sum + (e.reqRate || 0), 0)
 
-    return { blastRadiusCount, totalImpactedRps, suspects, inboundRps, outboundRps }
+    const inDegree = upstreamEdges.length
+    const outDegree = downstreamEdges.length
+
+    return { blastRadiusCount, totalImpactedRps, suspects, inboundRps, outboundRps, inDegree, outDegree }
   }, [node, edges, nodeMap])
 
   return (
@@ -550,12 +559,70 @@ function GraphTooltip({
               </div>
             </div>
             <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">Error Rate</div>
+              <div className="flex items-center gap-1.5">
+                <AlertOctagon className={`w-3 h-3 ${(node.errorRatePct ?? 0) > 1 ? 'text-red-400' : 'text-green-400'}`} />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {node.errorRatePct !== undefined ? node.errorRatePct.toFixed(2) : '-'}%
+                </span>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">RPS</div>
+              <div className="flex items-center gap-1.5">
+                <Zap className="w-3 h-3 text-yellow-400" />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {node.reqRate !== undefined ? node.reqRate.toFixed(1) : '-'}
+                </span>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
               <div className="text-[10px] text-slate-400 mb-0.5">Latency (P95)</div>
               <div className="flex items-center gap-1.5">
                 <Activity className="w-3 h-3 text-sky-400" />
                 <span className="font-mono text-xs font-semibold text-white">
                   {node.latencyP95Ms !== undefined ? Math.round(node.latencyP95Ms) : '-'}
                   <span className="text-[10px] text-slate-500 font-sans ml-0.5">ms</span>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Topology Metrics */}
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700/50">
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">Page Rank</div>
+              <div className="flex items-center gap-1.5">
+                <Network className="w-3 h-3 text-purple-400" />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {node.pageRank !== undefined ? node.pageRank.toFixed(4) : '-'}
+                </span>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">Betweenness</div>
+              <div className="flex items-center gap-1.5">
+                <GitCommit className="w-3 h-3 text-pink-400" />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {node.betweenness !== undefined ? node.betweenness.toFixed(4) : '-'}
+                </span>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">In-Degree</div>
+              <div className="flex items-center gap-1.5">
+                <ArrowDownToLine className="w-3 h-3 text-emerald-400" />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {analysis.inDegree}
+                </span>
+              </div>
+            </div>
+            <div className="bg-slate-800/50 rounded p-1.5 px-2">
+              <div className="text-[10px] text-slate-400 mb-0.5">Out-Degree</div>
+              <div className="flex items-center gap-1.5">
+                <ArrowUpFromLine className="w-3 h-3 text-indigo-400" />
+                <span className="font-mono text-xs font-semibold text-white">
+                  {analysis.outDegree}
                 </span>
               </div>
             </div>

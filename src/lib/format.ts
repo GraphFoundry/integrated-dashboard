@@ -44,15 +44,15 @@ export function formatShortDate(timestamp: string | Date): string {
   try {
     const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp
     if (Number.isNaN(date.getTime())) return 'N/A'
-    
+
     const now = new Date()
     const diffMs = now.getTime() - date.getTime()
     const diffMins = Math.floor(diffMs / 60000)
-    
+
     if (diffMins < 1) return 'Just now'
     if (diffMins < 60) return `${diffMins}m ago`
     if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`
-    
+
     return date.toLocaleDateString()
   } catch {
     return 'N/A'
@@ -67,4 +67,42 @@ export function formatCount(count: number | null | undefined): string {
   if (count < 1000) return count.toString()
   if (count < 1000000) return `${(count / 1000).toFixed(1)}K`
   return `${(count / 1000000).toFixed(1)}M`
+}
+
+/**
+ * Get readable label for risk level
+ */
+export function formatRiskLevel(level: string): string {
+  switch (level.toLowerCase()) {
+    case 'high':
+      return 'Critical'
+    case 'medium':
+      return 'Warning'
+    case 'low':
+      return 'Healthy'
+    default:
+      return 'Unknown'
+  }
+}
+export function formatDistanceToNow(timestamp: string | Date): string {
+  try {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp
+    if (Number.isNaN(date.getTime())) return 'N/A'
+
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffSecs = Math.floor(diffMs / 1000)
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffSecs < 60) return 'just now'
+    if (diffMins < 60) return `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+    if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
+
+    return date.toLocaleDateString()
+  } catch {
+    return 'N/A'
+  }
 }

@@ -139,12 +139,57 @@ export type ScaleResponse = {
   recommendations?: Recommendation[]
 }
 
-export type ScenarioType = 'failure' | 'scale'
+// ─────────────────────────────────────────────────────────────────────────────
+// Service Addition Simulation Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type ServiceAdditionDependency = {
+  serviceId: string
+  relation: 'calls' | 'called_by'
+}
+
+export type ServiceAdditionScenario = {
+  type: 'add-service'
+  serviceName: string
+  minCpuCores: number
+  minRamMB: number
+  replicas: number
+  dependencies: ServiceAdditionDependency[]
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type NodeSuitability = {
+  nodeName: string
+  suitable: boolean
+  reason?: string
+  availableCpu: number
+  availableRam: number
+  cpuTotal: number
+  ramTotalMB: number
+  score: number // 0-100 suitability score
+}
+
+export type ServiceAdditionResponse = {
+  correlationId?: string
+  targetServiceName: string
+  suitableNodes: NodeSuitability[]
+  riskAnalysis: {
+    dependencyRisk: 'low' | 'medium' | 'high'
+    description: string
+  }
+  recommendations: Recommendation[]
+}
+
+export type TimeWindow = '5d' | '1w' | '2w' | '1m'
+
+export type ScenarioType = 'failure' | 'scale' | 'add-service'
 
 export type FailureScenario = {
   type: 'failure'
   serviceId: string
   maxDepth: number
+  timeWindow?: TimeWindow
 }
 
 export type ScaleScenario = {
@@ -154,9 +199,10 @@ export type ScaleScenario = {
   newPods: number
   latencyMetric: 'p50' | 'p95' | 'p99'
   maxDepth: number
+  timeWindow?: TimeWindow
 }
 
-export type Scenario = FailureScenario | ScaleScenario
+export type Scenario = FailureScenario | ScaleScenario | ServiceAdditionScenario
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Proof Metadata — tracks run context for operator auditability
@@ -186,6 +232,10 @@ export type DiscoveredService = {
   name: string
   /** Kubernetes namespace */
   namespace: string
+  /** Number of pods running (from Graph Engine) */
+  podCount?: number
+  /** Availability score 0-1 (from Graph Engine) */
+  availability?: number
 }
 
 export type ServicesResponse = {
@@ -195,12 +245,14 @@ export type ServicesResponse = {
   count: number
   /** Whether the graph data is stale (older than expected window) */
   stale: boolean
-  /** Seconds since last graph update (null if unavailable) */
+  /** Seconds since last graph update (from Graph Engine health) */
   lastUpdatedSecondsAgo: number | null
-  /** Expected freshness window in minutes */
+  /** Expected freshness window in minutes (from Graph Engine) */
   windowMinutes: number
   /** Error message if service discovery failed */
   error?: string
+  /** Dependency edges for the graph (from metrics snapshot) */
+  edges?: { source: string; target: string }[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -274,4 +326,99 @@ export type LogDecisionRequest = {
 export type LogDecisionResponse = {
   id: number
   timestamp: string
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Dependency Graph Snapshot Types (Incident Explorer)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type GraphRiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNKNOWN'
+
+export type GraphNode = {
+  id: string // stable key (namespace:name)
+  name: string
+  namespace: string
+  riskLevel: GraphRiskLevel
+  riskReason?: string
+
+  // aggregated telemetry (optional if unavailable)
+  reqRate?: number // requests/sec
+  errorRatePct?: number // %
+  latencyP95Ms?: number // ms
+  availabilityPct?: number // %
+  updatedAt?: string
+
+  // Graph Engine infrastructure metrics
+  podCount?: number // number of pods running
+  availability?: number // availability score 0-1
+
+  // Centrality metrics
+  pageRank?: number // PageRank centrality
+  betweenness?: number // Betweenness centrality
+}
+
+export type GraphEdge = {
+  id: string
+  source: string // node id
+  target: string // node id
+
+  // optional edge telemetry if available
+  reqRate?: number
+  errorRatePct?: number
+  latencyP95Ms?: number
+}
+
+export type GraphSnapshot = {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+  metadata?: {
+    stale?: boolean
+    lastUpdatedSecondsAgo?: number | null
+    windowMinutes?: number
+    nodeCount?: number
+    edgeCount?: number
+    nodesWithMetrics?: number // count of nodes with telemetry data
+    edgesWithMetrics?: number // count of edges with telemetry data
+    generatedAt?: string
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Node Resource Graph Types (Infrastructure View)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PodInfo = {
+  name: string
+  ramUsedMB: number
+  cpuUsagePercent: number
+  uptimeSeconds?: number
+}
+
+export type NodeResources = {
+  cpu: {
+    usagePercent: number
+    cores: number
+  }
+  ram: {
+    usedMB: number
+    totalMB: number
+  }
+}
+
+export type NodePlacement = {
+  node: string
+  resources: NodeResources
+  pods: PodInfo[]
+}
+
+export type ServicePlacement = {
+  nodes: NodePlacement[]
+}
+
+export type ServiceWithPlacement = {
+  name: string
+  namespace: string
+  podCount: number
+  availability: number
+  placement?: ServicePlacement // Optional - may not be available in all deployments
 }

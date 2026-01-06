@@ -9,13 +9,14 @@ interface KPIStatCardProps {
   trendLabel?: string
   variant?: 'default' | 'success' | 'warning' | 'danger'
   className?: string
+  tooltip?: string
 }
 
-const variantClasses = {
-  default: 'bg-slate-800 border-slate-700',
-  success: 'bg-green-900/20 border-green-700',
-  warning: 'bg-yellow-900/20 border-yellow-700',
-  danger: 'bg-red-900/20 border-red-700',
+const variantColors = {
+  default: 'border-firebase-border text-firebase-blue',
+  success: 'border-firebase-success/30 text-firebase-success',
+  warning: 'border-firebase-warning/30 text-firebase-warning',
+  danger: 'border-firebase-error/30 text-firebase-error',
 }
 
 const trendIcons = {
@@ -25,9 +26,9 @@ const trendIcons = {
 }
 
 const trendColors = {
-  up: 'text-green-400',
-  down: 'text-red-400',
-  stable: 'text-slate-400',
+  up: 'text-firebase-success',
+  down: 'text-firebase-error',
+  stable: 'text-firebase-text-secondary',
 }
 
 export default function KPIStatCard({
@@ -37,16 +38,18 @@ export default function KPIStatCard({
   trendLabel,
   variant = 'default',
   className = '',
+  tooltip,
 }: Readonly<KPIStatCardProps>) {
   const TrendIcon = trend ? trendIcons[trend] : null
 
   return (
     <div
-      className={`border rounded-lg p-4 ${variantClasses[variant]} ${className}`}
+      title={tooltip}
+      className={`relative overflow-hidden bg-firebase-card border rounded-xl p-4 transition-all duration-200 hover:border-firebase-blue/50 ${variantColors[variant].split(' ')[0]} ${className}`}
     >
-      <div className="text-sm text-slate-400 mb-1">{label}</div>
+      <div className="text-sm text-firebase-text-secondary mb-1">{label}</div>
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-bold text-white">{value}</div>
+        <div className="text-2xl font-bold text-firebase-text-primary">{value}</div>
         {trend && TrendIcon && (
           <div className={`flex items-center gap-1 text-xs ${trendColors[trend]}`}>
             <TrendIcon className="w-3 h-3" />

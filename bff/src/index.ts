@@ -1,4 +1,27 @@
+import fs from 'fs'
+import path from 'path'
 import express, { Request, Response } from 'express'
+
+// Simple .env loader
+const envPath = path.resolve(__dirname, '../.env')
+if (fs.existsSync(envPath)) {
+  try {
+    const envConfig = fs.readFileSync(envPath, 'utf8')
+    envConfig.split('\n').forEach(line => {
+      const match = line.match(/^([^=]+)=(.*)$/)
+      if (match) {
+        const key = match[1].trim()
+        const value = match[2].trim().replace(/^['"](.*)['"]$/, '$1')
+        if (!process.env[key]) {
+          process.env[key] = value
+        }
+      }
+    })
+    console.log('Loaded environment variables from .env')
+  } catch (e) {
+    console.warn('Failed to load .env file:', e)
+  }
+}
 import cors from 'cors'
 import morgan from 'morgan'
 import http from 'http'
@@ -6,6 +29,7 @@ import WebSocket, { WebSocketServer } from 'ws'
 import { Storage } from './storage'
 import { AlertService } from './service'
 import { WSMessage, AlertEvent } from './types'
+import { SmsService } from './sms.service'
 
 const app = express()
 app.use(cors())
@@ -19,6 +43,7 @@ const DB_PATH = process.env.DB_PATH || './alerts.db'
 const storage = new Storage(DB_PATH)
 const server = http.createServer(app)
 const wss = new WebSocketServer({ server, path: '/ws' })
+const smsService = new SmsService()
 
 // Broadcast function for WebSocket
 function broadcast(message: WSMessage) {
@@ -30,7 +55,7 @@ function broadcast(message: WSMessage) {
   })
 }
 
-const alertService = new AlertService(storage, broadcast)
+const alertService = new AlertService(storage, broadcast, smsService)
 
 // WebSocket connection handler
 wss.on('connection', (ws: WebSocket) => {
@@ -159,6 +184,32 @@ app.get('/api/events/:eventId', (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Failed to get event:', error)
     res.status(500).json({ error: 'Failed to fetch event' })
+  }
+})
+
+// POST /api/notifications/sms - Send SMS notification
+app.post('/api/notifications/sms', async (req: Request, res: Response) => {
+  try {
+    const { recipient, message, shouldSummarize } = req.body
+
+    if (!recipient || !message) {
+      return res.status(400).json({ success: false, error: 'Recipient and message are required' })
+    }
+
+    const result = await smsService.sendSms({
+      recipient,
+      message,
+      shouldSummarize: shouldSummarize ?? true
+    })
+
+    if (result.success) {
+      res.json({ success: true, data: result.data })
+    } else {
+      res.status(502).json({ success: false, error: result.error })
+    }
+  } catch (error: any) {
+    console.error('Failed to send SMS:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
 

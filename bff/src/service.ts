@@ -1,8 +1,14 @@
 import { AlertEvent, Incident, WSMessage } from './types'
 import { Storage } from './storage'
 
+import { SmsService } from './sms.service'
+
 export class AlertService {
-  constructor(private storage: Storage, private broadcast: (msg: WSMessage) => void) {}
+  constructor(
+    private storage: Storage,
+    private broadcast: (msg: WSMessage) => void,
+    private smsService?: SmsService
+  ) { }
 
   // Ingest webhook event (source of truth)
   ingestAlertEvent(event: AlertEvent): { success: boolean; message: string } {
@@ -27,6 +33,14 @@ export class AlertService {
         data: { event_id: event.event_id, dedupe_key: event.dedupe_key },
       })
 
+      // Send SMS notification
+      if (this.smsService) {
+        // fail-safe: don't block response on SMS sending
+        this.smsService.sendAlertSms(event).catch(err =>
+          console.error('Failed to trigger SMS for webhook:', err)
+        )
+      }
+
       return { success: true, message: 'Event ingested successfully' }
     } catch (error: any) {
       console.error('Failed to ingest event:', error)
@@ -41,7 +55,7 @@ export class AlertService {
     if (existing) {
       // Get all events for this incident to compute accurate quality flags
       const allEvents = this.storage.getEventsByDedupeKey(event.dedupe_key, event.service.namespace, event.service.name)
-      
+
       // Update existing incident
       const incident: Incident = {
         ...existing,

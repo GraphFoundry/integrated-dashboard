@@ -14,11 +14,12 @@ Modern frontend dashboard for the Predictive Analysis Engine. Built with Vite, R
 
 ## Tech Stack
 
-- **Framework**: React 18
-- **Build Tool**: Vite 5
+- **Framework**: React 19
+- **Build Tool**: Vite 6
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
-- **Routing**: React Router 6
+- **Routing**: React Router 7
+- **HTTP**: Axios
 
 ## Getting Started
 
@@ -41,10 +42,12 @@ Create a `.env` file (copy from `.env.example`):
 cp .env.example .env
 ```
 
-Edit `.env` to set your backend API URL:
+Edit `.env` to set your backend API URLs:
 
 ```env
-VITE_API_BASE_URL=http://localhost:7000
+VITE_DEV_SERVER_PORT=5173
+VITE_PREDICTIVE_API_BASE_URL=http://localhost:7000
+VITE_GRAPH_ALERT_API_BASE_URL=http://localhost:PORT
 ```
 
 ### Development
@@ -55,7 +58,7 @@ Start the development server:
 npm run dev
 ```
 
-The UI will be available at `http://localhost:3000`
+The UI will be available at `http://localhost:5173`
 
 ### Build for Production
 
@@ -87,7 +90,7 @@ Mock mode uses pre-defined JSON files from `src/mocks/` to simulate API response
 Live mode connects to the actual backend API. In development, **Vite's proxy handles CORS automatically** — no backend configuration needed.
 
 **How it works:**
-- UI runs on `http://localhost:3000`
+- UI runs on `http://localhost:5173`
 - API calls go to `/api/simulate/...` (relative URL)
 - Vite proxy forwards `/api/*` → `http://localhost:7000/*`
 - No CORS issues because browser sees same-origin requests
@@ -109,15 +112,53 @@ Live mode connects to the actual backend API. In development, **Vite's proxy han
 
 **Network requests will show:** `/api/simulate/failure?trace=true` (proxied to backend)
 
+### Verify Live Mode is Real
+
+To confirm Live mode is actually hitting the backend (not using cached/mock data):
+
+1. **Start backend:**
+   ```bash
+   cd ../predictive-analysis-engine
+   npm start
+   # Server listening on :7000
+   ```
+
+2. **Start UI:**
+   ```bash
+   cd dashboard-ui
+   npm run dev
+   # UI at http://localhost:5173
+   ```
+
+3. **Open DevTools → Network tab**
+
+4. **Switch to Live mode** in the top-right corner
+   - You should see a health badge appear: `● Live: Connected`
+
+5. **Run a simulation** and observe:
+   - Request goes to `/api/simulate/failure?trace=true` (or `scale`)
+   - Request headers include `X-Request-Id`
+   - Response contains real backend data
+
+6. **Kill the backend** (Ctrl+C in terminal)
+
+7. **Confirm error handling:**
+   - Health badge changes to `○ Live: Unreachable`
+   - Running a simulation shows: *"Predictive engine unreachable. Is the backend running on :7000..."*
+
+8. **Restart backend** and confirm badge returns to `● Live: Connected`
+
 ### Live Mode (Production)
 
-For production builds, set the `VITE_API_BASE_URL` environment variable:
+For production builds, set the `VITE_PREDICTIVE_API_BASE_URL` environment variable:
 
 ```bash
-VITE_API_BASE_URL=https://api.example.com npm run build
+VITE_PREDICTIVE_API_BASE_URL=https://api.example.com npm run build
 ```
 
 The production bundle will call the backend directly (ensure backend has CORS configured for production).
+
+If/when the Alerts service is enabled, set `VITE_GRAPH_ALERT_API_BASE_URL` to that service's base URL.
 
 ### API Endpoints Used
 
@@ -147,7 +188,8 @@ dashboard-ui/
 │   │   └── alerts/
 │   │       └── AlertsPlaceholder.tsx
 │   ├── lib/
-│   │   ├── api.ts               # API client
+│   │   ├── api.ts               # API functions
+│   │   └── httpClient.ts        # Axios client + interceptors
 │   │   └── types.ts             # TypeScript types
 │   ├── mocks/
 │   │   ├── failure-trace.json
@@ -198,6 +240,68 @@ Add new JSON files to `src/mocks/` following the existing structure:
 }
 ```
 
+## Manual Demo Checklist
+
+**To verify demo features, run the application and manually test each item:**
+
+```bash
+npm run dev
+# Open http://localhost:5173 in browser
+```
+
+### Stage Toggle Behavior
+- [ ] **Enable/disable stages**: Toggle checkboxes should immediately update stage status
+- [ ] **Disabled stages show as skipped**: Disabled stages should display with "skipped" status and strike-through styling
+- [ ] **Stage state persistence**: Toggling stages during playback should not reset progress
+
+### Scenario Gating (NEW)
+- [ ] **Switch failure→scale**: Verify "Apply Scaling Model" becomes enabled
+- [ ] **Switch scale→failure**: Verify "Apply Scaling Model" becomes disabled with "(scale only)" label
+- [ ] **Previously disabled stages re-enable**: When switching back, stages should return to enabled state
+
+### Stop-at-Stage Resolution
+- [ ] **Set stop-at-stage**: Select a stage from the "Stop After" dropdown
+- [ ] **Disable stop stage**: Uncheck the selected stop-at-stage
+- [ ] **Auto-resolution note appears**: Orange warning should show resolution reason and resolved stage
+- [ ] **Resolution uses previous enabled stage**: Verify the resolved stage is the nearest enabled stage before the requested one
+- [ ] **Scenario switch triggers resolution**: Set stop to "Apply Scaling Model", switch to failure scenario, verify auto-resolution note appears
+- [ ] **Re-enable stop stage**: Check the stop-at-stage box again — resolution note should disappear
+
+### Playback Controls
+- [ ] **Play skips disabled stages**: Click Play, verify execution skips disabled stages automatically
+- [ ] **Next button skips disabled**: Click Next, verify it advances to next enabled stage
+- [ ] **Pause preserves state**: Click Pause, verify current stage index doesn't change
+- [ ] **Reset clears playback**: Click Reset, verify currentStageIndex returns to null, all stages show "pending" (enabled) or "skipped" (disabled)
+- [ ] **Stop-at-stage halts playback**: Set stop-at-stage, click Play, verify playback stops after that stage
+
+### Result Panel Messaging
+- [ ] **Stop before compute-impact**: Set stop-at-stage to "Fetch Topology" or earlier, verify impact results show "Impact results not computed yet" banner
+- [ ] **Stop before recommendations**: Set stop-at-stage to "Compute Impact" or earlier, verify recommendations show "not generated yet" banner
+- [ ] **Stop before path-analysis**: For scale scenarios, set stop-at-stage before "Path Analysis", verify paths section shows appropriate message
+- [ ] **Disabled stage messaging**: Disable "Recommendations" stage, verify banner shows it was disabled
+
+### Trace Timeline Robustness
+- [ ] **Live mode with backend traces**: Switch to Live mode, run simulation, verify timeline renders all stages
+- [ ] **Unknown stage handling**: If backend returns unexpected stage names, verify they render with "(unknown stage)" label
+- [ ] **Stage name normalization**: Verify backend stage names like "Fetch Topology" map correctly to `fetch-topology` stage IDs
+- [ ] **Total time calculation**: Verify total time excludes skipped stages
+
+### Export Functionality
+- [ ] **Download JSON**: Click "Download JSON", verify file contains full trace
+- [ ] **Copy to clipboard**: Click "Copy JSON", verify clipboard contains valid JSON
+- [ ] **Copy confirmation**: Verify "Copied!" feedback appears briefly
+
+### Alerts Integration Slot
+- [ ] **Placeholder renders**: Scroll to bottom, verify "Alerts Integration" section appears
+- [ ] **Coming soon message**: Verify placeholder text indicates feature is under development
+
+### Edge Cases
+- [ ] **All stages disabled**: Disable all stages, verify graceful handling (no infinite loops)
+- [ ] **Stop at first stage**: Set stop-at-stage to "Fetch Topology", verify playback stops immediately
+- [ ] **Stop at last stage**: Set stop-at-stage to "Recommendations", verify full execution occurs
+- [ ] **Rapid toggle spam**: Toggle stages rapidly, verify no race conditions or crashes
+- [ ] **Switch scenarios mid-playback**: Change scenario type during playback, verify clean reset
+
 ## Future Work
 
 - **Alerts UI**: Full implementation of alerts dashboard
@@ -209,18 +313,16 @@ Add new JSON files to `src/mocks/` following the existing structure:
 
 ### Port Already in Use
 
-Change the port in `vite.config.ts`:
+Change the port in `.env` (or override in `vite.config.ts`):
 
-```ts
-server: {
-  port: 3001, // or any available port
-}
+```env
+VITE_DEV_SERVER_PORT=3001
 ```
 
 ### API Connection Errors
 
 1. Verify backend is running
-2. Check `VITE_API_BASE_URL` in `.env`
+2. Check `VITE_PREDICTIVE_API_BASE_URL` in `.env`
 3. Try Mock mode to verify UI functionality
 
 ### Build Errors

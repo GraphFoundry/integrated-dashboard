@@ -6,24 +6,68 @@
     "newPods": 5,
     "latencyMetric": "p95"
   },
+  "scalingDirection": "up",
+  "latencyEstimate": {
+    "description": "Rate-weighted mean of incoming edge latency to target",
+    "baselineMs": 120.0,
+    "projectedMs": 102.0,
+    "deltaMs": -18.0,
+    "unit": "milliseconds"
+  },
+  "explanation": "Scaling checkoutservice up from 3 to 5 pods improves latency by 18.0ms (baseline: 120.0ms → projected: 102.0ms). 2 upstream caller(s) affected across 2 path(s).",
+  "affectedCallers": {
+    "description": "Edge-level impact: deltaMs is change in caller's direct outgoing edge latency.",
+    "items": [
+      {
+        "serviceId": "frontend",
+        "name": "frontend",
+        "hopDistance": 1,
+        "beforeMs": 45.0,
+        "afterMs": 38.0,
+        "deltaMs": -7.0
+      },
+      {
+        "serviceId": "cartservice",
+        "name": "cartservice",
+        "hopDistance": 1,
+        "beforeMs": 35.0,
+        "afterMs": 30.0,
+        "deltaMs": -5.0
+      }
+    ]
+  },
   "affectedPaths": [
     {
-      "path": "frontend → checkoutservice",
-      "metric": "p95 latency",
-      "change": "-15%",
-      "impact": "positive"
+      "path": ["frontend", "checkoutservice"],
+      "pathRps": 100.0,
+      "beforeMs": 45.0,
+      "afterMs": 38.0,
+      "deltaMs": -7.0
     },
     {
-      "path": "cartservice → checkoutservice",
-      "metric": "p95 latency",
-      "change": "-12%",
-      "impact": "positive"
+      "path": ["cartservice", "checkoutservice"],
+      "pathRps": 75.0,
+      "beforeMs": 35.0,
+      "afterMs": 30.0,
+      "deltaMs": -5.0
     }
   ],
   "recommendations": [
-    "Monitor resource utilization after scaling",
-    "Consider horizontal pod autoscaler for dynamic scaling",
-    "Verify database connection pool size is adequate"
+    {
+      "type": "monitoring",
+      "priority": "high",
+      "description": "Monitor resource utilization after scaling"
+    },
+    {
+      "type": "autoscaling",
+      "priority": "medium",
+      "description": "Consider horizontal pod autoscaler for dynamic scaling"
+    },
+    {
+      "type": "configuration",
+      "priority": "low",
+      "description": "Verify database connection pool size is adequate"
+    }
   ],
   "pipelineTrace": {
     "options": {
@@ -34,7 +78,7 @@
     },
     "stages": [
       {
-        "name": "Validate Request",
+        "name": "Scenario Parse",
         "ms": 3,
         "summary": {
           "serviceId": "checkoutservice",
@@ -45,7 +89,15 @@
         }
       },
       {
-        "name": "Fetch Graph Data",
+        "name": "Staleness Check",
+        "ms": 2,
+        "summary": {
+          "stale": false,
+          "lastUpdatedSecondsAgo": 15
+        }
+      },
+      {
+        "name": "Fetch Neighborhood",
         "ms": 52,
         "summary": {
           "nodesCount": 12,
@@ -53,15 +105,15 @@
         }
       },
       {
-        "name": "Identify Target Service",
-        "ms": 2,
+        "name": "Build Snapshot",
+        "ms": 5,
         "summary": {
           "found": true,
           "serviceId": "checkoutservice"
         }
       },
       {
-        "name": "Compute Latency Impact",
+        "name": "Apply Scaling Model",
         "ms": 18,
         "summary": {
           "baselineP95": 120,
@@ -70,7 +122,7 @@
         }
       },
       {
-        "name": "Identify Affected Paths",
+        "name": "Path Analysis",
         "ms": 10,
         "summary": {
           "pathsFound": 2,
@@ -78,14 +130,20 @@
         }
       },
       {
-        "name": "Generate Recommendations",
+        "name": "Compute Impact",
+        "ms": 8,
+        "summary": {
+          "affectedPaths": 2,
+          "latencyDelta": -18
+        }
+      },
+      {
+        "name": "Recommendations",
         "ms": 6,
         "summary": {
           "recommendationsCount": 3
         },
-        "warnings": [
-          "Actual impact may vary based on load patterns"
-        ]
+        "warnings": ["Actual impact may vary based on load patterns"]
       }
     ],
     "generatedAt": "2026-01-03T10:35:00.000Z"

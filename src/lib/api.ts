@@ -151,7 +151,7 @@ export async function getDependencyGraphSnapshot(
     params.namespace = namespace
   }
 
-  const { data } = await predictiveApi.get<GraphSnapshot>('/api/dependency-graph/snapshot', {
+  const { data } = await predictiveApi.get<GraphSnapshot>('/dependency-graph/snapshot', {
     signal,
     params,
   })

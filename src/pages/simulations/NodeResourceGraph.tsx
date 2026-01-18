@@ -13,11 +13,11 @@ import {
   HardDrive,
   TrendingUp,
   Clock,
-  Activity,
+
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
-import { getServicesWithPlacement, getDependencyGraphSnapshot } from '@/lib/api'
-import type { ServiceWithPlacement } from '@/lib/types'
+import { getServicesWithPlacement, getDependencyGraphSnapshot, getNodes } from '@/lib/api'
+import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 import {
   extractNodesFromServices,
   extractServicesForNode,
@@ -82,6 +82,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
+  const [allNodes, setAllNodes] = useState<NodeWithResources[]>([])
   const [viewLevel, setViewLevel] = useState<ViewLevel>('nodes')
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbItem[]>([
     { label: 'Nodes', level: 'nodes' },
@@ -107,9 +108,10 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       setError(null)
 
       try {
-        const [servicesData, graphSnapshot] = await Promise.all([
+        const [servicesData, graphSnapshot, nodesData] = await Promise.all([
           getServicesWithPlacement(),
           getDependencyGraphSnapshot().catch(() => ({ nodes: [], edges: [] })),
+          getNodes().catch(() => ({ nodes: [] })),
         ])
 
         if (!isMounted) return
@@ -120,8 +122,9 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         if (simulatedService) {
           const simServiceId = `${simulatedService.namespace}:${simulatedService.name}`
 
-          // Check if it already exists (unlikely if new, but good practice)
-          const exists = fetchedServices.find(s => `${s.namespace}:${s.name}` === simServiceId)
+          // Check if it already exists (unlikely but good practice)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const exists = fetchedServices.find((s: any) => `${s.namespace}:${s.name}` === simServiceId)
 
           if (!exists) {
             fetchedServices = [...fetchedServices, {
@@ -148,7 +151,10 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
           }
         }
 
+
+
         setServices(fetchedServices)
+        setAllNodes(nodesData.nodes || [])
 
         // Only drill down on initial load of simulation, not every poll
         // Use ref to ensure we only do this once per component mount/simulation run
@@ -172,8 +178,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         }
 
         // Extract service dependency edges for Level 2
-        let edges =
-          graphSnapshot.edges?.map((e) => ({
+        const edges: { source: string; target: string }[] =
+          graphSnapshot.edges?.map((e: any) => ({
             source: e.source.split(':')[1] || e.source, // extract service name from "namespace:name"
             target: e.target.split(':')[1] || e.target,
           })) || []
@@ -209,7 +215,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       isMounted = false
       clearInterval(intervalId)
     }
-  }, [simulatedService, services.length, viewLevel, currentNodeId])
+  }, [simulatedService, services.length, viewLevel, currentNodeId, allNodes.length])
 
   // Generate graph data based on current view level
   const graphData = useMemo(() => {
@@ -232,8 +238,48 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         })
       }
 
+      // Merge extracted nodes with allNodes to ensure we show empty nodes too
+      const nodeMap = new Map<string, NodeData>()
+
+      // 1. Add nodes from direct fetch (includes empty nodes)
+      allNodes.forEach(node => {
+        nodeMap.set(node.name, {
+          id: node.name,
+          label: node.name,
+          cpuUsagePercent: node.resources.cpu.usagePercent,
+          cpuUsed: 0, // Not available in simple node fetch yet, defaults to 0
+          cpuTotal: node.resources.cpu.cores,
+          ramUsageMB: node.resources.ram.usedMB,
+          ramUsagePercent: (node.resources.ram.usedMB / node.resources.ram.totalMB) * 100,
+          ramTotalMB: node.resources.ram.totalMB,
+          totalPods: 0,
+        })
+      })
+
+      // 2. Override/Merge with detailed placement data (has pod counts etc)
+      nodeData.forEach(n => {
+        nodeMap.set(n.id, n)
+      })
+
+      const mergedNodes = Array.from(nodeMap.values())
+
+      // Apply overrides if provided
+      if (nodeMetricOverrides) {
+        mergedNodes.forEach(n => {
+          if (nodeMetricOverrides[n.id]) {
+            const override = nodeMetricOverrides[n.id]
+            n.cpuUsagePercent = (override.cpuUsed / override.cpuTotal) * 100
+            n.cpuUsed = override.cpuUsed
+
+            n.ramUsageMB = override.ramUsedMB
+            n.ramUsagePercent = (override.ramUsedMB / override.ramTotalMB) * 100
+            n.ramTotalMB = override.ramTotalMB
+          }
+        })
+      }
+
       return {
-        nodes: nodeData.map((n: NodeData) => ({
+        nodes: mergedNodes.map((n: NodeData) => ({
           id: n.id,
           label: n.label,
           size: 50,
@@ -535,6 +581,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
               onCanvasClick={() => {
                 setSelections([])
               }}
+              minZoom={0.1}
+              maxZoom={5}
             />
 
             {/* Hover Tooltip */}

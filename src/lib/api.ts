@@ -14,6 +14,7 @@ import type {
   ServiceWithPlacement,
   ServiceAdditionScenario,
   ServiceAdditionResponse,
+  NodeWithResources,
 } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
@@ -198,5 +199,16 @@ export async function simulateServiceAddition(
     },
     { signal: options?.signal, headers }
   )
+  return data
+}
+
+/**
+ * Fetch all infrastructure nodes with resource usage
+ * @param signal - Optional AbortSignal for canceling in-flight requests
+ */
+export async function getNodes(signal?: AbortSignal): Promise<{ nodes: NodeWithResources[] }> {
+  const { data } = await predictiveApi.get<{ nodes: NodeWithResources[] }>('/infrastructure/nodes', {
+    signal,
+  })
   return data
 }

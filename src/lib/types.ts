@@ -422,3 +422,8 @@ export type ServiceWithPlacement = {
   availability: number
   placement?: ServicePlacement // Optional - may not be available in all deployments
 }
+
+export type NodeWithResources = {
+  name: string
+  resources: NodeResources
+}

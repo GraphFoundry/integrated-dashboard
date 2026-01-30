@@ -9,10 +9,17 @@ Advanced React component patterns for building maintainable, performant dashboar
 
 ## When to Use This Skill
 
-- Deciding between component patterns (compound, render props, HOC)
+- Deciding between component patterns (compound, render props, controlled)
 - Implementing complex component interactions
 - Building reusable component libraries
 - Optimizing component architecture
+
+## When NOT to Use This Skill
+
+- Simple one-off components (just use basic function components)
+- Learning React basics (this assumes professional-level experience)
+- When premature abstraction would add complexity
+- For components used only once (avoid over-engineering)
 
 ## Component Patterns
 
@@ -210,11 +217,11 @@ function Card({ header, body, footer, children }: CardSlots & { children?: React
 | Polymorphic | Component renders as different elements |
 | Slots | Many customizable sections |
 
-## Anti-Patterns to Avoid
+## Anti-Patterns to Avoid (BANNED)
 
-### ❌ Prop Drilling
+### ❌ Prop Drilling Beyond 2 Levels
 ```tsx
-// Bad: Passing through many levels
+// FORBIDDEN: Passing through many levels
 <Grandparent user={user}>
   <Parent user={user}>
     <Child user={user}>
@@ -223,7 +230,7 @@ function Card({ header, body, footer, children }: CardSlots & { children?: React
   </Parent>
 </Grandparent>
 
-// Good: Use context
+// REQUIRED: Use context or composition
 <UserProvider user={user}>
   <Grandparent>
     <Parent>
@@ -237,13 +244,13 @@ function Card({ header, body, footer, children }: CardSlots & { children?: React
 
 ### ❌ God Components
 ```tsx
-// Bad: One component does everything
+// FORBIDDEN: One component does everything
 function Dashboard() {
-  // 500+ lines
+  // 500+ lines - NEVER
   // Fetch data, transform, render everything
 }
 
-// Good: Compose smaller components
+// REQUIRED: Compose smaller components
 function Dashboard() {
   return (
     <>
@@ -253,6 +260,33 @@ function Dashboard() {
       <DashboardActivity />
     </>
   );
+}
+```
+
+### ❌ useEffect for Derived State
+```tsx
+// FORBIDDEN
+const [filtered, setFiltered] = useState([]);
+useEffect(() => {
+  setFiltered(items.filter(predicate));
+}, [items]);
+
+// REQUIRED
+const filtered = useMemo(() => items.filter(predicate), [items]);
+```
+
+### ❌ Components Inside Components
+```tsx
+// FORBIDDEN - Destroys state on every render
+function Parent() {
+  const Child = () => <div />;  // NEVER
+  return <Child />;
+}
+
+// REQUIRED - Module-level definitions
+const Child = () => <div />;
+function Parent() {
+  return <Child />;
 }
 ```
 

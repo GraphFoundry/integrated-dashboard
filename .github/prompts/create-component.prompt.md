@@ -1,11 +1,22 @@
 ---
 agent: agent
-description: Create a new React component following project standards
+description: Create a new React component following project standards - production-ready only
 ---
 
 # Create Component
 
-Create a new React component following all project standards.
+Create a new React component following all project standards. Produces production-ready code only.
+
+## Prerequisites
+
+Before creating any component, internalize these rules:
+
+1. **Function components only** - No class components
+2. **No `any` types** - Define proper TypeScript interfaces
+3. **No components inside components** - Module-level only
+4. **No inline styles** - Tailwind classes only
+5. **Handle all states** - Loading, error, empty where applicable
+6. **Composition over configuration** - Use children, not mega-props
 
 ## Input Required
 

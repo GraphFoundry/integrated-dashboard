@@ -15,6 +15,23 @@ A structured approach to debugging React dashboard applications.
 - API data not appearing
 - Unexpected behavior after changes
 
+## When NOT to Use This Skill
+
+- For known simple fixes (just fix them)
+- When error messages are clear and actionable
+- For TypeScript errors (fix the types, don't debug around them)
+
+## Common React Anti-Pattern Bugs
+
+Check these first - they cause 80% of React bugs:
+
+1. **useEffect for derived state** - Causes extra renders, stale data
+2. **Missing hook dependencies** - Causes stale closures
+3. **Components inside components** - Causes state loss
+4. **Index as key** - Causes wrong state association
+5. **Mutating state directly** - Causes no re-render
+6. **Missing cleanup** - Causes memory leaks, zombie subscriptions
+
 ## Debugging Framework
 
 ### 1. OBSERVE - What is happening?

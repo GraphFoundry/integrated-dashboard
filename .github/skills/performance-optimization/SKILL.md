@@ -9,11 +9,31 @@ Advanced performance optimization techniques for React dashboard applications.
 
 ## When to Use This Skill
 
-- Diagnosing slow renders
-- Optimizing large data sets
-- Reducing bundle size
+- Diagnosing slow renders (measured, not assumed)
+- Optimizing large data sets (1000+ items)
+- Reducing bundle size (when metrics show issues)
 - Improving initial load time
 - Fixing memory leaks
+
+## When NOT to Use This Skill
+
+- Premature optimization (measure first!)
+- Small lists (<100 items rarely need virtualization)
+- Simple components (React is fast by default)
+- When readability would suffer significantly
+- Before you have actual performance data
+
+## Core Principle: Measure First
+
+Never optimize without data:
+
+```bash
+# Profile bundle size
+npm run build -- --analyze
+
+# Profile renders
+# Use React DevTools Profiler, not guesswork
+```
 
 ## Render Optimization
 

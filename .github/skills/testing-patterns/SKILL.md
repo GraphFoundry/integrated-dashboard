@@ -15,6 +15,13 @@ Testing patterns and strategies for React dashboard applications.
 - Integration testing
 - End-to-end testing decisions
 
+## When NOT to Use This Skill
+
+- Testing pure utility functions (use simple unit tests)
+- When learning testing basics (assumes professional experience)
+- For trivial components with no logic
+- When snapshot testing would suffice (rare, but valid)
+
 ## Testing Pyramid
 
 ```

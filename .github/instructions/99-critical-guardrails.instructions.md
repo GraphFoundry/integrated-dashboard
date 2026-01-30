@@ -202,6 +202,72 @@ useEffect(() => {
 
 ---
 
+### 11. Never Use useEffect for Derived State
+
+```typescript
+// ❌ FORBIDDEN - Syncing state with useEffect
+const [items, setItems] = useState([]);
+const [filteredItems, setFilteredItems] = useState([]);
+
+useEffect(() => {
+  setFilteredItems(items.filter(i => i.active));
+}, [items]);
+
+// ✅ REQUIRED - Derive with useMemo
+const [items, setItems] = useState([]);
+const filteredItems = useMemo(
+  () => items.filter(i => i.active),
+  [items]
+);
+```
+
+**Why**: Creates unnecessary render cycles, violates React data flow, makes code harder to reason about.
+
+---
+
+### 12. Never Use useEffect for Event Handling
+
+```typescript
+// ❌ FORBIDDEN - Event logic in effect
+const [submitted, setSubmitted] = useState(false);
+
+useEffect(() => {
+  if (submitted) {
+    sendAnalytics('form_submit');
+    navigate('/success');
+  }
+}, [submitted]);
+
+// ✅ REQUIRED - Event logic in handler
+function handleSubmit() {
+  sendAnalytics('form_submit');
+  navigate('/success');
+}
+```
+
+**Why**: Effects are for synchronization, not event responses. Event handlers are clearer and more direct.
+
+---
+
+### 13. Never Create Objects/Arrays in JSX Props
+
+```typescript
+// ❌ FORBIDDEN - New object every render
+<Chart config={{ width: 400, height: 300 }} />
+<List items={data.filter(d => d.active)} />
+
+// ✅ REQUIRED - Memoize or define outside
+const chartConfig = useMemo(() => ({ width, height }), [width, height]);
+const activeItems = useMemo(() => data.filter(d => d.active), [data]);
+
+<Chart config={chartConfig} />
+<List items={activeItems} />
+```
+
+**Why**: Creates new references every render, breaks memoization, causes unnecessary child re-renders.
+
+---
+
 ## ⚠️ Required Patterns
 
 ### TypeScript Strict Mode

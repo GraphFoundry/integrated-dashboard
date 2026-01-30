@@ -15,6 +15,22 @@ WCAG 2.1 AA compliance patterns and testing strategies for React dashboards.
 - Adding screen reader support
 - Fixing color contrast issues
 
+## When NOT to Use This Skill
+
+- For purely decorative elements (use aria-hidden)
+- When accessibility testing is already automated in CI
+- For internal tooling with known user base (still recommended, but lower priority)
+
+## Non-Negotiable Requirements
+
+These are not optional:
+
+1. **All interactive elements must be keyboard accessible**
+2. **All images must have alt text (or aria-hidden if decorative)**
+3. **Color must not be the only means of conveying information**
+4. **Focus must be visible at all times**
+5. **Form inputs must have associated labels**
+
 ## Core Principles (POUR)
 
 1. **Perceivable** - Information must be presentable to users

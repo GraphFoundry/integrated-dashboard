@@ -1,17 +1,26 @@
 ---
 agent: agent
-description: Create a custom React hook following project standards
+description: Create a custom React hook following project standards - production-ready only
 ---
 
 # Create Hook
 
-Create a custom React hook following project patterns and standards.
+Create a custom React hook following project patterns and standards. Produces production-ready code only.
 
-## Input Required
+## Prerequisites - You Might Not Need a Hook
 
-- **Hook Name**: Descriptive name starting with `use` (e.g., `useAlerts`, `useDebounce`)
-- **Hook Type**: `data-fetching` | `state` | `utility` | `event`
-- **Purpose**: What the hook does
+Before creating a hook, ask:
+1. **Is this logic reused?** If not, keep it in the component
+2. **Does this need useEffect?** Most derived state doesn't need effects
+3. **Could this be a pure function?** Prefer utilities over hooks when possible
+
+## Rules (Non-Negotiable)
+
+1. **Complete hook dependencies** - Never suppress linter warnings
+2. **Always clean up effects** - Return cleanup functions
+3. **Support cancellation** - Use AbortController for fetches
+4. **No useEffect for derived state** - Use useMemo instead
+5. **No useEffect for event handling** - Use event handlers
 
 ## Hook Location
 

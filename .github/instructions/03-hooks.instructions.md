@@ -199,9 +199,57 @@ function useAsync<T>(asyncFn: () => Promise<T>): UseAsyncResult<T> {
 
 ## Anti-Patterns to Avoid
 
+### You Might Not Need an Effect
+Before writing any useEffect, ask: "Am I synchronizing with an external system?"
+
+If no, you probably don't need an effect:
+
+```typescript
+// ❌ FORBIDDEN - Deriving state with effect
+const [firstName, setFirstName] = useState('');
+const [lastName, setLastName] = useState('');
+const [fullName, setFullName] = useState('');
+
+useEffect(() => {
+  setFullName(`${firstName} ${lastName}`);
+}, [firstName, lastName]);
+
+// ✅ REQUIRED - Compute directly
+const fullName = `${firstName} ${lastName}`;
+
+// ✅ OR use useMemo for expensive computations
+const fullName = useMemo(
+  () => computeExpensiveName(firstName, lastName),
+  [firstName, lastName]
+);
+```
+
+```typescript
+// ❌ FORBIDDEN - Event response in effect
+const [submitted, setSubmitted] = useState(false);
+useEffect(() => {
+  if (submitted) {
+    sendAnalytics();
+    navigate('/success');
+  }
+}, [submitted]);
+
+// ✅ REQUIRED - Event logic in handler
+function handleSubmit() {
+  sendAnalytics();
+  navigate('/success');
+}
+```
+
+**Valid useEffect uses:**
+- Fetching data (synchronizing with server)
+- Setting up subscriptions (WebSocket, event listeners)
+- Synchronizing with DOM (focus, scroll, measurements)
+- Integrating with non-React libraries
+
 ### Don't Use Lifecycle Hooks
 ```typescript
-// ❌ NEVER - Lifecycle abstraction
+// ❌ NEVER - Lifecycle abstraction hides intent
 function useMount(fn: () => void) {
   useEffect(() => {
     fn();
@@ -220,17 +268,16 @@ function useChatConnection({ roomId, serverUrl }: Options) {
 
 ### Don't Suppress Linter Warnings
 ```typescript
-// ❌ NEVER
+// ❌ NEVER - The linter is right
 useEffect(() => {
   fetchData(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
 // ✅ Fix the actual issue
-const idRef = useRef(id);
 useEffect(() => {
-  fetchData(idRef.current);
-}, []);
+  fetchData(id);
+}, [id]); // Include the dependency
 ```
 
 ## Hook File Organization

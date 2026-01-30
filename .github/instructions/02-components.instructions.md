@@ -216,15 +216,67 @@ const MemoizedChart = memo(function Chart({ data }: ChartProps) {
 
 ### Avoid Inline Objects in JSX
 ```tsx
-// ❌ Bad: New object every render
+// ❌ FORBIDDEN: New object every render
 <Chart style={{ width: 400, height: 300 }} />
 
-// ✅ Good: Stable reference
-const chartStyle = { width: 400, height: 300 };
-<Chart style={chartStyle} />
-
-// ✅ Or use useMemo if dynamic
+// ✅ REQUIRED: Stable reference with useMemo
 const chartStyle = useMemo(() => ({ width, height }), [width, height]);
+<Chart style={chartStyle} />
+```
+
+### Avoid Inline Arrow Functions for Event Handlers
+```tsx
+// ❌ BAD: New function every render (breaks memoization)
+<Button onClick={() => handleClick(item.id)} />
+
+// ✅ GOOD: Stable callback
+const handleItemClick = useCallback(() => handleClick(item.id), [item.id, handleClick]);
+<Button onClick={handleItemClick} />
+```
+
+## Anti-Patterns (BANNED)
+
+### Never Define Components Inside Components
+```tsx
+// ❌ FORBIDDEN - Destroys state on every render
+function Parent() {
+  const Child = () => <div>I lose state!</div>;  // NEVER
+  return <Child />;
+}
+```
+
+### Never Use Class Components
+```tsx
+// ❌ FORBIDDEN - Legacy pattern, no hooks support
+class MyComponent extends React.Component { }
+
+// ✅ REQUIRED - Function components only
+function MyComponent() { }
+```
+
+### Never Skip Loading/Error/Empty States
+```tsx
+// ❌ FORBIDDEN - Crashes on undefined
+function DataView({ data }) {
+  return <List items={data} />;
+}
+
+// ✅ REQUIRED - Handle all states
+function DataView({ data, isLoading, error }) {
+  if (isLoading) return <Skeleton />;
+  if (error) return <ErrorMessage message={error.message} />;
+  if (!data?.length) return <EmptyState />;
+  return <List items={data} />;
+}
+```
+
+### Never Use Index as Key for Dynamic Lists
+```tsx
+// ❌ FORBIDDEN - Causes state bugs when list changes
+{items.map((item, i) => <Card key={i} {...item} />)}
+
+// ✅ REQUIRED - Stable unique key
+{items.map(item => <Card key={item.id} {...item} />)}
 ```
 
 ## References

@@ -15,6 +15,31 @@ State management patterns for React dashboard applications.
 - Handling server state
 - Optimizing state updates
 
+## When NOT to Use This Skill
+
+- For simple local UI state (just use useState)
+- When introducing external state libraries (this covers React-native patterns)
+- For server state that should use a data-fetching library
+- When the answer is obvious (don't over-complicate)
+
+## Core Principle: You Might Not Need an Effect
+
+Before adding any state management:
+
+```tsx
+// ❌ FORBIDDEN - Syncing state with effects
+const [items, setItems] = useState([]);
+const [filtered, setFiltered] = useState([]);
+
+useEffect(() => {
+  setFiltered(items.filter(predicate));
+}, [items]);
+
+// ✅ REQUIRED - Derive state directly
+const [items, setItems] = useState([]);
+const filtered = useMemo(() => items.filter(predicate), [items]);
+```
+
 ## State Location Decision Tree
 
 ```

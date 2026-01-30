@@ -1,48 +1,84 @@
 ---
 agent: agent
-description: Comprehensive dashboard refactoring using all project standards
+description: Enforce React 2025 standards through comprehensive refactoring
 ---
 
 # Full Dashboard Refactor
 
-Perform a comprehensive refactoring of the integrated-dashboard codebase to ensure all code follows project standards, best practices, and industry conventions.
+Enforce React 2025 standards, modern TypeScript patterns, and zero-compromise code quality across the integrated-dashboard codebase. This is NOT a suggestion process - violations will be fixed, not debated.
+
+## Non-Negotiable Standards
+
+Before starting, understand these patterns will be **automatically rejected and fixed**:
+
+### Banned Patterns (Zero Tolerance)
+1. `any` type usage (use `unknown` with guards or proper types)
+2. Class components (use function components)
+3. Components defined inside other components
+4. Index as key for dynamic lists
+5. Inline styles (use Tailwind classes)
+6. Missing hook dependency arrays
+7. **useEffect for state derivation** (use `useMemo` instead)
+8. **useEffect for event handling** (use event handlers)
+9. Prop drilling beyond 2 levels (use composition or context)
+10. Console statements in production code
+11. Hardcoded API URLs
+12. Inline objects/arrays in JSX props (causes re-renders)
+
+### "You Might Not Need an Effect" Rule
+
+**useEffect is ONLY for synchronizing with external systems**:
+- ✅ Subscriptions to external services
+- ✅ Browser APIs (DOM, network, timers)
+- ✅ Third-party widget integration
+- ❌ **NOT for state derivation** (use `useMemo`)
+- ❌ **NOT for event handling** (use callbacks)
+- ❌ **NOT for data transformation** (compute inline)
+- ❌ **NOT for resetting state** (use key prop)
 
 ## Objectives
 
-1. **TypeScript Compliance** - Ensure strict types everywhere
-2. **Component Architecture** - Proper structure, no anti-patterns
-3. **Performance** - Eliminate unnecessary re-renders
-4. **Accessibility** - WCAG 2.1 AA compliance
-5. **Testing** - Adequate test coverage
-6. **Code Organization** - Proper file/folder structure
+1. **TypeScript Strict Mode** - No `any`, explicit types everywhere
+2. **React 19+ Patterns** - Function components, hooks-first, composition
+3. **Zero Unnecessary Re-renders** - Proper memoization and effect usage
+4. **WCAG 2.1 AA Compliance** - Non-negotiable accessibility
+5. **Comprehensive Testing** - Critical paths must have tests
+6. **Clean Architecture** - Composition over configuration
 
-## Phase 1: Audit
+## Phase 1: Audit (Automatic Rejection Criteria)
 
-First, analyze the codebase for violations:
+Analyze the codebase for violations. Each violation found is a **blocking issue**:
 
-### TypeScript Issues
-- [ ] Files using `any` type
-- [ ] Missing explicit return types
+### TypeScript Violations (CRITICAL)
+- [ ] Files using `any` type (use `unknown` with guards)
+- [ ] Missing explicit return types on functions
 - [ ] Implicit `any` in function parameters
-- [ ] Type assertions without guards
+- [ ] Type assertions without validation guards
+- [ ] Non-strict TypeScript configuration
 
-### Component Issues
-- [ ] Components defined inside other components
-- [ ] Missing Props interfaces
-- [ ] Components over 200 lines
-- [ ] Class components (if any)
+### Component Architecture Violations (CRITICAL)
+- [ ] Components defined inside other components (**NEVER**)
+- [ ] Class components (deprecated since React 16.8)
+- [ ] Missing Props interfaces with explicit types
+- [ ] Components over 200 lines (extract sub-components)
+- [ ] Configuration props instead of composition patterns
 
-### Hook Issues
-- [ ] `useEffect` without proper dependencies
-- [ ] `useEffect` with missing cleanup
-- [ ] Logic that should be extracted to custom hooks
-- [ ] Hooks called conditionally
+### Effect Misuse Violations (CRITICAL)
+- [ ] **useEffect for derived state** (use `useMemo` instead)
+- [ ] **useEffect for event handling** (use callbacks instead)
+- [ ] **useEffect for data transformation** (compute inline)
+- [ ] **useEffect to reset state** (use `key` prop instead)
+- [ ] useEffect without proper dependencies
+- [ ] useEffect without cleanup when needed
+- [ ] Hooks called conditionally or in loops
 
-### State Issues
-- [ ] Prop drilling more than 2 levels
+### State Management Violations (HIGH)
+- [ ] Prop drilling more than 2 levels (use composition)
 - [ ] State that should be colocated
 - [ ] Missing memoization for expensive computations
-- [ ] Inline objects/arrays in JSX causing re-renders
+- [ ] **Inline objects/arrays in JSX props** (causes re-renders)
+- [ ] setState calls in render phase
+- [ ] Storing derived values in state
 
 ### Styling Issues
 - [ ] Inline styles instead of Tailwind
@@ -65,36 +101,42 @@ First, analyze the codebase for violations:
 
 ## Phase 2: Prioritized Fix List
 
-After audit, create a prioritized list:
+After audit, fix violations in this order (blocking issues first):
 
-### 🔴 Critical (Fix First)
-1. Type safety violations (`any` types)
-2. Components inside components
-3. Missing effect cleanup
-4. Accessibility blockers
+### 🔴 BLOCKING (Fix Immediately)
+1. **useEffect for derived state/events** (violates React.dev guidance)
+2. **`any` types** (TypeScript strict mode violation)
+3. **Components inside components** (causes re-creation every render)
+4. **Inline objects/arrays in JSX** (causes child re-renders)
+5. **Class components** (deprecated pattern)
+6. **Missing effect cleanup** (memory leaks)
+7. **WCAG violations** (accessibility blockers)
 
-### 🟠 High Priority
-1. Components over 200 lines
-2. Prop drilling issues
-3. Performance bottlenecks
+### 🟠 HIGH PRIORITY (Fix Same Session)
+1. Components over 200 lines (maintainability)
+2. Prop drilling beyond 2 levels (use composition)
+3. Performance bottlenecks (unnecessary re-renders)
 4. Missing tests for critical paths
+5. Hardcoded values that should be constants
+6. Inline styles instead of Tailwind
 
-### 🟡 Medium Priority
-1. State colocatin improvements
-2. Custom hook extraction
-3. Styling consistency
+### 🟡 MEDIUM PRIORITY (Fix Soon)
+1. State colocation improvements
+2. Custom hook extraction for reuse
+3. Styling consistency (Tailwind utilities)
 4. Test coverage gaps
+5. Missing TypeScript return types
 
-### 🟢 Low Priority
-1. Code organization
-2. Documentation
+### 🟢 OPTIONAL (Nice to Have)
+1. Code organization refinements
+2. Enhanced documentation
 3. Minor optimizations
 
 ## Phase 3: Systematic Refactoring
 
-For each file, apply these patterns:
+For each file, **enforce** these patterns (not suggestions):
 
-### Component Refactoring Template
+### Component Refactoring Template (Mandatory Pattern)
 
 ```typescript
 // 1. Imports - organized by category
@@ -102,56 +144,116 @@ import { type FC, memo, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 // ... other imports
 
-// 2. Types - explicit interface
+// 2. Types - explicit interface (NEVER use 'any')
 interface ComponentProps {
   // Required props first
   id: string;
-  // Optional props with defaults
+  // Optional props with union types (not 'any')
   variant?: 'primary' | 'secondary';
+  // NEVER pass inline objects - define outside or memoize
+  config: ComponentConfig; // ✅ Defined outside
 }
 
-// 3. Component - at module level, memoized if pure
+// 3. Constants outside component (prevents re-creation)
+const VARIANT_CLASSES = {
+  primary: 'bg-blue-600 text-white',
+  secondary: 'bg-gray-200 text-gray-900',
+} as const;
+
+// 4. Component - at module level (NEVER inside other components)
+// Use memo for pure components (props → same output)
 const Component: FC<ComponentProps> = memo(function Component({
   id,
   variant = 'primary',
+  config, // Already stable, no inline object
 }) {
-  // 4. Hooks first
+  // 5. Hooks first (always same order, never conditional)
   const [state, setState] = useState<StateType>(initialState);
   
-  // 5. Derived state with useMemo
+  // 6. Derived state with useMemo (NOT useEffect)
+  // ❌ WRONG: useEffect(() => { setDerived(compute(state)) }, [state])
+  // ✅ RIGHT:
   const derivedValue = useMemo(() => 
     expensiveComputation(state),
     [state]
   );
   
-  // 6. Callbacks with useCallback
-  const handleAction = useCallback((e: MouseEvent) => {
-    // handler logic
-  }, [/* dependencies */]);
+  // 7. Event handlers with useCallback (NOT useEffect)
+  // ❌ WRONG: useEffect(() => { if (shouldHandle) handle() }, [shouldHandle])
+  // ✅ RIGHT:
+  const handleAction = useCallback((e: MouseEvent<HTMLButtonElement>) => {
+    // Event handling logic
+    setState(prev => transform(prev));
+  }, [/* only external dependencies */]);
   
-  // 7. Effects with cleanup
+  // 8. Effects ONLY for external systems (NOT state derivation)
+  // Valid use: synchronizing with external API
   useEffect(() => {
     const subscription = api.subscribe();
-    return () => subscription.unsubscribe();
+    return () => subscription.unsubscribe(); // Always cleanup
   }, []);
   
-  // 8. Early returns for loading/error
+  // 9. Early returns for loading/error
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} />;
   
-  // 9. Render with semantic HTML
+  // 10. Render with semantic HTML and Tailwind classes
   return (
     <section 
-      className={cn('base-classes', variantClasses[variant])}
+      className={cn(
+        'rounded-lg p-4', // Base classes
+        VARIANT_CLASSES[variant], // Variant classes from constant
+      )}
       aria-labelledby={`${id}-heading`}
     >
-      <h2 id={`${id}-heading`}>{title}</h2>
-      {/* content */}
+      <h2 id={`${id}-heading`} className="text-xl font-bold">
+        {title}
+      </h2>
+      {/* NEVER use inline styles */}
+      {/* NEVER pass inline objects: onClick={() => fn({ id })} */}
+      {/* ✅ Use stable callbacks: onClick={handleAction} */}
     </section>
   );
 });
 
+// Display name for debugging
+Component.displayName = 'Component';
+
 export default Component;
+```
+
+### Effect Usage Decision Tree (Follow Strictly)
+
+```typescript
+// Q: Do you need to synchronize with an external system?
+// (API, DOM, browser API, third-party library)
+
+// YES → useEffect is correct
+useEffect(() => {
+  const controller = new AbortController();
+  fetch('/api', { signal: controller.signal })
+    .then(handleResponse);
+  return () => controller.abort();
+}, []);
+
+// NO → Ask: What are you trying to do?
+
+// "Update state based on props/state" → Derive inline or useMemo
+// ❌ useEffect(() => setTotal(a + b), [a, b])
+// ✅ const total = a + b;
+// ✅ const total = useMemo(() => expensiveCalc(a, b), [a, b]);
+
+// "Handle a user event" → Use event handler
+// ❌ useEffect(() => { if (clicked) doSomething() }, [clicked])
+// ✅ const handleClick = () => doSomething();
+
+// "Transform data for rendering" → Compute during render
+// ❌ useEffect(() => setFiltered(items.filter(...)), [items])
+// ✅ const filtered = items.filter(...);
+
+// "Reset state when prop changes" → Use key prop
+// ❌ useEffect(() => setState(initial), [userId])
+// ✅ <Component key={userId} />
 ```
 
 ## Files to Prioritize
@@ -181,48 +283,116 @@ Based on the project structure, prioritize:
 2. `src/lib/*ApiClient.ts`
 3. `src/lib/httpClient.ts`
 
-## Validation Checklist
+## Validation Checklist (All Must Pass)
 
-After each refactoring:
+After each refactoring, verify **zero tolerance** for violations:
 
-- [ ] `npm run lint` passes
+### Build & Types
+- [ ] `npm run lint` passes (no warnings)
 - [ ] `npm run build` succeeds
-- [ ] TypeScript has no errors
+- [ ] TypeScript strict mode has zero errors
+- [ ] No `any` types anywhere (search: `:\s*any`)
+- [ ] All functions have explicit return types
+
+### React Patterns
+- [ ] No components defined inside other components
+- [ ] No class components
+- [ ] No useEffect for derived state (use `useMemo`)
+- [ ] No useEffect for event handling (use callbacks)
+- [ ] No inline objects/arrays in JSX props
+- [ ] All effects have proper cleanup when needed
+- [ ] No missing dependencies in hooks
+
+### Runtime
 - [ ] Component renders correctly
-- [ ] Tests pass (if any)
-- [ ] No console errors
-- [ ] Accessibility audit passes
+- [ ] No console errors or warnings
+- [ ] No unnecessary re-renders (check React DevTools)
+- [ ] Tests pass (if any exist)
 
-## Reference Documents
+### Accessibility
+- [ ] WCAG 2.1 AA compliance (run axe DevTools)
+- [ ] Semantic HTML used throughout
+- [ ] All interactive elements keyboard accessible
+- [ ] Sufficient color contrast (4.5:1 minimum)
 
-When refactoring, consult:
+### Code Quality
+- [ ] No hardcoded URLs or magic numbers
+- [ ] No console.log statements
+- [ ] Proper error boundaries in place
+- [ ] Components under 200 lines
 
-- `.github/instructions/01-types.instructions.md` - TypeScript standards
-- `.github/instructions/02-components.instructions.md` - Component patterns
-- `.github/instructions/03-hooks.instructions.md` - Hook patterns
-- `.github/instructions/04-state-management.instructions.md` - State patterns
-- `.github/instructions/08-styling.instructions.md` - Tailwind standards
-- `.github/instructions/99-critical-guardrails.instructions.md` - Must-never violations
-- `.github/skills/performance-optimization/SKILL.md` - Performance patterns
-- `.github/skills/accessibility-validation/SKILL.md` - A11y patterns
+## Reference Documents (Standards Hierarchy)
+
+When refactoring, **enforce** these standards (in priority order):
+
+### Critical (Non-Negotiable)
+1. `.github/instructions/99-critical-guardrails.instructions.md` - **Blocking violations**
+2. `.github/instructions/03-hooks.instructions.md` - **"You Might Not Need an Effect"**
+3. `.github/instructions/01-types.instructions.md` - TypeScript strict standards
+4. `.github/instructions/02-components.instructions.md` - Component architecture
+
+### High Priority
+5. `.github/instructions/04-state-management.instructions.md` - State patterns
+6. `.github/instructions/08-styling.instructions.md` - Tailwind standards
+7. `.github/skills/performance-optimization/SKILL.md` - Performance patterns
+8. `.github/skills/accessibility-validation/SKILL.md` - WCAG 2.1 AA compliance
+
+### Supporting
+9. `.github/instructions/react-components.instructions.md` - Component best practices
+10. `.github/skills/testing-patterns/SKILL.md` - Testing strategies
+
+## Execution Strategy
+
+**This is a single-shot refactoring process**:
+
+1. **Audit Phase**: Scan file, identify ALL violations (not just first few)
+2. **Fix Phase**: Apply fixes for ALL violations in one pass
+3. **Validate Phase**: Verify all checks pass before moving to next file
+4. **Report Phase**: Document changes with before/after
+
+**Do NOT**:
+- Fix violations incrementally (do all at once)
+- Skip validation steps
+- Leave TODO comments for future fixes
+- Ask permission for each fix (standards are non-negotiable)
 
 ## Output Format
 
-For each file refactored, report:
+For each file refactored, provide:
 
 ```
 ### [filename]
 
-**Before Issues:**
-- Issue 1
-- Issue 2
+**Violations Found:**
+- 🔴 [Blocking] useEffect used for derived state (line X)
+- 🔴 [Blocking] `any` type on parameter (line Y)
+- 🟠 [High] Component over 200 lines
+- 🟡 [Medium] Missing memoization
 
-**Changes Made:**
-- Change 1
-- Change 2
+**Changes Applied:**
+- Converted useEffect to useMemo for derived state
+- Added explicit type for parameter: `string`
+- Extracted sub-component: `ComponentDetails`
+- Added React.memo wrapper for pure component
 
-**Validation:**
-- ✅ Lint passed
+**Validation Results:**
+- ✅ Lint passed (0 warnings)
 - ✅ Build passed
-- ✅ Types clean
+- ✅ TypeScript strict mode (0 errors)
+- ✅ No banned patterns detected
+- ✅ WCAG 2.1 AA compliant
+- ✅ Zero unnecessary re-renders
+
+**Lines Changed:** 45 → 52 (extracted subcomponent)
 ```
+
+## Success Criteria
+
+Refactoring is complete when:
+
+1. **Zero banned patterns** remain in codebase
+2. **All effects** are synchronizing with external systems only
+3. **TypeScript strict mode** passes with no errors
+4. **WCAG 2.1 AA** compliance verified
+5. **Build and tests** pass
+6. **Performance**: No unnecessary re-renders detected

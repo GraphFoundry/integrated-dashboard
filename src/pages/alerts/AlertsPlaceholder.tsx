@@ -105,7 +105,7 @@ export default function AlertsPage() {
       // Fetch the updated incident to check if it matches current filters
       try {
         const incidentDetail = await bffApi.getIncidentDetail(dedupe_key, namespace, service)
-        const incident = incidentDetail.incident
+        const incident = incidentDetail
 
         // Check if incident matches current filters
         const statusMatches =
@@ -150,20 +150,6 @@ export default function AlertsPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'text-red-500'
-      case 'high':
-        return 'text-orange-500'
-      case 'medium':
-        return 'text-yellow-500'
-      case 'low':
-        return 'text-blue-500'
-      default:
-        return 'text-gray-500'
-    }
-  }
 
   if (loading) {
     return (

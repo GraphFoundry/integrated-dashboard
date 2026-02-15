@@ -1,6 +1,6 @@
 import type { AlertsComponentProps } from '@/widgets/alerts/types'
 import { useAlerts } from '@/widgets/alerts/useAlerts'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 
 /**
  * AlertsSlot - Integration mount point for teammate's Alert Engine UI
@@ -24,7 +24,7 @@ import { useMemo, useState } from 'react'
  * ```
  */
 export default function AlertsSlot({ serviceId, expanded = false }: AlertsComponentProps) {
-  const { alerts, loading, connected, acknowledge, setFilters, loadMore, hasMore, loadingMore } =
+  const { alerts, loading, connected, acknowledge, setFilters, loadMore, hasMore, loadingMore, fetchDetail } =
     useAlerts()
   const [severity, setSeverity] = useState<string | undefined>(undefined)
   const [svc, setSvc] = useState<string | undefined>(serviceId)

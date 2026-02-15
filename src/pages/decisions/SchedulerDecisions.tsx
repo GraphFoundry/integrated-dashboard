@@ -16,11 +16,6 @@ interface SchedulerDecision {
   podName?: string
 }
 
-interface ServiceInfo {
-  service: string
-  podName: string
-  namespace: string
-}
 
 interface RestartResponse {
   success: boolean

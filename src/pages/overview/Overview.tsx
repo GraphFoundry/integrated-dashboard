@@ -49,7 +49,7 @@ export default function Overview() {
       let totalAvailability = 0
       let count = 0
 
-      services.forEach((service, idx) => {
+      services.forEach((_, idx) => {
         const telemetry = telemetryResults[idx]
         if (!telemetry || telemetry.datapoints.length === 0) {
           return

@@ -106,3 +106,10 @@ export function formatDistanceToNow(timestamp: string | Date): string {
     return 'N/A'
   }
 }
+
+
+/** Wraps a formatter, returning 'N/A' for undefined/null values. */
+export function formatMetric(value: number | undefined | null, formatter: (val: number) => string): string {
+  if (value === undefined || value === null) return 'N/A'
+  return formatter(value)
+}

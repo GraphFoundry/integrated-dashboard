@@ -183,7 +183,10 @@ function getScenarioSummary(meta: LastRunMeta): string {
   if (s.type === 'failure') {
     return `Failure → ${s.serviceId} (depth: ${s.maxDepth})`
   }
-  return `Scale → ${s.serviceId} (${s.currentPods}→${s.newPods} pods, ${s.latencyMetric})`
+  if (s.type === 'scale') {
+    return `Scale → ${s.serviceId} (${s.currentPods}→${s.newPods} pods, ${s.latencyMetric})`
+  }
+  return `Add Service → ${s.serviceName} (${s.replicas} replicas)`
 }
 
 interface CopyButtonProps {

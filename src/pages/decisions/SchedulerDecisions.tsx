@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, Calendar, Filter, Server, AlertTriangle, X, Play, CheckCircle } from 'lucide-react'
+import { RefreshCw, Calendar, Filter, Server, X, Play, CheckCircle, AlertTriangle } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import { getServicesWithPlacement } from '@/lib/api'
+import { schedulerApi } from '@/lib/schedulerApiClient'
 
 interface SchedulerDecision {
   namespace: string
@@ -23,19 +25,14 @@ interface RestartResponse {
   error?: string
 }
 
-const API_BASE_URL = '/scheduler-api'
-
 export default function SchedulerDecisions() {
   const [decisions, setDecisions] = useState<SchedulerDecision[]>([])
-  const [services, setServices] = useState<Record<string, string[]>>({}) // Service -> PodName[]
+  const [services, setServices] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  // Filters
   const [namespaceFilter, setNamespaceFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
-  // Apply Modal State
   const [applyModalOpen, setApplyModalOpen] = useState(false)
   const [selectedDecision, setSelectedDecision] = useState<SchedulerDecision | null>(null)
   const [selectedPod, setSelectedPod] = useState('')
@@ -45,20 +42,15 @@ export default function SchedulerDecisions() {
 
   const loadData = async () => {
     setLoading(true)
-    setError(null)
     try {
-      // Fetch decisions and services (via Graph API) in parallel
       const [decisionsRes, servicesRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/decisions`),
+        schedulerApi.get<SchedulerDecision[]>('/decisions'),
         getServicesWithPlacement().catch(() => ({ services: [] }))
       ])
 
-      if (!decisionsRes.ok) throw new Error(`Decisions API error: ${decisionsRes.statusText}`)
-
-      const decisionsData = await decisionsRes.json()
+      const decisionsData = decisionsRes.data
       const servicesData = servicesRes.services || []
 
-      // Process Services into a Map of Service -> PodName[]
       const svcMap: Record<string, string[]> = {}
       servicesData.forEach(s => {
         if (s.placement?.nodes) {
@@ -82,7 +74,7 @@ export default function SchedulerDecisions() {
 
     } catch (err) {
       console.error('Error loading data:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load data')
+      toast.error(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -117,43 +109,26 @@ export default function SchedulerDecisions() {
     setApplyResult(null)
 
     try {
-      // Reuse the existing restart endpoint
-      const response = await fetch(`${API_BASE_URL}/restart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          namespace: selectedDecision.namespace,
-          podName: selectedPod,
-          force: true,
-        }),
+      const { data } = await schedulerApi.post<RestartResponse>('/restart', {
+        namespace: selectedDecision.namespace,
+        podName: selectedPod,
+        force: true,
       })
-
-      const text = await response.text()
-      let result
-      try {
-        result = JSON.parse(text)
-      } catch {
-        // fall back to text
-      }
-
-      if (!response.ok) {
-        throw new Error(result?.error || result?.message || text || 'Apply failed')
-      }
 
       setApplyResult({
         success: true,
-        message: result?.message || 'Placement applied successfully (Pod restarted)',
+        message: data.message || 'Placement applied successfully (Pod restarted)',
       })
+      toast.success(data.message || 'Placement applied successfully')
 
-      // Refresh data after success to get new placement status
       setTimeout(() => loadData(), 2000)
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to apply decision'
       setApplyResult({
         success: false,
-        message: err instanceof Error ? err.message : 'Failed to apply decision',
+        message: errorMessage,
       })
+      toast.error(errorMessage)
     } finally {
       setApplying(false)
     }
@@ -202,12 +177,6 @@ export default function SchedulerDecisions() {
         icon={Server}
         actions={
           <div className="flex items-center gap-3">
-            {error && (
-              <span className="text-red-400 text-sm flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4" />
-                Connection Failed
-              </span>
-            )}
             <button
               onClick={loadData}
               disabled={loading}
@@ -284,23 +253,8 @@ export default function SchedulerDecisions() {
         </div>
       )}
 
-      {/* Error State */}
-      {!loading && error && decisions.length === 0 && (
-        <div className="bg-red-900/20 border border-red-900/50 rounded-xl p-8 text-center">
-          <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-red-400 mb-2">Failed to load data</h3>
-          <p className="text-slate-400 mb-6">{error}</p>
-          <button
-            onClick={loadData}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
-        </div>
-      )}
-
       {/* Empty State */}
-      {!loading && !error && filteredDecisions.length === 0 && (
+      {!loading && filteredDecisions.length === 0 && (
         <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-12 text-center">
           <Server className="w-12 h-12 text-slate-600 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-slate-300">No decisions found</h3>

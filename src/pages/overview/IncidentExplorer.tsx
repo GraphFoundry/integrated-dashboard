@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { GraphCanvas, GraphNode as ReagraphNode, GraphEdge as ReagraphEdge } from 'reagraph'
+import toast from 'react-hot-toast'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import EmptyState from '@/components/layout/EmptyState'
 import { ModeButton } from './incidentExplorerUtils'
@@ -26,7 +27,6 @@ type GraphMode = 'impact' | 'suspect' | 'flow'
 
 export default function IncidentExplorer() {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [edges, setEdges] = useState<GraphEdge[]>([])
   const [metadata, setMetadata] = useState<
@@ -56,7 +56,6 @@ export default function IncidentExplorer() {
       if (nodes.length === 0) {
         setLoading(true)
       }
-      setError(null)
 
       try {
         const snapshot = await getDependencyGraphSnapshot()
@@ -67,8 +66,7 @@ export default function IncidentExplorer() {
         }
       } catch (err) {
         if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load graph data')
-          // Don't clear nodes on transient error to prevent flash
+          toast.error(err instanceof Error ? err.message : 'Failed to load graph data')
         }
       } finally {
         if (isMounted) {
@@ -168,27 +166,6 @@ export default function IncidentExplorer() {
         </div>
         <div className="flex-1 flex items-center justify-center">
           <div className="text-slate-400 animate-pulse">Scanning infrastructure topology...</div>
-        </div>
-      </div>
-    )
-  }
-
-  if (error && nodes.length === 0) {
-    return (
-      <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px]">
-        <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-          <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
-        </div>
-        <div className="flex-1 flex items-center justify-center p-8">
-          <EmptyState
-            icon="⚠️"
-            message={error}
-            action={
-              <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">
-                Check backend connectivity to Graph Engine
-              </span>
-            }
-          />
         </div>
       </div>
     )

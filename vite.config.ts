@@ -6,8 +6,6 @@ import { fileURLToPath, URL } from 'node:url'
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), 'VITE_')
   const devServerPort = Number(env.VITE_DEV_SERVER_PORT) || 5173
-  const predictiveBaseUrl = env.VITE_PREDICTIVE_API_BASE_URL || 'http://localhost:5000'
-  const schedulerBaseUrl = env.VITE_SCHEDULER_API_BASE_URL || 'http://140.245.39.115:9020'
 
   return {
     plugins: [react(), tailwindcss()],
@@ -19,18 +17,6 @@ export default defineConfig(({ mode }) => {
     server: {
       port: devServerPort,
       host: true,
-      proxy: {
-        '/api': {
-          target: predictiveBaseUrl,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
-        },
-        '/scheduler-api': {
-          target: schedulerBaseUrl,
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/scheduler-api/, ''),
-        },
-      },
     },
   }
 })

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { RefreshCw, History as HistoryIcon, Filter } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
@@ -52,7 +53,6 @@ export default function History() {
   const navigate = useNavigate()
   const [data, setData] = useState<{ decisions: DecisionRecord[]; total: number } | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState('')
   const [page, setPage] = useState(0)
 
@@ -60,7 +60,6 @@ export default function History() {
 
   const fetchData = async () => {
     setLoading(true)
-    setError(null)
 
     try {
       const result = await getDecisionHistory({
@@ -71,7 +70,7 @@ export default function History() {
 
       setData({ decisions: result.decisions, total: result.pagination.total })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch decision history')
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch decision history')
     } finally {
       setLoading(false)
     }
@@ -124,12 +123,6 @@ export default function History() {
           </button>
         </div>
       </Section>
-
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-          <p className="text-red-300">{error}</p>
-        </div>
-      )}
 
       {/* History List */}
       {data && data.decisions.length > 0 && (

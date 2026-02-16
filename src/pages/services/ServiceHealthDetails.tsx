@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
@@ -23,14 +24,12 @@ export default function ServiceHealthDetails() {
   const [timeRange, setTimeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!serviceName) return
 
     const fetchData = async () => {
       setLoading(true)
-      setError(null)
       try {
         const now = new Date()
         const from = new Date(now.getTime() - getTimeRangeMs(timeRange))
@@ -43,7 +42,7 @@ export default function ServiceHealthDetails() {
         })
         setData(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch service data')
+        toast.error(err instanceof Error ? err.message : 'Failed to fetch service data')
       } finally {
         setLoading(false)
       }
@@ -63,7 +62,7 @@ export default function ServiceHealthDetails() {
   }
 
   // Summary Stats
-  const summary = data?.datapoints.at(-1)
+  const summary = data?.datapoints[data.datapoints.length - 1]
 
   if (!serviceName) {
     return <EmptyState message="Service not found" />
@@ -96,11 +95,6 @@ export default function ServiceHealthDetails() {
         }
       />
 
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4 text-red-300">
-          {error}
-        </div>
-      )}
 
       {loading && !data && (
         <div className="h-64 flex items-center justify-center">

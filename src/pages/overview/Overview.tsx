@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { RefreshCw, LayoutDashboard } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
@@ -9,7 +10,6 @@ import { getGlossaryTerm } from '@/lib/glossary'
 
 export default function Overview() {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [kpiData, setKpiData] = useState<{
     totalServices: number
     avgRequestRate: number
@@ -20,7 +20,6 @@ export default function Overview() {
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    setError(null)
 
     try {
       // Fetch services
@@ -55,7 +54,7 @@ export default function Overview() {
           return
         }
 
-        const latest = telemetry.datapoints.at(-1)
+        const latest = telemetry.datapoints[telemetry.datapoints.length - 1]
         if (!latest) return
 
         totalRequestRate += latest.requestRate
@@ -73,7 +72,7 @@ export default function Overview() {
         avgAvailability: count > 0 ? totalAvailability / count : 0,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load overview data')
+      toast.error(err instanceof Error ? err.message : 'Failed to load overview data')
     } finally {
       setLoading(false)
     }
@@ -106,13 +105,6 @@ export default function Overview() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
           <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
           <p className="text-slate-400">Loading overview...</p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-          <p className="text-red-300">{error}</p>
         </div>
       )}
 

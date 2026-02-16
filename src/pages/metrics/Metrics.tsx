@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck, AlertTriangle } from 'lucide-react'
+import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
@@ -49,12 +50,10 @@ export default function Metrics() {
   const [timeRange, setTimeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [services, setServices] = useState<Array<{ name: string; namespace: string }>>([])
 
   const fetchData = async () => {
     setLoading(true)
-    setError(null)
 
     try {
       const now = new Date()
@@ -70,7 +69,7 @@ export default function Metrics() {
       setData(result)
     } catch (err) {
       console.error('Fetch error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch telemetry data')
+      toast.error(err instanceof Error ? err.message : 'Failed to fetch telemetry data')
     } finally {
       setLoading(false)
     }
@@ -111,7 +110,7 @@ export default function Metrics() {
   // Calculate summary stats from current datapoints
   const summaryStats = data?.datapoints.length
     ? (() => {
-      const latest = data.datapoints.at(-1)
+      const latest = data.datapoints[data.datapoints.length - 1]
       if (!latest) return null
 
       return {
@@ -211,13 +210,6 @@ export default function Metrics() {
           </button>
         </div>
       </div>
-
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex items-center gap-3">
-          <AlertTriangle className="text-red-400 w-5 h-5" />
-          <p className="text-red-200 text-sm font-medium">{error}</p>
-        </div>
-      )}
 
       {/* Vital Signs Cards */}
       {summaryStats && (

@@ -30,11 +30,6 @@ interface RequestOptions {
  */
 export async function getServices(signal?: AbortSignal): Promise<ServicesResponse> {
   const { data } = await predictiveApi.get<ServicesResponse>('/services', { signal })
-
-  // SAFE FALLBACK: If the API doesn't return edges, we generate a consistent topology
-  // so the network graph isn't empty, using the real service nodes.
-
-
   return data
 }
 

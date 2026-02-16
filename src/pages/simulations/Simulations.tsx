@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router'
 import { Sparkles, Activity, Network, Settings } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
@@ -22,7 +23,6 @@ export default function Simulations() {
   const [searchParams] = useSearchParams()
   const [scenarioType, setScenarioType] = useState<ScenarioType>('add-service')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<
     FailureResponse | ScaleResponse | ServiceAdditionResponse | null
   >(null)
@@ -39,7 +39,6 @@ export default function Simulations() {
 
   const handleRun = async (scenario: Scenario) => {
     setLoading(true)
-    setError(null)
     setResult(null)
     setLastScenario(scenario)
 
@@ -73,7 +72,7 @@ export default function Simulations() {
       }
       setResult(response)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to run simulation')
+      toast.error(err instanceof Error ? err.message : 'Failed to run simulation')
     } finally {
       setLoading(false)
     }
@@ -444,12 +443,6 @@ export default function Simulations() {
 
       {/* Results */}
       <div className="space-y-6">
-        {error && (
-          <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-            <p className="text-red-300">{error}</p>
-          </div>
-        )}
-
         {loading && (
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
             <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
@@ -467,7 +460,7 @@ export default function Simulations() {
           </>
         )}
 
-        {!result && !loading && !error && (
+        {!result && !loading && (
           <EmptyState
             icon={<Sparkles className="w-12 h-12 text-slate-600" />}
             message="Configure a scenario and click Run to see predictions"

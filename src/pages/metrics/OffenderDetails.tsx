@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
@@ -24,14 +25,12 @@ export default function OffenderDetails() {
   const [timeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!serviceName) return
 
     const fetchData = async () => {
       setLoading(true)
-      setError(null)
       try {
         const now = new Date()
         const from = new Date(now.getTime() - getTimeRangeMs(timeRange))
@@ -44,7 +43,7 @@ export default function OffenderDetails() {
         })
         setData(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch offender data')
+        toast.error(err instanceof Error ? err.message : 'Failed to fetch offender data')
       } finally {
         setLoading(false)
       }
@@ -71,7 +70,7 @@ export default function OffenderDetails() {
   // Calculate summary stats from latest datapoint
   const summaryStats = data?.datapoints.length
     ? (() => {
-        const latest = data.datapoints.at(-1)
+        const latest = data.datapoints[data.datapoints.length - 1]
         if (!latest) return null
 
         return {
@@ -143,12 +142,6 @@ export default function OffenderDetails() {
           description={`Namespace: ${namespace} • Time range: ${timeRange}`}
         />
       </div>
-
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-          <p className="text-red-300">{error}</p>
-        </div>
-      )}
 
       {/* Loading State */}
       {loading && (

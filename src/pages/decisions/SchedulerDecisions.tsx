@@ -17,6 +17,7 @@ import {
   subtleIconButtonClass,
   successButtonClass,
 } from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import { getServicesWithPlacement } from '@/lib/api'
 import { schedulerApi } from '@/lib/schedulerApiClient'
 
@@ -61,7 +62,7 @@ function FilterSelect({
       <label htmlFor={id} className={controlLabelClass}>
         {label}
       </label>
-      <select
+      <Select
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -73,7 +74,7 @@ function FilterSelect({
             {option}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   )
 }
@@ -460,7 +461,7 @@ export default function SchedulerDecisions() {
                         Select Pod to Restart
                       </label>
                       {availablePods.length > 0 ? (
-                        <select
+                        <Select
                           id="pod-select"
                           value={selectedPod}
                           onChange={(e) => setSelectedPod(e.target.value)}
@@ -469,7 +470,7 @@ export default function SchedulerDecisions() {
                           {availablePods.map(pod => (
                             <option key={pod} value={pod}>{pod}</option>
                           ))}
-                        </select>
+                        </Select>
                       ) : (
                         <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
                           No active pods found for this service.

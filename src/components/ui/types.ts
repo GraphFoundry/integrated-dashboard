@@ -36,11 +36,13 @@ export interface ComboboxAdapterProps extends Omit<InputAdapterProps, 'onChange'
 export interface CheckboxAdapterProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> {
   onChange?: NativeInputChangeHandler
+  label?: React.ReactNode
 }
 
 export interface SwitchAdapterProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'onChange'> {
   onChange?: NativeInputChangeHandler
+  label?: React.ReactNode
 }
 
 export interface RadioItem {
@@ -50,6 +52,8 @@ export interface RadioItem {
 }
 
 export interface RadioGroupAdapterProps {
+  id?: string
+  legend?: React.ReactNode
   name?: string
   value?: string
   onChange?: NativeInputChangeHandler

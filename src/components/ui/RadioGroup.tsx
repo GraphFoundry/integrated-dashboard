@@ -1,6 +1,22 @@
-import type { RadioGroupAdapterProps } from './types'
+import { cn } from '@/components/common/uiClassTokens'
+import { Radio as AriaRadio, RadioGroup as AriaRadioGroup } from 'react-aria-components'
+import type { NativeInputChangeEvent, RadioGroupAdapterProps } from './types'
+
+function createSyntheticRadioEvent(value: string, name?: string): NativeInputChangeEvent {
+  const target = {
+    value,
+    name: name ?? '',
+  } as HTMLInputElement
+
+  return {
+    target,
+    currentTarget: target,
+  } as NativeInputChangeEvent
+}
 
 export function RadioGroup({
+  id,
+  legend,
   name,
   value,
   onChange,
@@ -10,20 +26,46 @@ export function RadioGroup({
   ...ariaProps
 }: RadioGroupAdapterProps) {
   return (
-    <fieldset className={className} disabled={disabled} {...ariaProps}>
+    <AriaRadioGroup
+      id={id}
+      isDisabled={disabled}
+      name={name}
+      value={value}
+      onChange={(nextValue) => onChange?.(createSyntheticRadioEvent(nextValue, name))}
+      {...ariaProps}
+      className={cn('space-y-2', className)}
+    >
+      {legend ? <span className="text-sm font-semibold text-[var(--text-secondary)]">{legend}</span> : null}
       {options.map((option) => (
-        <label key={option.value}>
-          <input
-            type="radio"
-            name={name}
-            value={option.value}
-            checked={value === option.value}
-            disabled={disabled || option.disabled}
-            onChange={onChange}
-          />
-          {option.label}
-        </label>
+        <AriaRadio
+          key={option.value}
+          isDisabled={option.disabled}
+          value={option.value}
+          className={cn(
+            'flex items-center gap-2 rounded-md px-2 py-1 text-sm text-[var(--text-secondary)] outline-none',
+            'focus-visible:shadow-[var(--shadow-neon)]'
+          )}
+        >
+          {({ isSelected }) => (
+            <>
+              <span
+                className={cn(
+                  'h-4 w-4 rounded-full border border-white/30 bg-white/5 p-0.5',
+                  isSelected && 'border-cyan-300/45 bg-cyan-500/20'
+                )}
+              >
+                <span
+                  className={cn(
+                    'block h-full w-full rounded-full bg-transparent',
+                    isSelected && 'bg-cyan-200'
+                  )}
+                />
+              </span>
+              <span>{option.label}</span>
+            </>
+          )}
+        </AriaRadio>
       ))}
-    </fieldset>
+    </AriaRadioGroup>
   )
 }

@@ -132,6 +132,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         ))}
       </select>
       <AriaSelect
+        className="w-full"
         isDisabled={disabled}
         isInvalid={Boolean(ariaInvalid)}
         isRequired={required}
@@ -145,7 +146,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           aria-label={ariaLabel}
           aria-labelledby={ariaLabelledBy}
           autoFocus={autoFocus}
-          className={cn(controlInputMutedClass, 'appearance-none pr-11 text-left', className)}
+          className={cn(
+            controlInputMutedClass,
+            'w-full appearance-none pr-11 text-left',
+            'inline-flex items-center justify-between gap-2',
+            className
+          )}
         >
           <SelectValue />
           <ChevronDown aria-hidden className="h-4 w-4 text-[var(--text-muted)]" />

@@ -58,6 +58,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
 
   return (
     <AriaComboBox
+      className="w-full"
       allowsCustomValue
       inputValue={inputValue}
       isDisabled={disabled}
@@ -66,7 +67,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
       onInputChange={handleInputChange}
       onSelectionChange={handleSelectionChange}
     >
-      <div className="relative">
+      <div className="relative w-full">
         <AriaInput
           ref={ref}
           id={id}

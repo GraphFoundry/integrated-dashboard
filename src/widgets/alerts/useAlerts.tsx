@@ -62,7 +62,7 @@ export function useAlerts({ pageSize = 20 } = {}) {
         if (mounted) {
           setPage(0)
         }
-      } catch (err) {
+      } catch {
         // ignore
       } finally {
         if (mounted) setLoading(false)

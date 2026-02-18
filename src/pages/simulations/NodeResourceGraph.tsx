@@ -86,7 +86,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   } = useServicesWithPlacement()
 
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [error] = useState<string | null>(null)
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
   const [allNodes, setAllNodes] = useState<NodeWithResources[]>([])
   const [viewLevel, setViewLevel] = useState<ViewLevel>('nodes')

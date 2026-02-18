@@ -10,12 +10,18 @@ import {
   cn,
   controlInputMutedClass,
   controlLabelClass,
-  linkActionButtonClass,
   loadingCardClass,
   pageContainerClass,
   primaryButtonClass,
   secondaryButtonClass,
   subtleIconButtonClass,
+  tableActionLinkClass,
+  tableBodyRowClass,
+  tableCellClass,
+  tableHeadRowClass,
+  tableHeadStickyClass,
+  tableHeaderCellClass,
+  tableShellClass,
 } from '@/components/common/uiClassTokens'
 import { getDecisionHistory } from '@/lib/api'
 import { formatShortDate } from '@/lib/format'
@@ -140,27 +146,45 @@ export default function History() {
       {/* History List */}
       {data && data.decisions.length > 0 && (
         <Section>
-          <div className="space-y-3">
-            {data.decisions.map((record) => (
-              <div
-                key={record.id}
-                className="flex items-start justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-white font-medium">{getScenarioSummary(record)}</span>
-                    {getConfidenceBadge(record.result)}
-                  </div>
-                  <p className="text-sm text-slate-400">{formatShortDate(record.timestamp)}</p>
-                </div>
-                <button type="button"
-                  onClick={() => navigate(`/history/${record.id}`)}
-                  className={cn(linkActionButtonClass, 'border border-cyan-300/30 bg-cyan-400/10')}
-                >
-                  View Details
-                </button>
-              </div>
-            ))}
+          <div className={tableShellClass}>
+            <div className="max-h-[560px] overflow-auto">
+              <table className="w-full">
+                <thead className={cn(tableHeadRowClass, tableHeadStickyClass)}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Scenario</th>
+                    <th className={tableHeaderCellClass}>Type</th>
+                    <th className={tableHeaderCellClass}>Confidence</th>
+                    <th className={tableHeaderCellClass}>Timestamp</th>
+                    <th className={tableHeaderCellClass}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.decisions.map((record) => (
+                    <tr key={record.id} className={cn(tableBodyRowClass, 'transition-colors')}>
+                      <td className={cn(tableCellClass, 'font-medium text-[var(--text-primary)]')}>
+                        {getScenarioSummary(record)}
+                      </td>
+                      <td className={tableCellClass}>
+                        <span className="capitalize text-[var(--text-secondary)]">{record.type}</span>
+                      </td>
+                      <td className={tableCellClass}>{getConfidenceBadge(record.result) ?? '—'}</td>
+                      <td className={cn(tableCellClass, 'font-mono text-xs')}>
+                        {formatShortDate(record.timestamp)}
+                      </td>
+                      <td className={tableCellClass}>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/history/${record.id}`)}
+                          className={tableActionLinkClass}
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Pagination */}

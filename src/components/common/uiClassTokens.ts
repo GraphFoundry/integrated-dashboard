@@ -77,6 +77,13 @@ export const tableHeaderCellClass =
 
 export const tableCellClass = 'px-6 py-4 text-sm text-[var(--text-secondary)]'
 
+export const tableHeadStickyClass = 'sticky top-0 z-10 backdrop-blur-md'
+
+export const tableActionLinkClass = cn(
+  linkActionButtonClass,
+  'border border-cyan-300/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/18'
+)
+
 export const shellSidebarClass = cn(
   'surface-panel flex h-screen w-72 flex-col border-r border-white/12',
   'sticky top-0 shadow-[0_20px_45px_rgba(2,6,23,0.32)]'

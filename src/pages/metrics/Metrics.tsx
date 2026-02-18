@@ -12,6 +12,13 @@ import {
   controlInputDarkClass,
   controlLabelCompactClass,
   subtleIconButtonClass,
+  tableActionLinkClass,
+  tableBodyRowClass,
+  tableCellClass,
+  tableHeadRowClass,
+  tableHeadStickyClass,
+  tableHeaderCellClass,
+  tableShellClass,
 } from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
@@ -396,43 +403,47 @@ export default function Metrics() {
           description="Detailed breakdown of every service"
           icon={ShieldCheck}
         >
-          <div className="overflow-hidden bg-slate-800/50 border border-slate-700/50 rounded-xl">
-            <table className="w-full">
-              <thead className="bg-slate-900/80 border-b border-slate-700">
+          <div className={tableShellClass}>
+            <div className="max-h-[560px] overflow-auto">
+              <table className="w-full">
+                <thead className={cn(tableHeadRowClass, tableHeadStickyClass)}>
                 <tr>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className={tableHeaderCellClass}>
                     Component Name
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className={cn(tableHeaderCellClass, 'text-right')}>
                     Traffic
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className={cn(tableHeaderCellClass, 'text-right')}>
                     Success Rate
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className={cn(tableHeaderCellClass, 'text-right')}>
                     Speed (P95)
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className={cn(tableHeaderCellClass, 'text-right')}>
                     Uptime
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
+                  <th className={tableHeaderCellClass}>
                     Quick Action
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-700/50">
+              <tbody>
                 {systemStatus.map((point) => (
-                  <tr key={`${point.namespace}:${point.service}`} className="hover:bg-slate-700/30 transition-colors">
-                    <td className="px-6 py-4 text-sm text-white font-medium">
+                  <tr
+                    key={`${point.namespace}:${point.service}`}
+                    className={cn(tableBodyRowClass, 'transition-colors')}
+                  >
+                    <td className={cn(tableCellClass, 'font-medium text-[var(--text-primary)]')}>
                       <div className="flex flex-col">
                         <span className="text-base">{point.service}</span>
-                        <span className="text-xs text-slate-500 font-mono">{point.namespace}</span>
+                        <span className="font-mono text-xs text-[var(--text-muted)]">{point.namespace}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-300 text-right font-mono">
+                    <td className={cn(tableCellClass, 'text-right font-mono')}>
                       {formatRps(point.requestRate)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right font-mono">
+                    <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${point.errorRate <= 1
                           ? 'bg-emerald-500/10 text-emerald-400'
@@ -444,7 +455,7 @@ export default function Metrics() {
                         {formatPercent(100 - point.errorRate)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-slate-300 text-right font-mono">
+                    <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span
                         className={
                           point.p95 < 500 ? 'text-slate-200' :
@@ -454,7 +465,7 @@ export default function Metrics() {
                         {formatMs(point.p95)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-right font-mono">
+                    <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span
                         className={(() => {
                           const avail = point.availability ?? (100 - (point.errorRate || 0))
@@ -466,12 +477,12 @@ export default function Metrics() {
                         {formatPercent(point.availability ?? (100 - (point.errorRate || 0)))}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm">
+                    <td className={tableCellClass}>
                       <button type="button"
                         onClick={() =>
                           navigate(`/metrics/offenders/${point.namespace}:${point.service}`)
                         }
-                        className="text-blue-400 hover:text-blue-300 font-medium hover:underline decoration-blue-400/30 underline-offset-4"
+                        className={tableActionLinkClass}
                       >
                         Details
                       </button>
@@ -479,7 +490,8 @@ export default function Metrics() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
           </div>
         </Section>
       )}

@@ -11,6 +11,12 @@ import {
   loadingCardClass,
   pageContainerClass,
   subtleIconButtonClass,
+  tableBodyRowClass,
+  tableCellClass,
+  tableHeadRowClass,
+  tableHeadStickyClass,
+  tableHeaderCellClass,
+  tableShellClass,
 } from '@/components/common/uiClassTokens'
 import { formatDistanceToNow } from '@/lib/format'
 import {
@@ -359,8 +365,8 @@ export default function AlertsPage() {
       </div>
 
       {/* Incidents Table */}
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden shadow-lg">
-        <div className="bg-gray-700/30 px-6 py-4 border-b border-gray-700/50">
+      <div className={tableShellClass}>
+        <div className="border-b border-white/10 bg-white/[0.03] px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-400" />
@@ -371,37 +377,23 @@ export default function AlertsPage() {
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[620px] overflow-auto">
           <table className="w-full">
-            <thead className="bg-gray-700/20">
+            <thead className={cn(tableHeadRowClass, tableHeadStickyClass)}>
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Service
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Severity
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Action
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Priority
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Events
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Last Update
-                </th>
+                <th className={tableHeaderCellClass}>Service</th>
+                <th className={tableHeaderCellClass}>Severity</th>
+                <th className={tableHeaderCellClass}>Status</th>
+                <th className={tableHeaderCellClass}>Action</th>
+                <th className={tableHeaderCellClass}>Priority</th>
+                <th className={tableHeaderCellClass}>Events</th>
+                <th className={tableHeaderCellClass}>Last Update</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700/50">
+            <tbody>
               {incidents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
+                  <td colSpan={7} className={cn(tableCellClass, 'py-16 text-center')}>
                     <EmptyState
                       icon={<CheckCircle2 className="h-12 w-12 text-gray-500" />}
                       title="No incidents found"
@@ -422,9 +414,9 @@ export default function AlertsPage() {
                 incidents.map((incident) => (
                   <tr
                     key={`${incident.dedupe_key}-${incident.service}`}
-                    className="hover:bg-gray-700/30 transition-colors duration-150"
+                    className={cn(tableBodyRowClass, 'transition-colors duration-150')}
                   >
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <Link
                         to={`/alerts/${encodeURIComponent(incident.dedupe_key)}?namespace=${incident.namespace}&service=${incident.service}`}
                         className="group flex flex-col"
@@ -435,7 +427,7 @@ export default function AlertsPage() {
                         <span className="text-xs text-gray-500 mt-0.5">{incident.namespace}</span>
                       </Link>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="inline-flex items-center gap-2">
                         <span
                           className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
@@ -480,12 +472,12 @@ export default function AlertsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <StatusBadge variant={incident.status === 'OPEN' ? 'warning' : 'success'}>
                         {incident.status}
                       </StatusBadge>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="flex flex-col gap-1">
                         <span className="text-sm font-medium text-white">
                           {incident.current_action}
@@ -505,7 +497,7 @@ export default function AlertsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
                           incident.current_priority === 'P1'
@@ -518,14 +510,14 @@ export default function AlertsPage() {
                         {incident.current_priority}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="flex items-center gap-2">
                         <span className="inline-flex items-center justify-center w-7 h-7 bg-gray-700/50 rounded-full text-xs font-semibold text-gray-300">
                           {incident.event_count}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="flex items-center gap-1.5 text-sm text-gray-300">
                         <Clock className="w-3.5 h-3.5 text-gray-500" />
                         {formatDistanceToNow(incident.last_observed_at)}

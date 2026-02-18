@@ -7,6 +7,7 @@ import {
   controlLabelClass,
   primaryButtonClass,
 } from '@/components/common/uiClassTokens'
+import { Input } from '@/components/ui'
 
 // Example services for Mock mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
@@ -261,7 +262,7 @@ export default function ScenarioForm({
             >
               Service Name
             </label>
-            <input
+            <Input
               id="newServiceName"
               type="text"
               value={newServiceName}
@@ -279,7 +280,7 @@ export default function ScenarioForm({
               >
                 Min CPU (Cores)
               </label>
-              <input
+              <Input
                 id="minCpu"
                 type="number"
                 step="0.1"
@@ -404,7 +405,7 @@ export default function ScenarioForm({
                 </span>
               )}
             </label>
-            <input
+            <Input
               id="serviceId"
               type="text"
               value={serviceId}
@@ -493,7 +494,7 @@ export default function ScenarioForm({
                   >
                     Current Pods
                   </label>
-                  <input
+                  <Input
                     id="currentPods"
                     type="number"
                     min="1"
@@ -509,7 +510,7 @@ export default function ScenarioForm({
                   >
                     New Pods
                   </label>
-                  <input
+                  <Input
                     id="newPods"
                     type="number"
                     min="1"

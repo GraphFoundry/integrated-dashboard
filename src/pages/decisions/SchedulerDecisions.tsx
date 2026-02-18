@@ -4,6 +4,13 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import {
+  cn,
+  controlInputPanelClass,
+  controlLabelClass,
+  iconActionButtonClass,
+  secondaryButtonClass,
+} from '@/components/common/uiClassTokens'
 import { getServicesWithPlacement } from '@/lib/api'
 import { schedulerApi } from '@/lib/schedulerApiClient'
 
@@ -181,7 +188,10 @@ export default function SchedulerDecisions() {
             <button
               onClick={loadData}
               disabled={loading}
-              className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer shadow-lg shadow-blue-900/20"
+              className={cn(
+                iconActionButtonClass,
+                'cursor-pointer p-2 shadow-lg shadow-blue-900/20'
+              )}
               title="Refresh data"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -196,7 +206,7 @@ export default function SchedulerDecisions() {
           <div className="flex-1 w-full">
             <label
               htmlFor="namespace-filter"
-              className="block text-sm font-medium text-gray-300 mb-2"
+              className={controlLabelClass}
             >
               Filter by Namespace
             </label>
@@ -204,7 +214,7 @@ export default function SchedulerDecisions() {
               id="namespace-filter"
               value={namespaceFilter}
               onChange={(e) => setNamespaceFilter(e.target.value)}
-              className="w-full bg-gray-900/50 text-white border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={controlInputPanelClass}
             >
               <option value="">All Namespaces</option>
               {uniqueNamespaces.map((ns) => (
@@ -215,14 +225,14 @@ export default function SchedulerDecisions() {
             </select>
           </div>
           <div className="flex-1 w-full">
-            <label htmlFor="status-filter" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="status-filter" className={controlLabelClass}>
               Filter by Status
             </label>
             <select
               id="status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-gray-900/50 text-white border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={controlInputPanelClass}
             >
               <option value="">All Statuses</option>
               {uniqueStatuses.map((status) => (
@@ -237,7 +247,10 @@ export default function SchedulerDecisions() {
               setNamespaceFilter('')
               setStatusFilter('')
             }}
-            className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors whitespace-nowrap h-[42px] border border-slate-600"
+            className={cn(
+              secondaryButtonClass,
+              'h-[42px] whitespace-nowrap border border-slate-600 px-6'
+            )}
           >
             Clear Filters
           </button>
@@ -400,7 +413,7 @@ export default function SchedulerDecisions() {
                         <select
                           value={selectedPod}
                           onChange={(e) => setSelectedPod(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
+                          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                         >
                           {availablePods.map(pod => (
                             <option key={pod} value={pod}>{pod}</option>

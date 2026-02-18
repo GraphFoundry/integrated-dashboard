@@ -6,6 +6,14 @@ import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import {
+  cn,
+  controlInputMutedClass,
+  controlLabelClass,
+  iconActionButtonClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/common/uiClassTokens'
 import { getDecisionHistory } from '@/lib/api'
 import { formatShortDate } from '@/lib/format'
 import type { DecisionRecord } from '@/lib/types'
@@ -96,7 +104,7 @@ export default function History() {
       <Section icon={Filter}>
         <div className="flex gap-4 items-end">
           <div className="flex-1">
-            <label htmlFor="type-filter" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="type-filter" className={controlLabelClass}>
               Filter by Type
             </label>
             <select
@@ -106,7 +114,7 @@ export default function History() {
                 setTypeFilter(e.target.value)
                 setPage(0)
               }}
-              className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={controlInputMutedClass}
             >
               <option value="">All Types</option>
               <option value="failure">Failure</option>
@@ -117,7 +125,7 @@ export default function History() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="p-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors h-[42px] w-[42px] flex items-center justify-center cursor-pointer"
+            className={cn(iconActionButtonClass, 'h-[42px] w-[42px] cursor-pointer p-2.5')}
             title="Refresh data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -161,14 +169,14 @@ export default function History() {
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 0}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg font-medium transition-colors"
+                className={secondaryButtonClass}
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page >= totalPages - 1}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-600 text-white rounded-lg font-medium transition-colors"
+                className={secondaryButtonClass}
               >
                 Next
               </button>
@@ -186,7 +194,7 @@ export default function History() {
             typeFilter ? (
               <button
                 onClick={() => setTypeFilter('')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                className={primaryButtonClass}
               >
                 Clear Filters
               </button>

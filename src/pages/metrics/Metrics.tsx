@@ -6,6 +6,12 @@ import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import {
+  cn,
+  controlInputDarkClass,
+  controlLabelCompactClass,
+  iconActionButtonClass,
+} from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
@@ -157,7 +163,7 @@ export default function Metrics() {
       <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4 backdrop-blur-sm">
         <div className="flex gap-4 items-end">
           <div className="flex-1">
-            <label htmlFor="service-select" className="block text-xs font-semibold text-slate-400 uppercase mb-2 tracking-wider">
+            <label htmlFor="service-select" className={controlLabelCompactClass}>
               Focus Area (Service)
             </label>
             <div className="relative">
@@ -165,7 +171,7 @@ export default function Metrics() {
                 id="service-select"
                 value={serviceName}
                 onChange={(e) => setServiceName(e.target.value)}
-                className="w-full bg-slate-800 text-white border border-slate-600/50 rounded-lg px-4 py-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none appearance-none transition-all shadow-lg"
+                className={cn(controlInputDarkClass, 'appearance-none py-3 shadow-lg')}
               >
                 <option value="">Entire System (Global)</option>
                 {services.map((service) => (
@@ -180,7 +186,7 @@ export default function Metrics() {
             </div>
           </div>
           <div className="flex-1">
-            <label htmlFor="time-range-select" className="block text-xs font-semibold text-slate-400 uppercase mb-2 tracking-wider">
+            <label htmlFor="time-range-select" className={controlLabelCompactClass}>
               Time Horizon
             </label>
             <div className="relative">
@@ -188,7 +194,7 @@ export default function Metrics() {
                 id="time-range-select"
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
-                className="w-full bg-slate-800 text-white border border-slate-600/50 rounded-lg px-4 py-3 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none appearance-none transition-all shadow-lg"
+                className={cn(controlInputDarkClass, 'appearance-none py-3 shadow-lg')}
               >
                 <option value="5m">Last 5 minutes (Real-time)</option>
                 <option value="15m">Last 15 minutes</option>
@@ -204,7 +210,10 @@ export default function Metrics() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="p-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-slate-700 disabled:opacity-50 text-white rounded-lg transition-all h-[46px] w-[46px] flex items-center justify-center cursor-pointer shadow-lg shadow-blue-900/20"
+            className={cn(
+              iconActionButtonClass,
+              'h-[46px] w-[46px] cursor-pointer p-3 shadow-lg shadow-blue-900/20 hover:bg-blue-500 active:bg-blue-700 disabled:bg-slate-700'
+            )}
             title="Refresh Vital Signs"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />

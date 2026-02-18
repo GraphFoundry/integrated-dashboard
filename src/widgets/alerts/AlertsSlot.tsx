@@ -1,6 +1,12 @@
 import type { AlertsComponentProps } from '@/widgets/alerts/types'
 import { useAlerts } from '@/widgets/alerts/useAlerts'
 import { useState } from 'react'
+import {
+  cn,
+  controlInputDarkClass,
+  primaryButtonClass,
+  secondaryButtonClass,
+} from '@/components/common/uiClassTokens'
 
 /**
  * AlertsSlot - Integration mount point for teammate's Alert Engine UI
@@ -193,7 +199,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
           <select
             value={severity ?? ''}
             onChange={(e) => setSeverity(e.target.value || undefined)}
-            className="bg-slate-900 text-slate-200 text-sm rounded px-2 py-1"
+            className={cn(controlInputDarkClass, 'w-auto px-2 py-1 text-sm')}
           >
             <option value="">All severities</option>
             <option value="critical">Critical</option>
@@ -205,21 +211,24 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
             value={svc ?? ''}
             onChange={(e) => setSvc(e.target.value || undefined)}
             placeholder="Service ID"
-            className="bg-slate-900 text-slate-200 text-sm rounded px-2 py-1"
+            className={cn(controlInputDarkClass, 'w-auto px-2 py-1 text-sm')}
           />
 
           <input
             value={q ?? ''}
             onChange={(e) => setQ(e.target.value || undefined)}
             placeholder="Search"
-            className="bg-slate-900 text-slate-200 text-sm rounded px-2 py-1 flex-1"
+            className={cn(controlInputDarkClass, 'flex-1 px-2 py-1 text-sm')}
           />
 
-          <button onClick={applyFilters} className="text-sm text-blue-400 hover:underline">
+          <button onClick={applyFilters} className={cn(primaryButtonClass, 'px-3 py-1 text-sm')}>
             Apply
           </button>
 
-          <button onClick={clearFilters} className="text-sm text-slate-400 hover:underline">
+          <button
+            onClick={clearFilters}
+            className={cn(secondaryButtonClass, 'px-3 py-1 text-sm text-slate-300')}
+          >
             Clear
           </button>
         </div>

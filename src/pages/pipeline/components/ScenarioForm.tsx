@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { Scenario, ScenarioType, DiscoveredService, TimeWindow } from '@/lib/types'
 import { getServices } from '@/lib/api'
+import {
+  cn,
+  controlInputMutedClass,
+  controlLabelClass,
+  primaryButtonClass,
+} from '@/components/common/uiClassTokens'
 
 // Example services for Mock mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
@@ -27,6 +33,9 @@ interface ScenarioFormProps {
   readonly scenarioType: ScenarioType
   readonly onScenarioTypeChange: (type: ScenarioType) => void
 }
+
+const compactControlClass =
+  'w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
 
 export default function ScenarioForm({
   onRun,
@@ -209,14 +218,14 @@ export default function ScenarioForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Scenario Type */}
       <div>
-        <label htmlFor="scenarioType" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="scenarioType" className={controlLabelClass}>
           Scenario Type
         </label>
         <select
           id="scenarioType"
           value={scenarioType}
           onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
-          className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+          className={controlInputMutedClass}
         >
           <option value="add-service">Add New Service</option>
           <option value="failure">Failure Simulation</option>
@@ -226,14 +235,14 @@ export default function ScenarioForm({
 
       {/* Time Period (For all simulation types) */}
       <div className="mb-4">
-        <label htmlFor="timeWindow" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="timeWindow" className={controlLabelClass}>
           Decision Time Period
         </label>
         <select
           id="timeWindow"
           value={timeWindow}
           onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
-          className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+          className={controlInputMutedClass}
         >
           <option value="5d">5 Days</option>
           <option value="1w">1 Week</option>
@@ -248,7 +257,7 @@ export default function ScenarioForm({
           <div>
             <label
               htmlFor="newServiceName"
-              className="block text-sm font-medium text-slate-300 mb-2"
+              className={controlLabelClass}
             >
               Service Name
             </label>
@@ -258,7 +267,7 @@ export default function ScenarioForm({
               value={newServiceName}
               onChange={(e) => setNewServiceName(e.target.value)}
               placeholder="e.g., payment-service"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className={compactControlClass}
             />
           </div>
 
@@ -266,7 +275,7 @@ export default function ScenarioForm({
             <div>
               <label
                 htmlFor="minCpu"
-                className="block text-sm font-medium text-slate-300 mb-2"
+                className={controlLabelClass}
               >
                 Min CPU (Cores)
               </label>
@@ -277,13 +286,13 @@ export default function ScenarioForm({
                 min="0.1"
                 value={minCpu}
                 onChange={(e) => setMinCpu(Number(e.target.value))}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={compactControlClass}
               />
             </div>
             <div>
               <label
                 htmlFor="minRam"
-                className="block text-sm font-medium text-slate-300 mb-2"
+                className={controlLabelClass}
               >
                 Memory Allocation
               </label>
@@ -291,7 +300,7 @@ export default function ScenarioForm({
                 id="minRam"
                 value={minRam}
                 onChange={(e) => setMinRam(Number(e.target.value))}
-                className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                className={controlInputMutedClass}
               >
                 <option value={128}>128 MB</option>
                 <option value={256}>256 MB</option>
@@ -309,7 +318,7 @@ export default function ScenarioForm({
           <div>
             <label
               htmlFor="addReplicas"
-              className="block text-sm font-medium text-slate-300 mb-2"
+              className={controlLabelClass}
             >
               Replicas
             </label>
@@ -317,7 +326,7 @@ export default function ScenarioForm({
               id="addReplicas"
               value={addReplicas}
               onChange={(e) => setAddReplicas(Number(e.target.value))}
-              className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={controlInputMutedClass}
             >
               {[1, 2, 3, 4, 5, 10].map((num) => (
                 <option key={num} value={num}>
@@ -329,7 +338,7 @@ export default function ScenarioForm({
 
           {/* Dependencies */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
+            <label className={controlLabelClass}>
               Dependencies
             </label>
             <div className="space-y-2 mb-2">
@@ -338,7 +347,7 @@ export default function ScenarioForm({
                   <select
                     value={dep}
                     onChange={(e) => handleDependencyChange(idx, e.target.value)}
-                    className="flex-1 bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    className={cn(controlInputMutedClass, 'flex-1')}
                   >
                     <option value="">Select Service...</option>
                     {discoveredServices.length > 0
@@ -378,7 +387,7 @@ export default function ScenarioForm({
           <div>
             <label
               htmlFor="serviceId"
-              className="block text-sm font-medium text-slate-300 mb-2"
+              className={controlLabelClass}
             >
               Service ID
               {mode === 'live' && (
@@ -404,8 +413,11 @@ export default function ScenarioForm({
               placeholder={
                 mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'
               }
-              className={`w-full px-3 py-2 bg-slate-800 border rounded text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 ${serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
-                }`}
+              className={cn(
+                compactControlClass,
+                'placeholder-slate-500',
+                serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
+              )}
               disabled={mode === 'live' && servicesLoading}
             />
             {/* Datalist for Live mode autocomplete */}
@@ -450,7 +462,7 @@ export default function ScenarioForm({
           <div>
             <label
               htmlFor="maxDepth"
-              className="block text-sm font-medium text-slate-300 mb-2"
+              className={controlLabelClass}
             >
               Max Depth: {maxDepth}
             </label>
@@ -477,7 +489,7 @@ export default function ScenarioForm({
                 <div>
                   <label
                     htmlFor="currentPods"
-                    className="block text-sm font-medium text-slate-300 mb-2"
+                    className={controlLabelClass}
                   >
                     Current Pods
                   </label>
@@ -487,13 +499,13 @@ export default function ScenarioForm({
                     min="1"
                     value={currentPods}
                     onChange={(e) => setCurrentPods(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={compactControlClass}
                   />
                 </div>
                 <div>
                   <label
                     htmlFor="newPods"
-                    className="block text-sm font-medium text-slate-300 mb-2"
+                    className={controlLabelClass}
                   >
                     New Pods
                   </label>
@@ -503,7 +515,7 @@ export default function ScenarioForm({
                     min="1"
                     value={newPods}
                     onChange={(e) => setNewPods(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className={compactControlClass}
                   />
                 </div>
               </div>
@@ -511,7 +523,7 @@ export default function ScenarioForm({
               <div>
                 <label
                   htmlFor="latencyMetric"
-                  className="block text-sm font-medium text-gray-300 mb-2"
+                  className={controlLabelClass}
                 >
                   Latency Metric
                 </label>
@@ -519,7 +531,7 @@ export default function ScenarioForm({
                   id="latencyMetric"
                   value={latencyMetric}
                   onChange={(e) => setLatencyMetric(e.target.value as 'p50' | 'p95' | 'p99')}
-                  className="w-full bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                  className={controlInputMutedClass}
                 >
                   <option value="p50">P50</option>
                   <option value="p95">P95</option>
@@ -534,7 +546,10 @@ export default function ScenarioForm({
       <button
         type="submit"
         disabled={!isValid() || loading}
-        className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors"
+        className={cn(
+          primaryButtonClass,
+          'w-full py-3 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500'
+        )}
       >
         {loading ? 'Running...' : 'Run Simulation'}
       </button>

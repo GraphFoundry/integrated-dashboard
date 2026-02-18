@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router'
 import { bffApi, Incident, Overview, connectToAlertStream, WSMessage } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
+import { controlInputMutedClass, controlLabelClass } from '@/components/common/uiClassTokens'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   AlertTriangle,
@@ -269,11 +270,11 @@ export default function AlertsPage() {
         </div>
         <div className="flex flex-wrap gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
+            <label className={controlLabelClass}>Status</label>
             <select
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value as any })}
-              className="bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={controlInputMutedClass}
             >
               <option value="all">All Statuses</option>
               <option value="open">Open</option>
@@ -282,11 +283,11 @@ export default function AlertsPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Severity</label>
+            <label className={controlLabelClass}>Severity</label>
             <select
               value={filter.severity}
               onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
-              className="bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={controlInputMutedClass}
             >
               <option value="">All Severities</option>
               <option value="critical">🔴 Critical</option>

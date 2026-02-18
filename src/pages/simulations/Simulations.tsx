@@ -7,6 +7,7 @@ import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import { loadingCardClass, pageContainerClass } from '@/components/common/uiClassTokens'
 
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import NodeResourceGraph from './NodeResourceGraph'
@@ -420,7 +421,7 @@ export default function Simulations() {
   const nodeMetricOverrides = getNodeMetricOverrides()
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       <PageHeader
         title="Simulations"
         description="Predict failure and scaling impact"
@@ -459,7 +460,7 @@ export default function Simulations() {
       {/* Results */}
       <div className="space-y-6">
         {loading && (
-          <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+          <div className={loadingCardClass}>
             <LoadingSpinner fullHeight={false} message="Running simulation..." />
           </div>
         )}

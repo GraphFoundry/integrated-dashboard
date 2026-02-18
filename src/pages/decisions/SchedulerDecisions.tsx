@@ -3,12 +3,15 @@ import { RefreshCw, Calendar, Filter, Server, X, Play, CheckCircle, AlertTriangl
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
+import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import {
   cn,
   controlInputPanelClass,
   controlLabelClass,
   iconActionButtonClass,
+  loadingCardClass,
+  pageContainerClass,
   secondaryButtonClass,
 } from '@/components/common/uiClassTokens'
 import { getServicesWithPlacement } from '@/lib/api'
@@ -217,7 +220,7 @@ export default function SchedulerDecisions() {
   const uniqueStatuses = Array.from(new Set(decisions.map((d) => d.status))).sort()
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20">
+    <div className={`${pageContainerClass} pb-20`}>
       <PageHeader
         title="Scheduler Decisions"
         description="Real-time Kubernetes scheduling decisions. Apply recommendations to optimize placement."
@@ -276,18 +279,19 @@ export default function SchedulerDecisions() {
 
       {/* Loading State */}
       {loading && decisions.length === 0 && (
-        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12">
+        <div className={loadingCardClass}>
           <LoadingSpinner fullHeight={false} message="Loading live decisions..." />
         </div>
       )}
 
       {/* Empty State */}
       {!loading && filteredDecisions.length === 0 && (
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-12 text-center">
-          <Server className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-300">No decisions found</h3>
-          <p className="text-slate-500">Try adjusting your filters or wait for new scheduling events.</p>
-        </div>
+        <EmptyState
+          icon={<Server className="h-12 w-12 text-slate-600" />}
+          title="No decisions found"
+          message="Try adjusting your filters."
+          description="No scheduling events currently match the selected criteria."
+        />
       )}
 
       {/* Decisions Grid */}

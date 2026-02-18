@@ -4,6 +4,7 @@ import { bffApi, IncidentDetail, AlertEvent } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import ErrorBanner from '@/components/common/ErrorBanner'
+import { loadingCardClass, pageContainerClass } from '@/components/common/uiClassTokens'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   ArrowLeft,
@@ -73,8 +74,8 @@ export default function IncidentDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto">
-        <div className="rounded-xl border border-firebase-border bg-firebase-card p-10">
+      <div className={pageContainerClass}>
+        <div className={loadingCardClass}>
           <LoadingSpinner fullHeight={false} message="Loading incident details..." />
         </div>
       </div>
@@ -83,7 +84,7 @@ export default function IncidentDetailPage() {
 
   if (error || !incident) {
     return (
-      <div className="max-w-7xl mx-auto">
+      <div className={pageContainerClass}>
         <ErrorBanner message={error || 'Incident not found'} />
         <Link to="/alerts" className="text-blue-400 hover:text-blue-300 mt-4 inline-block">
           ← Back to Alerts
@@ -93,7 +94,7 @@ export default function IncidentDetailPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       {/* Header with gradient */}
       <div className="relative overflow-hidden bg-gradient-to-r from-purple-600/20 via-blue-600/20 to-cyan-600/20 rounded-2xl border border-gray-700/50 p-8">
         <div className="relative z-10">

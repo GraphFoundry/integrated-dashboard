@@ -2,7 +2,14 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router'
 import { bffApi, Incident, Overview, connectToAlertStream, WSMessage } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
-import { controlInputMutedClass, controlLabelClass } from '@/components/common/uiClassTokens'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
+import EmptyState from '@/components/layout/EmptyState'
+import {
+  controlInputMutedClass,
+  controlLabelClass,
+  loadingCardClass,
+  pageContainerClass,
+} from '@/components/common/uiClassTokens'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   AlertTriangle,
@@ -159,15 +166,16 @@ export default function AlertsPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-6">Alerts Dashboard</h1>
-        <div className="text-gray-400">Loading...</div>
+      <div className={pageContainerClass}>
+        <div className={loadingCardClass}>
+          <LoadingSpinner fullHeight={false} message="Loading alerts dashboard..." />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       {/* Header with gradient */}
       <div className="relative overflow-hidden bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-2xl border border-gray-700/50 p-8">
         <div className="relative z-10">
@@ -343,17 +351,20 @@ export default function AlertsPage() {
               {incidents.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className="p-4 bg-gray-700/30 rounded-full">
-                        <CheckCircle2 className="w-12 h-12 text-gray-500" />
-                      </div>
-                      <div className="text-lg font-medium text-gray-400">No incidents found</div>
-                      <p className="text-sm text-gray-500 max-w-md">
-                        {filter.status === 'open'
-                          ? 'All systems are operating normally. No open incidents at this time.'
-                          : 'No incidents match the current filter criteria.'}
-                      </p>
-                    </div>
+                    <EmptyState
+                      icon={<CheckCircle2 className="h-12 w-12 text-gray-500" />}
+                      title="No incidents found"
+                      message={
+                        filter.status === 'open'
+                          ? 'All systems are operating normally.'
+                          : 'No incidents match the current filter criteria.'
+                      }
+                      description={
+                        filter.status === 'open'
+                          ? 'No open incidents at this time.'
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ) : (

@@ -132,7 +132,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         ))}
       </select>
       <AriaSelect
-        className="w-full"
+        className="block w-full"
         isDisabled={disabled}
         isInvalid={Boolean(ariaInvalid)}
         isRequired={required}
@@ -149,7 +149,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           className={cn(
             controlInputMutedClass,
             'w-full appearance-none pr-11 text-left',
-            'inline-flex items-center justify-between gap-2',
+            'flex items-center justify-between gap-2',
             className
           )}
         >

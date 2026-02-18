@@ -58,7 +58,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
 
   return (
     <AriaComboBox
-      className="w-full"
+      className="block w-full"
       allowsCustomValue
       inputValue={inputValue}
       isDisabled={disabled}

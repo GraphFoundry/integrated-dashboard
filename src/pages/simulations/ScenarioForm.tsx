@@ -7,7 +7,7 @@ import {
   controlLabelClass,
   primaryButtonClass,
 } from '@/components/common/uiClassTokens'
-import { Input } from '@/components/ui'
+import { Input, Slider } from '@/components/ui'
 
 // Example services for Mock mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
@@ -467,9 +467,8 @@ export default function ScenarioForm({
             >
               Max Depth: {maxDepth}
             </label>
-            <input
+            <Slider
               id="maxDepth"
-              type="range"
               min="1"
               max="3"
               value={maxDepth}

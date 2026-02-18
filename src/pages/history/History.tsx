@@ -23,6 +23,7 @@ import {
   tableHeaderCellClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import { getDecisionHistory } from '@/lib/api'
 import { formatShortDate } from '@/lib/format'
 import type { DecisionRecord } from '@/lib/types'
@@ -116,7 +117,7 @@ export default function History() {
             <label htmlFor="type-filter" className={controlLabelClass}>
               Filter by Type
             </label>
-            <select
+            <Select
               id="type-filter"
               value={typeFilter}
               onChange={(e) => {
@@ -129,7 +130,7 @@ export default function History() {
               <option value="failure">Failure</option>
               <option value="scaling">Scaling</option>
               <option value="scale">Scale</option>
-            </select>
+            </Select>
           </div>
           <button type="button"
             onClick={fetchData}

@@ -30,6 +30,53 @@ interface Toast {
   type: 'info' | 'warning' | 'success'
 }
 
+interface OverviewStatCardProps {
+  readonly accentContainerClass: string
+  readonly borderClass: string
+  readonly hoverBorderClass: string
+  readonly hoverShadowClass: string
+  readonly glowBaseClass: string
+  readonly glowHoverClass: string
+  readonly icon: React.ReactNode
+  readonly topRight?: React.ReactNode
+  readonly title: string
+  readonly value: React.ReactNode
+  readonly subtitle: React.ReactNode
+}
+
+function OverviewStatCard({
+  accentContainerClass,
+  borderClass,
+  hoverBorderClass,
+  hoverShadowClass,
+  glowBaseClass,
+  glowHoverClass,
+  icon,
+  topRight,
+  title,
+  value,
+  subtitle,
+}: OverviewStatCardProps) {
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-xl border p-6 backdrop-blur-sm transition-all duration-300 ${borderClass} ${hoverBorderClass} ${hoverShadowClass}`}
+    >
+      <div className="mb-4 flex items-start justify-between">
+        <div className={`rounded-lg p-3 ${accentContainerClass}`}>{icon}</div>
+        {topRight}
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-gray-300">{title}</p>
+        <p className="text-4xl font-bold text-white">{value}</p>
+        <p className="text-xs text-gray-400">{subtitle}</p>
+      </div>
+      <div
+        className={`absolute bottom-0 right-0 h-32 w-32 rounded-full blur-2xl transition-all ${glowBaseClass} ${glowHoverClass}`}
+      />
+    </div>
+  )
+}
+
 export default function AlertsPage() {
   const [overview, setOverview] = useState<Overview | null>(null)
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -193,80 +240,76 @@ export default function AlertsPage() {
       {/* Overview Stats with Enhanced Cards */}
       {overview && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Open Incidents Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-sm rounded-xl border border-orange-500/30 p-6 hover:border-orange-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-orange-500/20 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-orange-400" />
-              </div>
+          <OverviewStatCard
+            accentContainerClass="bg-orange-500/20"
+            borderClass="border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-red-500/10"
+            hoverBorderClass="hover:border-orange-500/50"
+            hoverShadowClass="hover:shadow-lg hover:shadow-orange-500/20"
+            glowBaseClass="bg-orange-500/5"
+            glowHoverClass="group-hover:bg-orange-500/10"
+            icon={<AlertTriangle className="w-6 h-6 text-orange-400" />}
+            topRight={
               <div className="flex items-center gap-1 text-xs text-gray-400">
                 <Activity className="w-3 h-3" />
                 <span>Live</span>
               </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Open Incidents</p>
-              <p className="text-4xl font-bold text-white">{overview.open_incidents}</p>
-              <p className="text-xs text-gray-400">{overview.total_incidents} total incidents</p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-2xl group-hover:bg-orange-500/10 transition-all"></div>
-          </div>
+            }
+            title="Open Incidents"
+            value={overview.open_incidents}
+            subtitle={`${overview.total_incidents} total incidents`}
+          />
 
-          {/* Critical Alerts Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-red-500/10 to-pink-500/10 backdrop-blur-sm rounded-xl border border-red-500/30 p-6 hover:border-red-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-red-500/20 rounded-lg">
-                <Zap className="w-6 h-6 text-red-400" />
-              </div>
-              {overview.critical_count > 0 && (
+          <OverviewStatCard
+            accentContainerClass="bg-red-500/20"
+            borderClass="border-red-500/30 bg-gradient-to-br from-red-500/10 to-pink-500/10"
+            hoverBorderClass="hover:border-red-500/50"
+            hoverShadowClass="hover:shadow-lg hover:shadow-red-500/20"
+            glowBaseClass="bg-red-500/5"
+            glowHoverClass="group-hover:bg-red-500/10"
+            icon={<Zap className="w-6 h-6 text-red-400" />}
+            topRight={
+              overview.critical_count > 0 ? (
                 <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs font-semibold rounded-full">
                   URGENT
                 </span>
-              )}
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Critical Alerts</p>
-              <p className="text-4xl font-bold text-white">{overview.critical_count}</p>
-              <p className="text-xs text-gray-400">{overview.high_count} high severity</p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all"></div>
-          </div>
+              ) : undefined
+            }
+            title="Critical Alerts"
+            value={overview.critical_count}
+            subtitle={`${overview.high_count} high severity`}
+          />
 
-          {/* Auto Actions Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-xl border border-green-500/30 p-6 hover:border-green-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-green-500/20 rounded-lg">
-                <CheckCircle2 className="w-6 h-6 text-green-400" />
-              </div>
+          <OverviewStatCard
+            accentContainerClass="bg-green-500/20"
+            borderClass="border-green-500/30 bg-gradient-to-br from-green-500/10 to-emerald-500/10"
+            hoverBorderClass="hover:border-green-500/50"
+            hoverShadowClass="hover:shadow-lg hover:shadow-green-500/20"
+            glowBaseClass="bg-green-500/5"
+            glowHoverClass="group-hover:bg-green-500/10"
+            icon={<CheckCircle2 className="w-6 h-6 text-green-400" />}
+            topRight={
               <div className="flex items-center gap-1 text-xs text-green-400">
                 <TrendingUp className="w-3 h-3" />
                 <span>Automated</span>
               </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Auto Actions</p>
-              <p className="text-4xl font-bold text-white">{overview.auto_actions_count}</p>
-              <p className="text-xs text-gray-400">
-                {overview.manual_actions_count} manual reviews
-              </p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-all"></div>
-          </div>
+            }
+            title="Auto Actions"
+            value={overview.auto_actions_count}
+            subtitle={`${overview.manual_actions_count} manual reviews`}
+          />
 
-          {/* Services Affected Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm rounded-xl border border-blue-500/30 p-6 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-blue-500/20 rounded-lg">
-                <Users className="w-6 h-6 text-blue-400" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Services Affected</p>
-              <p className="text-4xl font-bold text-white">{overview.services_affected}</p>
-              <p className="text-xs text-gray-400">Active monitoring</p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all"></div>
-          </div>
+          <OverviewStatCard
+            accentContainerClass="bg-blue-500/20"
+            borderClass="border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-cyan-500/10"
+            hoverBorderClass="hover:border-blue-500/50"
+            hoverShadowClass="hover:shadow-lg hover:shadow-blue-500/20"
+            glowBaseClass="bg-blue-500/5"
+            glowHoverClass="group-hover:bg-blue-500/10"
+            icon={<Users className="w-6 h-6 text-blue-400" />}
+            title="Services Affected"
+            value={overview.services_affected}
+            subtitle="Active monitoring"
+          />
         </div>
       )}
 

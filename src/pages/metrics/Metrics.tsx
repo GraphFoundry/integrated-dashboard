@@ -93,6 +93,34 @@ function VitalSignCard({
   )
 }
 
+interface ChartPanelProps {
+  readonly icon: React.ComponentType<{ className?: string }>
+  readonly iconWrapperClassName: string
+  readonly iconClassName: string
+  readonly title: string
+  readonly children: React.ReactNode
+}
+
+function ChartPanel({
+  icon: Icon,
+  iconWrapperClassName,
+  iconClassName,
+  title,
+  children,
+}: ChartPanelProps) {
+  return (
+    <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+      <div className="mb-4 flex items-center gap-2">
+        <div className={`rounded-lg p-2 ${iconWrapperClassName}`}>
+          <Icon className={`h-4 w-4 ${iconClassName}`} />
+        </div>
+        <h3 className="font-semibold text-slate-200">{title}</h3>
+      </div>
+      {children}
+    </div>
+  )
+}
+
 export default function Metrics() {
   const navigate = useNavigate()
   const [serviceName, setServiceName] = useState('')
@@ -335,15 +363,13 @@ export default function Metrics() {
       {data && data.datapoints.length > 0 && (
         <Section title="Deep Dive Analytics" description="Visualizing data over time" icon={Activity}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
             {/* Traffic Chart */}
-            <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-blue-500/20 rounded-lg">
-                  <METRIC_LABELS.requestRate.icon className="w-4 h-4 text-blue-400" />
-                </div>
-                <h3 className="font-semibold text-slate-200">Traffic Trends</h3>
-              </div>
+            <ChartPanel
+              icon={METRIC_LABELS.requestRate.icon}
+              iconWrapperClassName="bg-blue-500/20"
+              iconClassName="text-blue-400"
+              title="Traffic Trends"
+            >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
@@ -353,16 +379,15 @@ export default function Metrics() {
                 fillColor="#3b82f6"
                 valueFormatter={(v) => formatRps(v)}
               />
-            </div>
+            </ChartPanel>
 
             {/* Health Chart */}
-            <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-rose-500/20 rounded-lg">
-                  <METRIC_LABELS.errorRate.icon className="w-4 h-4 text-rose-400" />
-                </div>
-                <h3 className="font-semibold text-slate-200">Failure Rate Trends</h3>
-              </div>
+            <ChartPanel
+              icon={METRIC_LABELS.errorRate.icon}
+              iconWrapperClassName="bg-rose-500/20"
+              iconClassName="text-rose-400"
+              title="Failure Rate Trends"
+            >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
@@ -372,16 +397,15 @@ export default function Metrics() {
                 fillColor="#ef4444"
                 valueFormatter={(v) => formatPercent(v)}
               />
-            </div>
+            </ChartPanel>
 
             {/* Speed Chart */}
-            <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-amber-500/20 rounded-lg">
-                  <METRIC_LABELS.p95.icon className="w-4 h-4 text-amber-400" />
-                </div>
-                <h3 className="font-semibold text-slate-200">Response Speed (Latency)</h3>
-              </div>
+            <ChartPanel
+              icon={METRIC_LABELS.p95.icon}
+              iconWrapperClassName="bg-amber-500/20"
+              iconClassName="text-amber-400"
+              title="Response Speed (Latency)"
+            >
               <LatencyMultiLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
@@ -390,16 +414,15 @@ export default function Metrics() {
                   p99: d.p99,
                 }))}
               />
-            </div>
+            </ChartPanel>
 
             {/* Uptime Chart */}
-            <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-emerald-500/20 rounded-lg">
-                  <METRIC_LABELS.availability.icon className="w-4 h-4 text-emerald-400" />
-                </div>
-                <h3 className="font-semibold text-slate-200">Uptime Stability</h3>
-              </div>
+            <ChartPanel
+              icon={METRIC_LABELS.availability.icon}
+              iconWrapperClassName="bg-emerald-500/20"
+              iconClassName="text-emerald-400"
+              title="Uptime Stability"
+            >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
@@ -409,7 +432,7 @@ export default function Metrics() {
                 fillColor="#10b981"
                 valueFormatter={(v) => formatPercent(v)}
               />
-            </div>
+            </ChartPanel>
           </div>
         </Section>
       )}

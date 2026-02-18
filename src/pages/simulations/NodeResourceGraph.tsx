@@ -35,6 +35,11 @@ type BreadcrumbItem = {
   serviceName?: string
 }
 
+interface BreadcrumbNavProps {
+  readonly breadcrumbs: BreadcrumbItem[]
+  readonly onBreadcrumbClick: (item: BreadcrumbItem) => void
+}
+
 function GraphShell({
   children,
   className = '',
@@ -48,6 +53,28 @@ function GraphShell({
     >
       {children}
     </div>
+  )
+}
+
+function BreadcrumbNav({ breadcrumbs, onBreadcrumbClick }: BreadcrumbNavProps) {
+  return (
+    <nav className="flex items-center gap-1 text-sm">
+      {breadcrumbs.map((item, idx) => (
+        <div key={`${item.level}-${item.label}-${idx}`} className="flex items-center gap-1">
+          {idx > 0 && <ChevronRight className="w-4 h-4 text-slate-600" />}
+          <button
+            type="button"
+            onClick={() => onBreadcrumbClick(item)}
+            className={`px-2 py-1 rounded transition-colors ${idx === breadcrumbs.length - 1
+              ? 'text-white font-medium bg-slate-700'
+              : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
+              }`}
+          >
+            {item.label}
+          </button>
+        </div>
+      ))}
+    </nav>
   )
 }
 
@@ -434,22 +461,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <nav className="flex items-center gap-1 text-sm">
-            {breadcrumbs.map((item, idx) => (
-              <div key={`${item.level}-${item.label}-${idx}`} className="flex items-center gap-1">
-                {idx > 0 && <ChevronRight className="w-4 h-4 text-slate-600" />}
-                <button type="button"
-                  onClick={() => handleBreadcrumbClick(item)}
-                  className={`px-2 py-1 rounded transition-colors ${idx === breadcrumbs.length - 1
-                    ? 'text-white font-medium bg-slate-700'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-                    }`}
-                >
-                  {item.label}
-                </button>
-              </div>
-            ))}
-          </nav>
+          <BreadcrumbNav breadcrumbs={breadcrumbs} onBreadcrumbClick={handleBreadcrumbClick} />
         </div>
 
         <div className="text-xs text-slate-500">

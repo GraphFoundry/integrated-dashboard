@@ -75,6 +75,21 @@ function FilterSelect({
   )
 }
 
+interface DecisionMetricCardProps {
+  readonly label: string
+  readonly className?: string
+  readonly children: React.ReactNode
+}
+
+function DecisionMetricCard({ label, className = '', children }: DecisionMetricCardProps) {
+  return (
+    <div className={`rounded-lg border border-slate-700/30 bg-slate-900/30 p-3 ${className}`}>
+      <p className="mb-1 text-xs text-slate-500">{label}</p>
+      {children}
+    </div>
+  )
+}
+
 export default function SchedulerDecisions() {
   const [decisions, setDecisions] = useState<SchedulerDecision[]>([])
   const [services, setServices] = useState<Record<string, string[]>>({})
@@ -343,25 +358,22 @@ export default function SchedulerDecisions() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
                   {/* Timestamp */}
-                  <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/30">
-                    <p className="text-xs text-slate-500 mb-1">Evaluated At</p>
+                  <DecisionMetricCard label="Evaluated At">
                     <div className="flex items-center gap-2 text-sm text-slate-300">
                       <Calendar className="w-3.5 h-3.5" />
                       {formatTimestamp(decision.evaluatedAt)}
                     </div>
-                  </div>
+                  </DecisionMetricCard>
 
                   {/* Best Node */}
-                  <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/30">
-                    <p className="text-xs text-slate-500 mb-1">Best Node</p>
+                  <DecisionMetricCard label="Best Node">
                     <div className="text-sm font-semibold text-green-400 font-mono">
                       {decision.bestNode || 'N/A'}
                     </div>
-                  </div>
+                  </DecisionMetricCard>
 
                   {/* Current Nodes */}
-                  <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/30 col-span-1 md:col-span-2">
-                    <p className="text-xs text-slate-500 mb-1">Current Nodes</p>
+                  <DecisionMetricCard label="Current Nodes" className="col-span-1 md:col-span-2">
                     <div className="flex flex-wrap gap-1.5">
                       {decision.currentNodes?.length > 0 ? (
                         decision.currentNodes.map(node => (
@@ -373,7 +385,7 @@ export default function SchedulerDecisions() {
                         <span className="text-xs text-slate-600 italic">None</span>
                       )}
                     </div>
-                  </div>
+                  </DecisionMetricCard>
                 </div>
 
                 {/* Scores List */}

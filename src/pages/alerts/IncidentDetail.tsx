@@ -38,6 +38,42 @@ function DetailField({
   )
 }
 
+interface EventObjectSectionProps {
+  readonly title: string
+  readonly icon: React.ComponentType<{ className?: string }>
+  readonly iconClassName: string
+  readonly data?: Record<string, unknown>
+}
+
+function EventObjectSection({ title, icon: Icon, iconClassName, data }: EventObjectSectionProps) {
+  if (!data || Object.keys(data).length === 0) return null
+
+  return (
+    <div>
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
+        <Icon className={`h-4 w-4 ${iconClassName}`} />
+        {title}
+      </h4>
+      <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          {Object.entries(data).map(([key, value]) => (
+            <div key={key} className="flex flex-col">
+              <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
+              <span className="text-white font-mono text-xs">
+                {value === null || value === undefined
+                  ? '—'
+                  : typeof value === 'object'
+                    ? JSON.stringify(value)
+                    : String(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function IncidentDetailPage() {
   const { dedupeKey } = useParams<{ dedupeKey: string }>()
   const [searchParams] = useSearchParams()
@@ -572,83 +608,26 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
             </div>
           </div>
 
-          {/* Evidence */}
-          {event.evidence && Object.keys(event.evidence).length > 0 && (
-            <div>
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-                <Activity className="w-4 h-4 text-purple-400" />
-                Evidence
-              </h4>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {Object.entries(event.evidence).map(([key, value]) => (
-                    <div key={key} className="flex flex-col">
-                      <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
-                      <span className="text-white font-mono text-xs">
-                        {value === null || value === undefined
-                          ? '—'
-                          : typeof value === 'object'
-                            ? JSON.stringify(value)
-                            : String(value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          <EventObjectSection
+            title="Evidence"
+            icon={Activity}
+            iconClassName="text-purple-400"
+            data={event.evidence}
+          />
 
-          {/* Impact */}
-          {event.impact && Object.keys(event.impact).length > 0 && (
-            <div>
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-                <AlertTriangle className="w-4 h-4 text-orange-400" />
-                Impact
-              </h4>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {Object.entries(event.impact).map(([key, value]) => (
-                    <div key={key} className="flex flex-col">
-                      <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
-                      <span className="text-white font-mono text-xs">
-                        {value === null || value === undefined
-                          ? '—'
-                          : typeof value === 'object'
-                            ? JSON.stringify(value)
-                            : String(value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          <EventObjectSection
+            title="Impact"
+            icon={AlertTriangle}
+            iconClassName="text-orange-400"
+            data={event.impact}
+          />
 
-          {/* Context */}
-          {event.context && Object.keys(event.context).length > 0 && (
-            <div>
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
-                <Server className="w-4 h-4 text-blue-400" />
-                Context
-              </h4>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  {Object.entries(event.context).map(([key, value]) => (
-                    <div key={key} className="flex flex-col">
-                      <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
-                      <span className="text-white font-mono text-xs">
-                        {value === null || value === undefined
-                          ? '—'
-                          : typeof value === 'object'
-                            ? JSON.stringify(value)
-                            : String(value)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          <EventObjectSection
+            title="Context"
+            icon={Server}
+            iconClassName="text-blue-400"
+            data={event.context}
+          />
 
           {/* Links */}
           {event.links && Object.keys(event.links).length > 0 && (

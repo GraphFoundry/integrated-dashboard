@@ -4,24 +4,30 @@ import express, { Request, Response } from 'express'
 
 // Simple .env loader
 const envPath = path.resolve(__dirname, '../.env')
-if (fs.existsSync(envPath)) {
-  try {
-    const envConfig = fs.readFileSync(envPath, 'utf8')
-    envConfig.split('\n').forEach(line => {
-      const match = line.match(/^([^=]+)=(.*)$/)
-      if (match) {
-        const key = match[1].trim()
-        const value = match[2].trim().replace(/^['"](.*)['"]$/, '$1')
-        if (!process.env[key]) {
-          process.env[key] = value
+
+function loadEnvFile(): void {
+  if (fs.existsSync(envPath)) {
+    try {
+      const envConfig = fs.readFileSync(envPath, 'utf8')
+      envConfig.split('\n').forEach((line) => {
+        const match = line.match(/^([^=]+)=(.*)$/)
+        if (match) {
+          const key = match[1].trim()
+          const value = match[2].trim().replace(/^['"](.*)['"]$/, '$1')
+          if (!process.env[key]) {
+            process.env[key] = value
+          }
         }
-      }
-    })
-    console.log('Loaded environment variables from .env')
-  } catch (e) {
-    console.warn('Failed to load .env file:', e)
+      })
+      console.log('Loaded environment variables from .env')
+    } catch (error) {
+      console.warn('Failed to load .env file:', error)
+    }
   }
 }
+
+loadEnvFile()
+
 import cors from 'cors'
 import morgan from 'morgan'
 import http from 'http'
@@ -38,6 +44,16 @@ app.use(morgan('dev'))
 
 const PORT = process.env.PORT || 3001
 const DB_PATH = process.env.DB_PATH || './alerts.db'
+
+function respondWithInternalServerError(
+  res: Response,
+  logPrefix: string,
+  error: unknown,
+  body: Record<string, unknown>
+): void {
+  console.error(logPrefix, error)
+  res.status(500).json(body)
+}
 
 // Initialize storage and service
 const storage = new Storage(DB_PATH)
@@ -96,9 +112,13 @@ app.post('/ingest/webhook', (req: Request, res: Response) => {
     } else {
       res.status(400).json({ success: false, error: result.message })
     }
-  } catch (error: any) {
-    console.error('Webhook ingestion error:', error)
-    res.status(500).json({ success: false, error: 'Internal server error' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Webhook ingestion error:',
+      error,
+      { success: false, error: 'Internal server error' }
+    )
   }
 })
 
@@ -135,9 +155,13 @@ app.post('/webhook/graph-update', (req: Request, res: Response) => {
     )
 
     res.status(200).json({ success: true, message: 'Graph update broadcast to clients' })
-  } catch (error: any) {
-    console.error('Graph webhook error:', error)
-    res.status(500).json({ success: false, error: 'Internal server error' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Graph webhook error:',
+      error,
+      { success: false, error: 'Internal server error' }
+    )
   }
 })
 
@@ -157,9 +181,13 @@ app.get('/api/overview', (req: Request, res: Response) => {
   try {
     const overview = alertService.getOverview()
     res.json(overview)
-  } catch (error: any) {
-    console.error('Failed to get overview:', error)
-    res.status(500).json({ error: 'Failed to fetch overview' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to get overview:',
+      error,
+      { error: 'Failed to fetch overview' }
+    )
   }
 })
 
@@ -177,9 +205,13 @@ app.get('/api/incidents', (req: Request, res: Response) => {
 
     const incidents = alertService.listIncidents(filter)
     res.json({ incidents, total: incidents.length })
-  } catch (error: any) {
-    console.error('Failed to list incidents:', error)
-    res.status(500).json({ error: 'Failed to fetch incidents' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to list incidents:',
+      error,
+      { error: 'Failed to fetch incidents' }
+    )
   }
 })
 
@@ -201,9 +233,13 @@ app.get('/api/incidents/:dedupeKey', (req: Request, res: Response) => {
     }
 
     res.json(incident)
-  } catch (error: any) {
-    console.error('Failed to get incident detail:', error)
-    res.status(500).json({ error: 'Failed to fetch incident detail' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to get incident detail:',
+      error,
+      { error: 'Failed to fetch incident detail' }
+    )
   }
 })
 
@@ -212,9 +248,13 @@ app.get('/api/services', (req: Request, res: Response) => {
   try {
     const services = alertService.getServices()
     res.json({ services, total: services.length })
-  } catch (error: any) {
-    console.error('Failed to list services:', error)
-    res.status(500).json({ error: 'Failed to fetch services' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to list services:',
+      error,
+      { error: 'Failed to fetch services' }
+    )
   }
 })
 
@@ -229,9 +269,13 @@ app.get('/api/events/:eventId', (req: Request, res: Response) => {
     }
 
     res.json(event)
-  } catch (error: any) {
-    console.error('Failed to get event:', error)
-    res.status(500).json({ error: 'Failed to fetch event' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to get event:',
+      error,
+      { error: 'Failed to fetch event' }
+    )
   }
 })
 
@@ -255,9 +299,13 @@ app.post('/api/notifications/sms', async (req: Request, res: Response) => {
     } else {
       res.status(502).json({ success: false, error: result.error })
     }
-  } catch (error: any) {
-    console.error('Failed to send SMS:', error)
-    res.status(500).json({ success: false, error: 'Internal server error' })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to send SMS:',
+      error,
+      { success: false, error: 'Internal server error' }
+    )
   }
 })
 
@@ -278,20 +326,14 @@ server.listen(PORT, () => {
 })
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+function handleShutdown(): void {
   console.log('\nShutting down gracefully...')
   storage.close()
   server.close(() => {
     console.log('Server closed')
     process.exit(0)
   })
-})
+}
 
-process.on('SIGTERM', () => {
-  console.log('\nShutting down gracefully...')
-  storage.close()
-  server.close(() => {
-    console.log('Server closed')
-    process.exit(0)
-  })
-})
+process.on('SIGINT', handleShutdown)
+process.on('SIGTERM', handleShutdown)

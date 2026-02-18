@@ -5,8 +5,9 @@ export class Storage {
   private events: Map<string, AlertEvent> = new Map()
   private incidents: Map<string, Incident> = new Map()
 
-  constructor(_dbPath?: string) {
+  constructor(dbPath?: string) {
     // In-memory implementation - dbPath ignored for now
+    void dbPath
     console.log('Using in-memory storage')
   }
 
@@ -207,4 +208,3 @@ export class Storage {
     // No-op for in-memory storage
   }
 }
-

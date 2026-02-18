@@ -52,7 +52,7 @@ export default function PlaybackControls({
       <div className="flex gap-2">
         {/* Play/Pause */}
         {isPlaying ? (
-          <button
+          <button type="button"
             onClick={onPause}
             className="flex-1 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-medium rounded transition-colors flex items-center justify-center gap-2"
           >
@@ -62,7 +62,7 @@ export default function PlaybackControls({
             Pause
           </button>
         ) : (
-          <button
+          <button type="button"
             onClick={onPlay}
             disabled={disabled || idx >= totalStages - 1}
             className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2"
@@ -75,7 +75,7 @@ export default function PlaybackControls({
         )}
 
         {/* Next */}
-        <button
+        <button type="button"
           onClick={onNext}
           disabled={!canNext || disabled}
           className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500 text-white font-medium rounded transition-colors flex items-center justify-center gap-2"
@@ -87,7 +87,7 @@ export default function PlaybackControls({
         </button>
 
         {/* Reset */}
-        <button
+        <button type="button"
           onClick={onReset}
           disabled={!canReset || disabled}
           className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 disabled:bg-slate-800 disabled:text-slate-500 text-red-400 font-medium rounded transition-colors flex items-center justify-center gap-2 border border-red-600/30"

@@ -90,11 +90,12 @@ export default function Overview() {
         description="System health and top risks"
         icon={LayoutDashboard}
         actions={
-          <button
+          <button type="button"
             onClick={fetchData}
             disabled={loading}
             className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer"
             title="Refresh data"
+            aria-label="Refresh overview data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>

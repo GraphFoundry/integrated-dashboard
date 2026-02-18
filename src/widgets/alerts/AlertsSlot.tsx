@@ -107,7 +107,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
                   {a.acknowledged ? (
                     <span className="text-green-400">Acknowledged</span>
                   ) : (
-                    <button
+                    <button type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         acknowledge(a.id).catch(() => {
@@ -127,7 +127,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
 
         <div className="mt-4 flex justify-center">
           {hasMore ? (
-            <button
+            <button type="button"
               onClick={() => loadMore()}
               disabled={loadingMore}
               className="text-sm text-blue-400 hover:underline disabled:opacity-50"
@@ -152,7 +152,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
             <div className="w-96 bg-slate-900 border-l border-slate-700 p-4 overflow-auto">
               <div className="flex items-center justify-between mb-3">
                 <h4 className="text-sm font-semibold text-white">Alert detail</h4>
-                <button
+                <button type="button"
                   onClick={() => {
                     setSelectedId(null)
                     setDetail(null)
@@ -200,6 +200,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
             value={severity ?? ''}
             onChange={(e) => setSeverity(e.target.value || undefined)}
             className={cn(controlInputDarkClass, 'w-auto px-2 py-1 text-sm')}
+            aria-label="Filter by severity"
           >
             <option value="">All severities</option>
             <option value="critical">Critical</option>
@@ -212,6 +213,7 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
             onChange={(e) => setSvc(e.target.value || undefined)}
             placeholder="Service ID"
             className={cn(controlInputDarkClass, 'w-auto px-2 py-1 text-sm')}
+            aria-label="Filter by service ID"
           />
 
           <input
@@ -219,13 +221,14 @@ export default function AlertsSlot({ serviceId, expanded = false }: AlertsCompon
             onChange={(e) => setQ(e.target.value || undefined)}
             placeholder="Search"
             className={cn(controlInputDarkClass, 'flex-1 px-2 py-1 text-sm')}
+            aria-label="Search alerts"
           />
 
-          <button onClick={applyFilters} className={cn(primaryButtonClass, 'px-3 py-1 text-sm')}>
+          <button type="button" onClick={applyFilters} className={cn(primaryButtonClass, 'px-3 py-1 text-sm')}>
             Apply
           </button>
 
-          <button
+          <button type="button"
             onClick={clearFilters}
             className={cn(secondaryButtonClass, 'px-3 py-1 text-sm text-slate-300')}
           >

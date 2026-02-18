@@ -130,7 +130,7 @@ export default function OffenderDetails() {
     <div className="p-8 space-y-6">
       {/* Header with Breadcrumb */}
       <div className="space-y-4">
-        <button
+        <button type="button"
           onClick={() => navigate('/metrics')}
           className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors"
         >
@@ -348,7 +348,7 @@ export default function OffenderDetails() {
       {/* Actions */}
       {!loading && data && data.datapoints.length > 0 && (
         <Section>
-          <button
+          <button type="button"
             onClick={handleOpenInSimulations}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
           >

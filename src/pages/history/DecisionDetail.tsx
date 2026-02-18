@@ -343,7 +343,7 @@ export default function DecisionDetail() {
 
       {/* Advanced Details */}
       <Section>
-        <button
+        <button type="button"
           onClick={() => setShowRawJson(!showRawJson)}
           className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
         >

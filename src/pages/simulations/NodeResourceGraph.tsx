@@ -409,10 +409,11 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
         <div className="flex items-center gap-2">
           {breadcrumbs.length > 1 && (
-            <button
+            <button type="button"
               onClick={handleBack}
               className="p-1.5 rounded hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
               title="Go back"
+              aria-label="Go back to previous graph level"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
@@ -421,7 +422,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
             {breadcrumbs.map((item, idx) => (
               <div key={`${item.level}-${item.label}-${idx}`} className="flex items-center gap-1">
                 {idx > 0 && <ChevronRight className="w-4 h-4 text-slate-600" />}
-                <button
+                <button type="button"
                   onClick={() => handleBreadcrumbClick(item)}
                   className={`px-2 py-1 rounded transition-colors ${idx === breadcrumbs.length - 1
                     ? 'text-white font-medium bg-slate-700'
@@ -779,7 +780,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
               message={getEmptyStateMessage(viewLevel, currentNodeId, currentServiceName)}
               action={
                 viewLevel === 'services' || viewLevel === 'pods' ? (
-                  <button
+                  <button type="button"
                     onClick={handleBack}
                     className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
                   >

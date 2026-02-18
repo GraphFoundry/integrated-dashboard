@@ -59,7 +59,7 @@ export default function ExportButtons({ trace, fullResponse }: ExportButtonsProp
 
       <div className="grid grid-cols-2 gap-2">
         {/* Copy Trace */}
-        <button
+        <button type="button"
           onClick={() => trace && copyToClipboard(trace, 'Trace JSON')}
           disabled={!trace}
           className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-850 disabled:text-slate-500 text-white text-sm rounded transition-colors flex items-center justify-center gap-2"
@@ -76,7 +76,7 @@ export default function ExportButtons({ trace, fullResponse }: ExportButtonsProp
         </button>
 
         {/* Copy Full Response */}
-        <button
+        <button type="button"
           onClick={() => fullResponse && copyToClipboard(fullResponse, 'Full Response')}
           disabled={!fullResponse}
           className="px-3 py-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-850 disabled:text-slate-500 text-white text-sm rounded transition-colors flex items-center justify-center gap-2"
@@ -93,7 +93,7 @@ export default function ExportButtons({ trace, fullResponse }: ExportButtonsProp
         </button>
 
         {/* Download Trace */}
-        <button
+        <button type="button"
           onClick={() => trace && downloadJson(trace, `pipeline-trace-${Date.now()}.json`)}
           disabled={!trace}
           className="px-3 py-2 bg-blue-600/20 hover:bg-blue-600/30 disabled:bg-slate-850 disabled:text-slate-500 text-blue-400 text-sm rounded transition-colors flex items-center justify-center gap-2 border border-blue-600/30"
@@ -110,7 +110,7 @@ export default function ExportButtons({ trace, fullResponse }: ExportButtonsProp
         </button>
 
         {/* Download Full Response */}
-        <button
+        <button type="button"
           onClick={() =>
             fullResponse && downloadJson(fullResponse, `simulation-response-${Date.now()}.json`)
           }

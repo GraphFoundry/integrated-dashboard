@@ -471,7 +471,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
         </div>
       </div>
 
-      <button
+      <button type="button"
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
       >

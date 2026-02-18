@@ -185,7 +185,7 @@ export default function SchedulerDecisions() {
         icon={Server}
         actions={
           <div className="flex items-center gap-3">
-            <button
+            <button type="button"
               onClick={loadData}
               disabled={loading}
               className={cn(
@@ -193,6 +193,7 @@ export default function SchedulerDecisions() {
                 'cursor-pointer p-2 shadow-lg shadow-blue-900/20'
               )}
               title="Refresh data"
+              aria-label="Refresh scheduler decisions"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -242,7 +243,7 @@ export default function SchedulerDecisions() {
               ))}
             </select>
           </div>
-          <button
+          <button type="button"
             onClick={() => {
               setNamespaceFilter('')
               setStatusFilter('')
@@ -286,7 +287,7 @@ export default function SchedulerDecisions() {
             >
               {/* Action Bar (Top Right) */}
               <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-                <button
+                <button type="button"
                   onClick={() => handleApplyClick(decision)}
                   disabled={isOptimized}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border font-medium ${isOptimized
@@ -392,9 +393,10 @@ export default function SchedulerDecisions() {
                     <p className="text-sm text-slate-400">Apply placement for <b>{selectedDecision?.service}</b></p>
                   </div>
                 </div>
-                <button
+                <button type="button"
                   onClick={closeApplyModal}
                   className="text-slate-500 hover:text-white transition-colors"
+                  aria-label="Close apply decision modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -413,7 +415,7 @@ export default function SchedulerDecisions() {
                         <select
                           value={selectedPod}
                           onChange={(e) => setSelectedPod(e.target.value)}
-                          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus-visible:outline-2 focus-visible:outline-green-500 focus-visible:outline-offset-2"
                         >
                           {availablePods.map(pod => (
                             <option key={pod} value={pod}>{pod}</option>
@@ -433,13 +435,13 @@ export default function SchedulerDecisions() {
                     </div>
 
                     <div className="flex gap-3 pt-2">
-                      <button
+                      <button type="button"
                         onClick={closeApplyModal}
                         className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors font-medium border border-slate-700"
                       >
                         Cancel
                       </button>
-                      <button
+                      <button type="button"
                         onClick={confirmApply}
                         disabled={!selectedPod || applying}
                         className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-900/50 disabled:text-green-300/50 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
@@ -472,7 +474,7 @@ export default function SchedulerDecisions() {
                         <p className="text-sm text-slate-400 px-4">{applyResult.message}</p>
                       </div>
                     )}
-                    <button
+                    <button type="button"
                       onClick={closeApplyModal}
                       className="mt-6 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
                     >

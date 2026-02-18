@@ -122,11 +122,12 @@ export default function History() {
               <option value="scale">Scale</option>
             </select>
           </div>
-          <button
+          <button type="button"
             onClick={fetchData}
             disabled={loading}
             className={cn(iconActionButtonClass, 'h-[42px] w-[42px] cursor-pointer p-2.5')}
             title="Refresh data"
+            aria-label="Refresh history data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -149,7 +150,7 @@ export default function History() {
                   </div>
                   <p className="text-sm text-slate-400">{formatShortDate(record.timestamp)}</p>
                 </div>
-                <button
+                <button type="button"
                   onClick={() => navigate(`/history/${record.id}`)}
                   className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
                 >
@@ -166,14 +167,14 @@ export default function History() {
               {data.total} decisions
             </div>
             <div className="flex gap-2">
-              <button
+              <button type="button"
                 onClick={() => setPage(page - 1)}
                 disabled={page === 0}
                 className={secondaryButtonClass}
               >
                 Previous
               </button>
-              <button
+              <button type="button"
                 onClick={() => setPage(page + 1)}
                 disabled={page >= totalPages - 1}
                 className={secondaryButtonClass}
@@ -192,7 +193,7 @@ export default function History() {
           message="No decision history found"
           action={
             typeFilter ? (
-              <button
+              <button type="button"
                 onClick={() => setTypeFilter('')}
                 className={primaryButtonClass}
               >

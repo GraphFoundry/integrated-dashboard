@@ -79,14 +79,14 @@ export default function ServiceHealthDetails() {
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 outline-none"
+              className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2"
             >
               <option value="1h">Last 1 hour</option>
               <option value="6h">Last 6 hours</option>
               <option value="24h">Last 24 hours</option>
               <option value="7d">Last 7 days</option>
             </select>
-            <button
+            <button type="button"
               onClick={() => navigate(`/simulations?service=${namespace}:${serviceName}`)}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
             >

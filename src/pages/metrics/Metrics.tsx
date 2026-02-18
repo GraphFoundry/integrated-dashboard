@@ -207,7 +207,7 @@ export default function Metrics() {
               </div>
             </div>
           </div>
-          <button
+          <button type="button"
             onClick={fetchData}
             disabled={loading}
             className={cn(
@@ -215,6 +215,7 @@ export default function Metrics() {
               'h-[46px] w-[46px] cursor-pointer p-3 shadow-lg shadow-blue-900/20 hover:bg-blue-500 active:bg-blue-700 disabled:bg-slate-700'
             )}
             title="Refresh Vital Signs"
+            aria-label="Refresh metrics"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -470,7 +471,7 @@ export default function Metrics() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm">
-                      <button
+                      <button type="button"
                         onClick={() =>
                           navigate(`/metrics/offenders/${point.namespace}:${point.service}`)
                         }

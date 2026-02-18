@@ -506,9 +506,10 @@ export default function AlertsPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm text-white">{toast.message}</p>
             </div>
-            <button
+            <button type="button"
               onClick={() => dismissToast(toast.id)}
               className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
+              aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />
             </button>

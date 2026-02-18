@@ -9,7 +9,7 @@ export const controlLabelCompactClass =
   'mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400'
 
 export const controlInputBaseClass =
-  'w-full rounded-lg border px-4 py-2.5 text-sm text-white outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+  'w-full rounded-lg border px-4 py-2.5 text-sm text-white transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2'
 export const controlInputMutedClass = cn(
   controlInputBaseClass,
   'border-gray-600/50 bg-gray-700/70'

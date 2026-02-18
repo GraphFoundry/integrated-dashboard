@@ -42,7 +42,12 @@ export function NodeDetailsDrawer({
           />
           <span className="font-bold text-white text-base">{node.name}</span>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-slate-400 hover:text-white transition-colors"
+          aria-label="Close node details"
+        >
           ✕
         </button>
       </div>
@@ -100,7 +105,7 @@ function Tab({
   readonly onClick: () => void
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${active
           ? 'text-white bg-slate-800 border-b-2 border-sky-500'
@@ -178,7 +183,7 @@ function SummaryTab({
       <div className="border-t border-slate-700 pt-4 space-y-3">
         <div className="flex justify-between items-center mb-2">
           <h4 className="text-sm font-semibold text-white">Key Metrics</h4>
-          <button onClick={onToggleAdvanced} className="text-xs text-sky-400 hover:text-sky-300">
+          <button type="button" onClick={onToggleAdvanced} className="text-xs text-sky-400 hover:text-sky-300">
             {showAdvanced ? 'Hide' : 'Show'} advanced
           </button>
         </div>

@@ -35,7 +35,7 @@ interface ScenarioFormProps {
 }
 
 const compactControlClass =
-  'w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2'
 
 export default function ScenarioForm({
   onRun,

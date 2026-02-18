@@ -18,6 +18,7 @@ import {
   tableHeaderCellClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   AlertTriangle,
@@ -351,7 +352,7 @@ export default function AlertsPage() {
             <label htmlFor="alerts-status-filter" className={controlLabelClass}>
               Status
             </label>
-            <select
+            <Select
               id="alerts-status-filter"
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value as any })}
@@ -360,14 +361,14 @@ export default function AlertsPage() {
               <option value="all">All Statuses</option>
               <option value="open">Open</option>
               <option value="resolved">Resolved</option>
-            </select>
+            </Select>
           </div>
 
           <div>
             <label htmlFor="alerts-severity-filter" className={controlLabelClass}>
               Severity
             </label>
-            <select
+            <Select
               id="alerts-severity-filter"
               value={filter.severity}
               onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
@@ -378,7 +379,7 @@ export default function AlertsPage() {
               <option value="high">🟠 High</option>
               <option value="medium">🟡 Medium</option>
               <option value="low">🔵 Low</option>
-            </select>
+            </Select>
           </div>
         </div>
       </div>

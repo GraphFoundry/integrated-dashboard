@@ -21,6 +21,7 @@ import {
   tableHeaderCellClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
@@ -204,7 +205,7 @@ export default function Metrics() {
               Focus Area (Service)
             </label>
             <div className="relative">
-              <select
+              <Select
                 id="service-select"
                 value={serviceName}
                 onChange={(e) => setServiceName(e.target.value)}
@@ -216,7 +217,7 @@ export default function Metrics() {
                     {service.name}
                   </option>
                 ))}
-              </select>
+              </Select>
               <div className="pointer-events-none absolute right-4 top-3.5 text-[var(--text-muted)]">
                 <Settings className="w-4 h-4" />
               </div>
@@ -227,7 +228,7 @@ export default function Metrics() {
               Time Horizon
             </label>
             <div className="relative">
-              <select
+              <Select
                 id="time-range-select"
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
@@ -238,7 +239,7 @@ export default function Metrics() {
                 <option value="1h">Last 1 hour</option>
                 <option value="6h">Last 6 hours</option>
                 <option value="24h">Last 24 hours</option>
-              </select>
+              </Select>
               <div className="pointer-events-none absolute right-4 top-3.5 text-[var(--text-muted)]">
                 <Clock className="w-4 h-4" />
               </div>

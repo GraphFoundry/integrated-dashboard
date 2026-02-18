@@ -1,14 +1,16 @@
+import { Activity } from 'lucide-react'
+import { shellTopbarClass } from '@/components/common/uiClassTokens'
+
 export default function Topbar() {
   return (
-    <header className="h-16 bg-firebase-dark border-b border-firebase-border flex items-center px-6">
-      <div className="flex items-center justify-between w-full">
-        <div className="text-sm text-firebase-text-secondary">
-          <span className="inline-flex items-center gap-2">
-            <span className="w-2 h-2 bg-firebase-success rounded-full"></span>
-            System Active
-          </span>
+    <header className={shellTopbarClass}>
+      <div className="mx-auto flex h-full w-full max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
+        <div className="surface-glass inline-flex items-center gap-2 rounded-full border border-emerald-300/30 px-3 py-1 text-xs font-semibold text-emerald-300">
+          <Activity className="h-3.5 w-3.5" />
+          <span>System Active</span>
         </div>
-        <div className="text-xs text-firebase-text-muted">
+
+        <div className="text-xs font-medium text-[var(--text-muted)]">
           {new Date().toLocaleDateString('en-US', {
             weekday: 'short',
             year: 'numeric',

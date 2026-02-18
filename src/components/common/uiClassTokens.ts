@@ -65,3 +65,15 @@ export const tableHeaderCellClass =
   'px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]'
 
 export const tableCellClass = 'px-6 py-4 text-sm text-[var(--text-secondary)]'
+
+export const shellSidebarClass = cn(
+  'surface-panel flex h-screen w-72 flex-col border-r border-white/12',
+  'sticky top-0 shadow-[0_20px_45px_rgba(2,6,23,0.32)]'
+)
+
+export const shellTopbarClass = cn(
+  'surface-glass sticky top-0 z-30 h-16 border-b border-white/12',
+  'supports-[backdrop-filter]:bg-slate-900/48'
+)
+
+export const shellMainClass = 'relative flex-1 overflow-auto p-4 sm:p-6 lg:p-8'

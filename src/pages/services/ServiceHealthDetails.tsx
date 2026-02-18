@@ -11,6 +11,7 @@ import {
   pageContainerClass,
   primaryButtonClass,
 } from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
@@ -81,7 +82,7 @@ export default function ServiceHealthDetails() {
         description={`Service Health • Namespace: ${namespace}`}
         actions={
           <div className="flex gap-3">
-            <select
+            <Select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2"
@@ -90,7 +91,7 @@ export default function ServiceHealthDetails() {
               <option value="6h">Last 6 hours</option>
               <option value="24h">Last 24 hours</option>
               <option value="7d">Last 7 days</option>
-            </select>
+            </Select>
             <button type="button"
               onClick={() => navigate(`/simulations?service=${namespace}:${serviceName}`)}
               className={`${primaryButtonClass} text-sm`}

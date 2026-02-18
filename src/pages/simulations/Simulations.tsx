@@ -9,7 +9,7 @@ import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { loadingCardClass, pageContainerClass } from '@/components/common/uiClassTokens'
 
-import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
+import ScenarioForm from '@/pages/simulations/ScenarioForm'
 import NodeResourceGraph from './NodeResourceGraph'
 import { simulateFailure, simulateScale, simulateServiceAddition } from '@/lib/api'
 import { formatMs } from '@/lib/format'

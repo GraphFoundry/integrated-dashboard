@@ -401,7 +401,12 @@ export default function SchedulerDecisions() {
       {/* Apply/Restart Confirm Modal */}
       {applyModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="apply-decision-title"
+            className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+          >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -409,7 +414,9 @@ export default function SchedulerDecisions() {
                     <Play className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Apply Decision</h3>
+                    <h3 id="apply-decision-title" className="text-lg font-semibold text-white">
+                      Apply Decision
+                    </h3>
                     <p className="text-sm text-slate-400">Apply placement for <b>{selectedDecision?.service}</b></p>
                   </div>
                 </div>
@@ -430,9 +437,12 @@ export default function SchedulerDecisions() {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Select Pod to Restart</label>
+                      <label htmlFor="pod-select" className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Select Pod to Restart
+                      </label>
                       {availablePods.length > 0 ? (
                         <select
+                          id="pod-select"
                           value={selectedPod}
                           onChange={(e) => setSelectedPod(e.target.value)}
                           className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus-visible:outline-2 focus-visible:outline-green-500 focus-visible:outline-offset-2"

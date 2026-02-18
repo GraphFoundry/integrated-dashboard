@@ -278,8 +278,11 @@ export default function AlertsPage() {
         </div>
         <div className="flex flex-wrap gap-4">
           <div>
-            <label className={controlLabelClass}>Status</label>
+            <label htmlFor="alerts-status-filter" className={controlLabelClass}>
+              Status
+            </label>
             <select
+              id="alerts-status-filter"
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value as any })}
               className={controlInputMutedClass}
@@ -291,8 +294,11 @@ export default function AlertsPage() {
           </div>
 
           <div>
-            <label className={controlLabelClass}>Severity</label>
+            <label htmlFor="alerts-severity-filter" className={controlLabelClass}>
+              Severity
+            </label>
             <select
+              id="alerts-severity-filter"
               value={filter.severity}
               onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
               className={controlInputMutedClass}
@@ -489,7 +495,7 @@ export default function AlertsPage() {
       </div>
 
       {/* Toast Notifications */}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+      <div className="fixed bottom-4 right-4 z-50 space-y-2" aria-live="polite" aria-atomic="true">
         {toasts.map((toast) => (
           <div
             key={toast.id}

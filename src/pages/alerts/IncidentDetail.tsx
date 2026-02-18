@@ -351,6 +351,7 @@ export default function IncidentDetailPage() {
 
 function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }) {
   const [expanded, setExpanded] = useState(false)
+  const detailsPanelId = `event-details-${event.event_id}`
 
   const getSeverityBadge = (severity: string) => {
     const config = {
@@ -485,6 +486,8 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
 
       <button type="button"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-controls={detailsPanelId}
         className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
       >
         {expanded ? (
@@ -501,7 +504,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       </button>
 
       {expanded && (
-        <div className="mt-5 space-y-4 border-t border-gray-700/50 pt-5">
+        <div id={detailsPanelId} className="mt-5 space-y-4 border-t border-gray-700/50 pt-5">
           {/* Decision */}
           <div>
             <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">

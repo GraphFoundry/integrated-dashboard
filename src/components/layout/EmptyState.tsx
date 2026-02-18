@@ -1,3 +1,5 @@
+import { cn, glassPanelClass } from '@/components/common/uiClassTokens'
+
 interface EmptyStateProps {
   icon?: string | React.ReactNode
   title?: string
@@ -14,14 +16,14 @@ export default function EmptyState({
   action,
 }: Readonly<EmptyStateProps>) {
   return (
-    <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
-      <div className={typeof icon === 'string' ? 'mb-4 text-5xl' : 'mb-4 flex justify-center'}>
-        {icon}
-      </div>
-      {title && <h3 className="mb-2 text-lg font-semibold text-firebase-text-primary">{title}</h3>}
-      <p className="mb-1 font-medium text-firebase-text-primary">{message}</p>
+    <div className={cn(glassPanelClass, 'rounded-[var(--radius-md)] p-10 text-center md:p-12')}>
+      <div className={typeof icon === 'string' ? 'mb-4 text-5xl' : 'mb-4 flex justify-center'}>{icon}</div>
+      {title && <h3 className="mb-2 text-lg font-semibold text-[var(--text-primary)]">{title}</h3>}
+      <p className="mb-1 text-base font-semibold text-[var(--text-primary)]">{message}</p>
       {description && (
-        <p className="mx-auto max-w-md text-sm text-firebase-text-secondary">{description}</p>
+        <p className="mx-auto max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
+          {description}
+        </p>
       )}
       {action && <div className="mt-6">{action}</div>}
     </div>

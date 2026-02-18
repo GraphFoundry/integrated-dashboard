@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react'
+import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
 
 interface SectionProps {
   title?: string
@@ -18,19 +19,23 @@ export default function Section({
   icon: Icon,
 }: Readonly<SectionProps>) {
   return (
-    <section className={`rounded-xl border border-firebase-border bg-firebase-card ${className}`}>
+    <section className={cn(glassSurfaceClass, 'rounded-[var(--radius-md)]', className)}>
       {(title || description || actions) && (
-        <header className="border-b border-firebase-border p-6">
+        <header className="border-b border-white/10 p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               {title && (
                 <div className="flex items-center gap-3">
-                  {Icon && <Icon className="h-5 w-5 text-firebase-blue" />}
-                  <h2 className="text-xl font-semibold text-firebase-text-primary">{title}</h2>
+                  {Icon && (
+                    <div className="surface-glass rounded-lg border border-cyan-300/25 p-2">
+                      <Icon className="h-4 w-4 text-cyan-300" />
+                    </div>
+                  )}
+                  <h2 className="text-xl font-semibold text-[var(--text-primary)]">{title}</h2>
                 </div>
               )}
               {description && (
-                <p className="mt-1 text-sm text-firebase-text-secondary">{description}</p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">{description}</p>
               )}
             </div>
             {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}

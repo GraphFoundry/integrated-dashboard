@@ -77,3 +77,8 @@ export const shellTopbarClass = cn(
 )
 
 export const shellMainClass = 'relative flex-1 overflow-auto p-4 sm:p-6 lg:p-8'
+
+export const sectionHeaderIconClass =
+  'surface-glass rounded-lg border border-cyan-300/25 p-2 text-cyan-300'
+
+export const emphasizedTitleClass = 'text-[var(--text-primary)]'

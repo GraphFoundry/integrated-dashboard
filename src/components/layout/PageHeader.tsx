@@ -1,4 +1,5 @@
 import { Shield, LucideIcon } from 'lucide-react'
+import { cn, glassPanelClass } from '@/components/common/uiClassTokens'
 
 interface PageHeaderProps {
   title: string
@@ -14,20 +15,27 @@ export default function PageHeader({
   icon: Icon = Shield,
 }: Readonly<PageHeaderProps>) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-firebase-border bg-gradient-to-r from-firebase-blue/20 via-firebase-card to-firebase-card p-6 md:p-8">
+    <div className={cn(glassPanelClass, 'relative p-6 md:p-8')}>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-16 right-0 h-64 w-64 rounded-full bg-cyan-400/12 blur-3xl" />
+        <div className="absolute -bottom-20 left-1/4 h-52 w-52 rounded-full bg-indigo-400/10 blur-3xl" />
+      </div>
+
       <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <Icon className="h-8 w-8 text-firebase-blue" />
-            <h1 className="text-3xl font-bold text-firebase-text-primary md:text-4xl">{title}</h1>
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center gap-3">
+            <div className="surface-glass rounded-xl border border-cyan-300/25 p-2.5">
+              <Icon className="h-6 w-6 text-cyan-300 md:h-7 md:w-7" />
+            </div>
+            <h1 className="text-3xl font-bold text-[var(--text-primary)] md:text-4xl">{title}</h1>
           </div>
           {description && (
-            <p className="text-base text-firebase-text-secondary md:text-lg">{description}</p>
+            <p className="max-w-3xl text-sm text-[var(--text-secondary)] md:text-base">{description}</p>
           )}
         </div>
+
         {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
       </div>
-      <div className="pointer-events-none absolute right-0 top-0 h-56 w-56 rounded-full bg-firebase-blue/15 blur-3xl" />
     </div>
   )
 }

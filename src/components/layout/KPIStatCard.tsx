@@ -1,4 +1,5 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
 
 export type TrendDirection = 'up' | 'down' | 'stable'
 
@@ -13,10 +14,10 @@ interface KPIStatCardProps {
 }
 
 const variantColors = {
-  default: 'border-firebase-border',
-  success: 'border-firebase-success/30',
-  warning: 'border-firebase-warning/30',
-  danger: 'border-firebase-error/30',
+  default: 'border-white/12',
+  success: 'border-emerald-300/35',
+  warning: 'border-amber-300/35',
+  danger: 'border-rose-300/35',
 }
 
 const trendIcons = {
@@ -26,9 +27,9 @@ const trendIcons = {
 }
 
 const trendColors = {
-  up: 'text-firebase-success',
-  down: 'text-firebase-error',
-  stable: 'text-firebase-text-secondary',
+  up: 'text-emerald-300',
+  down: 'text-rose-300',
+  stable: 'text-[var(--text-muted)]',
 }
 
 export default function KPIStatCard({
@@ -45,14 +46,21 @@ export default function KPIStatCard({
   return (
     <div
       title={tooltip}
-      className={`relative overflow-hidden rounded-xl border bg-firebase-card p-4 transition-all duration-200 hover:border-firebase-blue/50 ${variantColors[variant]} ${className}`}
+      className={cn(
+        glassSurfaceClass,
+        'interactive-soft rounded-[var(--radius-md)] p-4 hover:-translate-y-0.5 hover:border-cyan-300/30',
+        variantColors[variant],
+        className
+      )}
     >
-      <div className="mb-1 text-sm text-firebase-text-secondary">{label}</div>
+      <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+        {label}
+      </div>
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-bold text-firebase-text-primary">{value}</div>
+        <div className="text-2xl font-bold text-[var(--text-primary)]">{value}</div>
         {trend && TrendIcon && (
-          <div className={`flex items-center gap-1 text-xs ${trendColors[trend]}`}>
-            <TrendIcon className="w-3 h-3" />
+          <div className={cn('flex items-center gap-1 text-xs font-semibold', trendColors[trend])}>
+            <TrendIcon className="h-3 w-3" />
             {trendLabel && <span>{trendLabel}</span>}
           </div>
         )}

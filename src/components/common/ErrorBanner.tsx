@@ -8,15 +8,15 @@ interface ErrorBannerProps {
 export default function ErrorBanner({ message, onRetry }: ErrorBannerProps) {
   return (
     <div
-      className="rounded-lg border border-firebase-error/40 bg-firebase-error/10 p-4"
+      className="surface-glass rounded-[var(--radius-sm)] border border-rose-300/35 bg-rose-500/15 p-4"
       role="alert"
     >
-      <p className="text-firebase-error">{message}</p>
+      <p className="text-sm font-medium text-rose-100">{message}</p>
       {onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="mt-2 text-sm text-firebase-error underline hover:opacity-80"
+          className="neon-focus-ring interactive-soft mt-3 rounded-lg border border-rose-200/30 bg-rose-500/15 px-3 py-1.5 text-sm font-semibold text-rose-100 hover:bg-rose-500/25"
         >
           Retry
         </button>

@@ -7,7 +7,7 @@ import {
   controlLabelClass,
   primaryButtonClass,
 } from '@/components/common/uiClassTokens'
-import { Field, Input, Slider } from '@/components/ui'
+import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
 
 // Example services for Mock mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
@@ -163,6 +163,19 @@ export default function ScenarioForm({
   }
 
   const serviceIdHint = getServiceIdHint()
+  const serviceComboboxItems =
+    mode === 'live'
+      ? discoveredServices.map((s) => {
+        let label = `${s.name} (${s.namespace})`
+        if (s.podCount !== undefined || s.availability !== undefined) {
+          const details = []
+          if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
+          if (s.availability !== undefined) details.push(`${(s.availability * 100).toFixed(0)}% up`)
+          label += ` - ${details.join(', ')}`
+        }
+        return { value: s.serviceId, label }
+      })
+      : []
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -222,7 +235,7 @@ export default function ScenarioForm({
         <label htmlFor="scenarioType" className={controlLabelClass}>
           Scenario Type
         </label>
-        <select
+        <Select
           id="scenarioType"
           value={scenarioType}
           onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
@@ -231,7 +244,7 @@ export default function ScenarioForm({
           <option value="add-service">Add New Service</option>
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
-        </select>
+        </Select>
       </div>
 
       {/* Time Period (For all simulation types) */}
@@ -239,7 +252,7 @@ export default function ScenarioForm({
         <label htmlFor="timeWindow" className={controlLabelClass}>
           Decision Time Period
         </label>
-        <select
+        <Select
           id="timeWindow"
           value={timeWindow}
           onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
@@ -249,7 +262,7 @@ export default function ScenarioForm({
           <option value="1w">1 Week</option>
           <option value="2w">2 Weeks</option>
           <option value="1m">1 Month</option>
-        </select>
+        </Select>
       </div>
 
       {scenarioType === 'add-service' ? (
@@ -297,7 +310,7 @@ export default function ScenarioForm({
               >
                 Memory Allocation
               </label>
-              <select
+              <Select
                 id="minRam"
                 value={minRam}
                 onChange={(e) => setMinRam(Number(e.target.value))}
@@ -312,7 +325,7 @@ export default function ScenarioForm({
                 <option value={8192}>8 GB</option>
                 <option value={12288}>12 GB</option>
                 <option value={16384}>16 GB</option>
-              </select>
+              </Select>
             </div>
           </div>
 
@@ -323,7 +336,7 @@ export default function ScenarioForm({
             >
               Replicas
             </label>
-            <select
+            <Select
               id="addReplicas"
               value={addReplicas}
               onChange={(e) => setAddReplicas(Number(e.target.value))}
@@ -334,7 +347,7 @@ export default function ScenarioForm({
                   {num}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Dependencies */}
@@ -345,7 +358,7 @@ export default function ScenarioForm({
             <div className="space-y-2 mb-2">
               {dependencies.map((dep, idx) => (
                 <div key={idx} className="flex gap-2">
-                  <select
+                  <Select
                     value={dep}
                     onChange={(e) => handleDependencyChange(idx, e.target.value)}
                     className={cn(controlInputMutedClass, 'flex-1')}
@@ -362,7 +375,7 @@ export default function ScenarioForm({
                           {s}
                         </option>
                       ))}
-                  </select>
+                  </Select>
                   <button
                     type="button"
                     onClick={() => handleRemoveDependency(idx)}
@@ -420,12 +433,11 @@ export default function ScenarioForm({
               errorClassName="text-red-400"
               errorText={mode === 'live' ? servicesError : null}
             >
-              <Input
+              <Combobox
                 id="serviceId"
-                type="text"
                 value={serviceId}
                 onChange={(e) => setServiceId(e.target.value)}
-                list={mode === 'live' ? 'discovered-services' : undefined}
+                items={serviceComboboxItems}
                 placeholder={
                   mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'
                 }
@@ -437,27 +449,6 @@ export default function ScenarioForm({
                 disabled={mode === 'live' && servicesLoading}
               />
             </Field>
-            {/* Datalist for Live mode autocomplete */}
-            {mode === 'live' && discoveredServices.length > 0 && (
-              <datalist id="discovered-services">
-                {discoveredServices.map((s) => {
-                  // Build enhanced label with pod count and availability if available
-                  let label = `${s.name} (${s.namespace})`
-                  if (s.podCount !== undefined || s.availability !== undefined) {
-                    const details = []
-                    if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
-                    if (s.availability !== undefined)
-                      details.push(`${(s.availability * 100).toFixed(0)}% up`)
-                    label += ` - ${details.join(', ')}`
-                  }
-                  return (
-                    <option key={s.serviceId} value={s.serviceId}>
-                      {label}
-                    </option>
-                  )
-                })}
-              </datalist>
-            )}
           </div>
 
           {/* Max Depth */}
@@ -528,7 +519,7 @@ export default function ScenarioForm({
                 >
                   Latency Metric
                 </label>
-                <select
+                <Select
                   id="latencyMetric"
                   value={latencyMetric}
                   onChange={(e) => setLatencyMetric(e.target.value as 'p50' | 'p95' | 'p99')}
@@ -537,7 +528,7 @@ export default function ScenarioForm({
                   <option value="p50">P50</option>
                   <option value="p95">P95</option>
                   <option value="p99">P99</option>
-                </select>
+                </Select>
               </div>
             </>
           )}

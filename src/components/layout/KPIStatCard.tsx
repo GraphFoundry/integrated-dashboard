@@ -13,10 +13,10 @@ interface KPIStatCardProps {
 }
 
 const variantColors = {
-  default: 'border-firebase-border text-firebase-blue',
-  success: 'border-firebase-success/30 text-firebase-success',
-  warning: 'border-firebase-warning/30 text-firebase-warning',
-  danger: 'border-firebase-error/30 text-firebase-error',
+  default: 'border-firebase-border',
+  success: 'border-firebase-success/30',
+  warning: 'border-firebase-warning/30',
+  danger: 'border-firebase-error/30',
 }
 
 const trendIcons = {
@@ -45,9 +45,9 @@ export default function KPIStatCard({
   return (
     <div
       title={tooltip}
-      className={`relative overflow-hidden bg-firebase-card border rounded-xl p-4 transition-all duration-200 hover:border-firebase-blue/50 ${variantColors[variant].split(' ')[0]} ${className}`}
+      className={`relative overflow-hidden rounded-xl border bg-firebase-card p-4 transition-all duration-200 hover:border-firebase-blue/50 ${variantColors[variant]} ${className}`}
     >
-      <div className="text-sm text-firebase-text-secondary mb-1">{label}</div>
+      <div className="mb-1 text-sm text-firebase-text-secondary">{label}</div>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-firebase-text-primary">{value}</div>
         {trend && TrendIcon && (

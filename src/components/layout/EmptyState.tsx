@@ -14,13 +14,15 @@ export default function EmptyState({
   action,
 }: Readonly<EmptyStateProps>) {
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-      <div className={typeof icon === 'string' ? 'text-5xl mb-4' : 'flex justify-center mb-4'}>
+    <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+      <div className={typeof icon === 'string' ? 'mb-4 text-5xl' : 'mb-4 flex justify-center'}>
         {icon}
       </div>
-      {title && <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>}
-      <p className="text-slate-300 font-medium mb-1">{message}</p>
-      {description && <p className="text-slate-400 text-sm max-w-md mx-auto">{description}</p>}
+      {title && <h3 className="mb-2 text-lg font-semibold text-firebase-text-primary">{title}</h3>}
+      <p className="mb-1 font-medium text-firebase-text-primary">{message}</p>
+      {description && (
+        <p className="mx-auto max-w-md text-sm text-firebase-text-secondary">{description}</p>
+      )}
       {action && <div className="mt-6">{action}</div>}
     </div>
   )

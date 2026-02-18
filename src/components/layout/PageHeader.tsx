@@ -14,18 +14,20 @@ export default function PageHeader({
   icon: Icon = Shield,
 }: Readonly<PageHeaderProps>) {
   return (
-    <div className="relative overflow-hidden bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-2xl border border-gray-700/50 p-8">
-      <div className="relative z-10 flex items-start justify-between">
+    <div className="relative overflow-hidden rounded-2xl border border-firebase-border bg-gradient-to-r from-firebase-blue/20 via-firebase-card to-firebase-card p-6 md:p-8">
+      <div className="relative z-10 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="flex items-center gap-3 mb-2">
-            <Icon className="w-8 h-8 text-blue-400" />
-            <h1 className="text-4xl font-bold text-white">{title}</h1>
+            <Icon className="h-8 w-8 text-firebase-blue" />
+            <h1 className="text-3xl font-bold text-firebase-text-primary md:text-4xl">{title}</h1>
           </div>
-          {description && <p className="text-gray-300 text-lg">{description}</p>}
+          {description && (
+            <p className="text-base text-firebase-text-secondary md:text-lg">{description}</p>
+          )}
         </div>
-        {actions && <div className="flex items-center gap-3">{actions}</div>}
+        {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
       </div>
-      <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+      <div className="pointer-events-none absolute right-0 top-0 h-56 w-56 rounded-full bg-firebase-blue/15 blur-3xl" />
     </div>
   )
 }

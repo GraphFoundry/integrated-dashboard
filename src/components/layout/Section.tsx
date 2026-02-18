@@ -18,24 +18,26 @@ export default function Section({
   icon: Icon,
 }: Readonly<SectionProps>) {
   return (
-    <div className={`bg-firebase-card rounded-lg border border-firebase-border ${className}`}>
+    <section className={`rounded-xl border border-firebase-border bg-firebase-card ${className}`}>
       {(title || description || actions) && (
-        <div className="border-b border-firebase-border p-6">
-          <div className="flex items-start justify-between">
+        <header className="border-b border-firebase-border p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               {title && (
                 <div className="flex items-center gap-3">
-                  {Icon && <Icon className="w-5 h-5 text-firebase-blue" />}
+                  {Icon && <Icon className="h-5 w-5 text-firebase-blue" />}
                   <h2 className="text-xl font-semibold text-firebase-text-primary">{title}</h2>
                 </div>
               )}
-              {description && <p className="text-sm text-firebase-text-secondary mt-1">{description}</p>}
+              {description && (
+                <p className="mt-1 text-sm text-firebase-text-secondary">{description}</p>
+              )}
             </div>
-            {actions && <div className="flex items-center gap-3">{actions}</div>}
+            {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
           </div>
-        </div>
+        </header>
       )}
       <div className="p-6">{children}</div>
-    </div>
+    </section>
   )
 }

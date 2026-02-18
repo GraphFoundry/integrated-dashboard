@@ -20,7 +20,7 @@ interface StatusBadgeProps {
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   default: 'bg-firebase-card text-firebase-text-primary border border-firebase-border',
-  secondary: 'bg-firebase-card text-firebase-text-secondary border border-firebase-border',
+  secondary: 'bg-firebase-card/80 text-firebase-text-secondary border border-firebase-border',
   success: 'bg-firebase-success/20 text-firebase-success border border-firebase-success/30',
   warning: 'bg-firebase-warning/20 text-firebase-warning border border-firebase-warning/30',
   destructive: 'bg-firebase-error/20 text-firebase-error border border-firebase-error/30',
@@ -32,7 +32,7 @@ export default function StatusBadge({
   variant = 'default',
   className = '',
 }: StatusBadgeProps) {
-  const baseClasses = 'px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1'
+  const baseClasses = 'inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium'
   const variantClasses = VARIANT_CLASSES[variant]
 
   return <span className={`${baseClasses} ${variantClasses} ${className}`.trim()}>{children}</span>

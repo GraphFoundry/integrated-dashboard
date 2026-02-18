@@ -21,7 +21,10 @@ export default function LoadingSpinner({
   fullHeight = true,
 }: LoadingSpinnerProps) {
   const spinner = (
-    <div className={`animate-spin ${sizeClasses[size]} border-blue-600 border-t-transparent rounded-full`} role="status">
+    <div
+      className={`animate-spin rounded-full border-firebase-blue border-t-transparent ${sizeClasses[size]}`}
+      role="status"
+    >
       <span className="sr-only">Loading</span>
     </div>
   )

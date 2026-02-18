@@ -359,6 +359,7 @@ export default function ScenarioForm({
               {dependencies.map((dep, idx) => (
                 <div key={idx} className="flex gap-2">
                   <Select
+                    aria-label={`Dependency ${idx + 1}`}
                     value={dep}
                     onChange={(e) => handleDependencyChange(idx, e.target.value)}
                     className={cn(controlInputMutedClass, 'flex-1')}
@@ -460,6 +461,7 @@ export default function ScenarioForm({
               Max Depth: {maxDepth}
             </label>
             <Slider
+              aria-label="Maximum dependency depth"
               id="maxDepth"
               min="1"
               max="3"

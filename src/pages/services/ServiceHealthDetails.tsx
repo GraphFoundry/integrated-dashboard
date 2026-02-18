@@ -83,6 +83,7 @@ export default function ServiceHealthDetails() {
         actions={
           <div className="flex gap-3">
             <Select
+              aria-label="Telemetry time range"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
               className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2"

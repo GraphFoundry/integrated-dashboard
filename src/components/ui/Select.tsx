@@ -132,10 +132,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         ))}
       </select>
       <AriaSelect
-        id={id}
-        aria-describedby={ariaDescribedBy}
-        aria-label={ariaLabel}
-        aria-labelledby={ariaLabelledBy}
         isDisabled={disabled}
         isInvalid={Boolean(ariaInvalid)}
         isRequired={required}
@@ -143,6 +139,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         onSelectionChange={handleSelectionChange}
       >
         <Button
+          id={id}
+          aria-describedby={ariaDescribedBy}
+          aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
+          aria-labelledby={ariaLabelledBy}
           autoFocus={autoFocus}
           className={cn(controlInputMutedClass, 'appearance-none pr-11 text-left', className)}
         >

@@ -29,7 +29,7 @@ export interface AlertInfo {
 
 export interface Impact {
   downstream_count?: number
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface Decision {
@@ -45,14 +45,14 @@ export interface Evidence {
   latency_p99?: number
   cpu_percent?: number
   memory_percent?: number
-  [key: string]: any // Allow additional evidence fields
+  [key: string]: unknown // Allow additional evidence fields
 }
 
 export interface Context {
   pod_name?: string
   cluster?: string
   environment?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface Links {
@@ -67,7 +67,7 @@ export interface Meta {
   threshold_version?: string
   producer?: string
   trace_id?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface Incident {
@@ -119,7 +119,7 @@ export interface IncidentDetail extends Incident {
 
 export interface WSMessage {
   type: 'incident_updated' | 'event_received' | 'stats' | 'connection' | 'graph_update'
-  data: any
+  data: unknown
 }
 
 export interface GraphUpdateData {

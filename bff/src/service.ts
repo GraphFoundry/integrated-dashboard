@@ -1,5 +1,5 @@
-import { AlertEvent, Incident, WSMessage } from './types'
-import { Storage } from './storage'
+import { AlertEvent, Incident, IncidentDetail, Overview, ServiceRollup, WSMessage } from './types'
+import { IncidentListFilter, Storage } from './storage'
 
 import { SmsService } from './sms.service'
 
@@ -8,7 +8,7 @@ export class AlertService {
     private storage: Storage,
     private broadcast: (msg: WSMessage) => void,
     private smsService?: SmsService
-  ) { }
+  ) {}
 
   // Ingest webhook event (source of truth)
   ingestAlertEvent(event: AlertEvent): { success: boolean; message: string } {
@@ -42,9 +42,9 @@ export class AlertService {
       }
 
       return { success: true, message: 'Event ingested successfully' }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to ingest event:', error)
-      return { success: false, message: error.message }
+      return { success: false, message: (error as { message: string }).message }
     }
   }
 
@@ -108,27 +108,6 @@ export class AlertService {
     })
   }
 
-  private computeQualityFlags(event: AlertEvent): string[] {
-    const flags: string[] = []
-
-    // Check for missing evidence
-    if (!event.evidence || Object.keys(event.evidence).length === 0) {
-      flags.push('missing_evidence')
-    }
-
-    // Check for missing context
-    if (!event.context || Object.keys(event.context).length === 0) {
-      flags.push('missing_context')
-    }
-
-    // Check for missing links
-    if (!event.links || (!event.links.details_ref && !event.links.runbook)) {
-      flags.push('missing_links')
-    }
-
-    return flags
-  }
-
   // Compute quality flags for an incident based on ALL its events
   // A flag is only raised if ALL events are missing that data
   private computeQualityFlagsForIncident(events: AlertEvent[]): string[] {
@@ -162,23 +141,23 @@ export class AlertService {
   }
 
   // Query methods
-  getOverview() {
+  getOverview(): Overview {
     return this.storage.getOverview()
   }
 
-  listIncidents(filter?: any) {
+  listIncidents(filter?: IncidentListFilter): Incident[] {
     return this.storage.listIncidents(filter)
   }
 
-  getIncidentDetail(dedupeKey: string, namespace: string, service: string) {
+  getIncidentDetail(dedupeKey: string, namespace: string, service: string): IncidentDetail | null {
     return this.storage.getIncidentDetail(dedupeKey, namespace, service)
   }
 
-  getServices() {
+  getServices(): ServiceRollup[] {
     return this.storage.getServices()
   }
 
-  getEvent(eventId: string) {
+  getEvent(eventId: string): AlertEvent | null {
     return this.storage.getEvent(eventId)
   }
 }

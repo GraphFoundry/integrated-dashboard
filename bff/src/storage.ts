@@ -1,5 +1,14 @@
 import { AlertEvent, Incident, ServiceRollup, Overview, IncidentDetail } from './types'
 
+export interface IncidentListFilter {
+  status?: string
+  severity?: string
+  namespace?: string
+  service?: string
+  priority?: string
+  auto?: boolean
+}
+
 // In-memory storage implementation (production should use SQLite/Postgres)
 export class Storage {
   private events: Map<string, AlertEvent> = new Map()
@@ -67,19 +76,13 @@ export class Storage {
     return this.incidents.get(key) || null
   }
 
-  listIncidents(filter?: {
-    status?: string
-    severity?: string
-    namespace?: string
-    service?: string
-    priority?: string
-    auto?: boolean
-  }): Incident[] {
+  listIncidents(filter?: IncidentListFilter): Incident[] {
     let incidents = Array.from(this.incidents.values())
 
     if (filter) {
       if (filter.status) {
-        incidents = incidents.filter((i) => i.status === filter.status!.toUpperCase())
+        const status = filter.status.toUpperCase()
+        incidents = incidents.filter((i) => i.status === status)
       }
       if (filter.severity) {
         incidents = incidents.filter((i) => i.current_severity === filter.severity)
@@ -204,7 +207,7 @@ export class Storage {
     return `${dedupeKey}:${namespace}:${service}`
   }
 
-  close() {
+  close(): void {
     // No-op for in-memory storage
   }
 }

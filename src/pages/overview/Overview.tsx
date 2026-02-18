@@ -11,7 +11,7 @@ import {
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import MetricHighlightCard from '@/components/layout/MetricHighlightCard'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import {
   cn,
   loadingCardClass,
@@ -119,8 +119,14 @@ export default function Overview() {
 
       {/* Loading State */}
       {loading && !kpiData && (
-        <div className={loadingCardClass}>
-          <LoadingSpinner fullHeight={false} message="Loading overview..." />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5" aria-label="Loading overview metrics">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={`overview-skeleton-${index}`} className={cn(loadingCardClass, 'p-6 text-left')}>
+              <SkeletonBlock variant="line" className="mb-3 w-2/3" />
+              <SkeletonBlock variant="line" className="mb-4 w-5/6" />
+              <SkeletonBlock variant="title" className="w-1/2" />
+            </div>
+          ))}
         </div>
       )}
 

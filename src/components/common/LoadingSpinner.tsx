@@ -34,7 +34,7 @@ export default function LoadingSpinner({
 
   if (!fullHeight) {
     return (
-      <div className="flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-3" aria-live="polite">
         {spinner}
         {message && <p className="text-sm text-[var(--text-secondary)]">{message}</p>}
       </div>
@@ -42,7 +42,7 @@ export default function LoadingSpinner({
   }
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3">
+    <div className="flex h-full flex-col items-center justify-center gap-3" aria-live="polite">
       {spinner}
       {message && <p className="text-sm text-[var(--text-secondary)]">{message}</p>}
     </div>

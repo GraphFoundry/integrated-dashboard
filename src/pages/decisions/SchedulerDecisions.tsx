@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import {
   cn,
   controlInputPanelClass,
@@ -294,8 +294,12 @@ export default function SchedulerDecisions() {
 
       {/* Loading State */}
       {loading && decisions.length === 0 && (
-        <div className={loadingCardClass}>
-          <LoadingSpinner fullHeight={false} message="Loading live decisions..." />
+        <div className={cn(loadingCardClass, 'space-y-4 p-6 text-left')} aria-label="Loading scheduler decisions">
+          <SkeletonBlock variant="title" className="w-1/3" />
+          <SkeletonBlock variant="line" className="w-1/2" />
+          {Array.from({ length: 3 }).map((_, index) => (
+            <SkeletonBlock key={`scheduler-skeleton-${index}`} variant="card" className="h-28" />
+          ))}
         </div>
       )}
 

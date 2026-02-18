@@ -6,11 +6,12 @@ import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import MetricHighlightCard from '@/components/layout/MetricHighlightCard'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import {
   cn,
   controlInputDarkClass,
   controlLabelCompactClass,
+  loadingCardClass,
   subtleIconButtonClass,
   tableActionLinkClass,
   tableBodyRowClass,
@@ -506,21 +507,14 @@ export default function Metrics() {
       )}
 
       {loading && (
-        <div className="rounded-xl border border-firebase-border bg-firebase-card p-24 text-center backdrop-blur-sm">
-          <LoadingSpinner
-            fullHeight={false}
-            size="lg"
-            message={
-              <span className="flex flex-col items-center gap-1">
-                <span className="text-xl font-medium text-firebase-text-primary">
-                  Analyzing System Vital Signs...
-                </span>
-                <span className="text-firebase-text-secondary">
-                  Connecting to telemetry satellites
-                </span>
-              </span>
-            }
-          />
+        <div className={cn(loadingCardClass, 'space-y-4 p-6 text-left')} aria-label="Loading metrics">
+          <SkeletonBlock variant="title" className="w-1/3" />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SkeletonBlock variant="card" className="h-28" />
+            <SkeletonBlock variant="card" className="h-28" />
+          </div>
+          <SkeletonBlock variant="line" className="w-full" />
+          <SkeletonBlock variant="line" className="w-5/6" />
         </div>
       )}
     </div>

@@ -10,6 +10,7 @@ export default function ErrorBanner({ message, onRetry }: ErrorBannerProps) {
     <div
       className="surface-glass rounded-[var(--radius-sm)] border border-rose-300/35 bg-rose-500/15 p-4"
       role="alert"
+      aria-live="assertive"
     >
       <p className="text-sm font-medium text-rose-100">{message}</p>
       {onRetry && (

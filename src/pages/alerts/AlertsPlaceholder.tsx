@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router'
 import { bffApi, Incident, Overview, connectToAlertStream, WSMessage } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import EmptyState from '@/components/layout/EmptyState'
 import {
   cn,
@@ -222,8 +222,27 @@ export default function AlertsPage() {
   if (loading) {
     return (
       <div className={pageContainerClass}>
-        <div className={loadingCardClass}>
-          <LoadingSpinner fullHeight={false} message="Loading alerts dashboard..." />
+        <div className="surface-panel rounded-[var(--radius-lg)] border border-white/12 p-8">
+          <SkeletonBlock variant="title" className="mb-4 w-1/3" />
+          <SkeletonBlock variant="line" className="mb-2 w-2/3" />
+          <SkeletonBlock variant="line" className="w-1/2" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={`alerts-kpi-skeleton-${index}`} className={cn(loadingCardClass, 'p-6 text-left')}>
+              <SkeletonBlock variant="chip" className="mb-4 w-16" />
+              <SkeletonBlock variant="title" className="mb-2 w-1/2" />
+              <SkeletonBlock variant="line" className="w-2/3" />
+            </div>
+          ))}
+        </div>
+        <div className={tableShellClass}>
+          <div className="p-6 space-y-3">
+            <SkeletonBlock variant="line" className="w-1/4" />
+            {Array.from({ length: 5 }).map((_, index) => (
+              <SkeletonBlock key={`alerts-table-skeleton-${index}`} variant="table-row" />
+            ))}
+          </div>
         </div>
       </div>
     )

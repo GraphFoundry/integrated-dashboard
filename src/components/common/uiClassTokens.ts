@@ -4,29 +4,64 @@ export function cn(...classes: ConditionalClass[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
-export const pageContainerClass = 'mx-auto max-w-7xl space-y-6'
-export const pageContainerSpaciousClass = 'mx-auto max-w-7xl space-y-8'
-export const loadingCardClass = 'rounded-xl border border-firebase-border bg-firebase-card p-12 text-center'
+export const pageContainerClass = 'mx-auto w-full max-w-screen-2xl space-y-6 px-4 sm:px-6 lg:px-8'
+export const pageContainerSpaciousClass =
+  'mx-auto w-full max-w-screen-2xl space-y-8 px-4 sm:px-6 lg:px-8'
 
-export const controlLabelClass = 'mb-2 block text-sm font-medium text-gray-300'
+export const glassSurfaceClass =
+  'surface-glass gloss-highlight rounded-[var(--radius-md)] border border-white/10'
+export const glassPanelClass =
+  'surface-panel gloss-highlight rounded-[var(--radius-lg)] border border-white/12'
+
+export const loadingCardClass = cn(
+  glassPanelClass,
+  'p-12 text-center text-[var(--text-secondary)]'
+)
+
+export const controlLabelClass = 'mb-2 block text-sm font-semibold text-[var(--text-secondary)]'
 export const controlLabelCompactClass =
-  'mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400'
+  'mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]'
 
-export const controlInputBaseClass =
-  'w-full rounded-lg border px-4 py-2.5 text-sm text-white transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2'
-export const controlInputMutedClass = cn(
-  controlInputBaseClass,
-  'border-gray-600/50 bg-gray-700/70'
-)
-export const controlInputPanelClass = cn(controlInputBaseClass, 'border-gray-700 bg-gray-900/50')
-export const controlInputDarkClass = cn(
-  controlInputBaseClass,
-  'border-slate-600/50 bg-slate-800'
+export const controlInputBaseClass = cn(
+  'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-white/14',
+  'bg-white/6 px-4 text-sm text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]',
+  'placeholder:text-[var(--text-muted)] hover:border-white/22 disabled:opacity-60'
 )
 
-export const iconActionButtonClass =
-  'inline-flex items-center justify-center rounded-lg bg-blue-600 text-white transition-colors hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50'
-export const primaryButtonClass =
-  'rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700'
-export const secondaryButtonClass =
-  'rounded-lg bg-slate-700 px-4 py-2 font-medium text-white transition-colors hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-600'
+export const controlInputMutedClass = cn(controlInputBaseClass, 'bg-white/8')
+export const controlInputPanelClass = cn(controlInputBaseClass, 'bg-black/25')
+export const controlInputDarkClass = cn(controlInputBaseClass, 'bg-slate-950/45')
+
+export const iconActionButtonClass = cn(
+  'neon-focus-ring interactive-soft inline-flex items-center justify-center rounded-[var(--radius-sm)]',
+  'border border-blue-400/30 bg-blue-500/20 text-blue-100 shadow-[0_10px_24px_rgba(2,6,23,0.35)]',
+  'hover:border-cyan-300/45 hover:bg-blue-500/30 disabled:opacity-50'
+)
+
+export const primaryButtonClass = cn(
+  'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-white',
+  'border border-blue-300/35 bg-gradient-to-r from-blue-500 to-indigo-500',
+  'shadow-[0_10px_24px_rgba(30,64,175,0.38)] hover:brightness-110 disabled:opacity-50'
+)
+
+export const secondaryButtonClass = cn(
+  'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold',
+  'border border-white/16 bg-white/8 text-[var(--text-secondary)] hover:bg-white/14 hover:text-[var(--text-primary)]',
+  'disabled:opacity-50 disabled:hover:bg-white/8 disabled:hover:text-[var(--text-secondary)]'
+)
+
+export const tableShellClass = cn(
+  glassSurfaceClass,
+  'overflow-hidden border border-white/10 shadow-[0_16px_30px_rgba(2,6,23,0.24)]'
+)
+
+export const tableHeadRowClass =
+  'bg-slate-900/72 text-[var(--text-muted)] backdrop-blur-md supports-[backdrop-filter]:bg-slate-900/58'
+
+export const tableBodyRowClass =
+  'border-b border-white/8 odd:bg-white/[0.02] even:bg-white/[0.01] hover:bg-cyan-400/[0.05]'
+
+export const tableHeaderCellClass =
+  'px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]'
+
+export const tableCellClass = 'px-6 py-4 text-sm text-[var(--text-secondary)]'

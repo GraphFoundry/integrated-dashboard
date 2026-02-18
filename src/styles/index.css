@@ -1,26 +1,153 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap');
 @import 'tailwindcss';
 @config "../../tailwind.config.ts";
 
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --font-body: 'Manrope', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-heading: 'Sora', 'Manrope', 'Inter', 'Segoe UI', sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-sm: 12px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+
+  --border-hairline: rgba(148, 163, 184, 0.2);
+  --border-strong: rgba(148, 163, 184, 0.32);
+
+  --shadow-soft: 0 10px 30px rgba(2, 8, 23, 0.26);
+  --shadow-ambient: 0 18px 50px rgba(2, 8, 23, 0.35);
+  --shadow-neon: 0 0 0 1px rgba(34, 211, 238, 0.25), 0 0 25px rgba(56, 189, 248, 0.2);
+
+  --app-bg: #060b16;
+  --surface-elevated: rgba(13, 23, 42, 0.72);
+  --surface-panel: rgba(15, 23, 42, 0.78);
+  --surface-muted: rgba(15, 23, 42, 0.52);
+
+  --text-primary: #e8eefc;
+  --text-secondary: #b8c6e0;
+  --text-muted: #8091ad;
+
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-error: #fb7185;
+  --color-info: #60a5fa;
+
+  --accent-primary: #3b82f6;
+  --accent-neon-rgb: 34 211 238;
+
+  color-scheme: dark;
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: dark;
-  color: theme('colors.firebase.text.primary');
-  background-color: theme('colors.firebase.dark');
+  color: var(--text-primary);
+  background-color: var(--app-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
+:root[data-theme='light'] {
+  --border-hairline: rgba(148, 163, 184, 0.34);
+  --border-strong: rgba(71, 85, 105, 0.32);
+
+  --shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --shadow-ambient: 0 18px 42px rgba(15, 23, 42, 0.12);
+  --shadow-neon: 0 0 0 1px rgba(56, 189, 248, 0.24), 0 0 20px rgba(56, 189, 248, 0.12);
+
+  --app-bg: #edf2ff;
+  --surface-elevated: rgba(255, 255, 255, 0.72);
+  --surface-panel: rgba(255, 255, 255, 0.84);
+  --surface-muted: rgba(255, 255, 255, 0.56);
+
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+
+  color-scheme: light;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
+  color: var(--text-primary);
+  background:
+    radial-gradient(1000px 560px at 10% -5%, rgba(14, 165, 233, 0.15), transparent 60%),
+    radial-gradient(840px 520px at 92% 0%, rgba(59, 130, 246, 0.12), transparent 56%),
+    radial-gradient(680px 420px at 50% 100%, rgba(79, 70, 229, 0.08), transparent 60%),
+    var(--app-bg);
 }
 
 #root {
   min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+}
+
+.surface-glass {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px) saturate(145%);
+  -webkit-backdrop-filter: blur(16px) saturate(145%);
+}
+
+.surface-panel {
+  background: var(--surface-panel);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--shadow-ambient);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.gloss-highlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.gloss-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 1px 1px auto;
+  height: 38%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  pointer-events: none;
+  z-index: -1;
+}
+
+.neon-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-neon);
+}
+
+.interactive-soft {
+  transition:
+    transform 160ms ease,
+    box-shadow 220ms ease,
+    border-color 220ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.interactive-soft:active {
+  transform: scale(0.985);
 }
 
 @keyframes slide-in {
@@ -36,14 +163,24 @@ body {
 }
 
 .animate-slide-in {
-  animation: slide-in 0.3s ease-out;
+  animation: slide-in 0.28s ease-out;
 }
 
-/* Global button cursor pointer */
 button:not(:disabled) {
   cursor: pointer;
 }
 
 button:disabled {
   cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

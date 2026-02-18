@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import {
   connectToGraphStream,
   getLatestGraphData,
@@ -246,6 +246,14 @@ export function useServicesWithPlacement() {
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
   const [allNodes, setAllNodes] = useState<NodeWithResources[]>([])
   const [fallbackLoading, setFallbackLoading] = useState(true)
+  const dependencyEdges = useMemo(
+    () =>
+      (graphData?.metricsSnapshot?.edges || []).map((e) => ({
+        source: e.from,
+        target: e.to,
+      })),
+    [graphData]
+  )
 
   useEffect(() => {
     if (!graphData) return
@@ -303,9 +311,6 @@ export function useServicesWithPlacement() {
     loading: loading && fallbackLoading,
     lastUpdated,
     // Expose dependency edges from the snapshot
-    dependencyEdges: graphData?.metricsSnapshot?.edges?.map((e) => ({
-      source: e.from,
-      target: e.to,
-    })) || [],
+    dependencyEdges,
   }
 }

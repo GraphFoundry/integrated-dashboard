@@ -671,9 +671,9 @@ const darkGraphTheme = {
     selectedOpacity: 1,
     inactiveOpacity: 0.1,
     label: {
-      fill: '#ffffffff',
-      color: '#ffffffff',
-      activeColor: '#ffffffff',
+      fill: '#f8fafc',
+      color: '#f8fafc',
+      activeColor: '#ffffff',
       fontSize: 6,
     },
   },

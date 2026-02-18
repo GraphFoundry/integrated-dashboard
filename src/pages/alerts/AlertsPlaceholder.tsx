@@ -52,12 +52,6 @@ export default function AlertsPage() {
     loadDataWithFilters(filter)
   }, [filter])
 
-  // Connect to WebSocket for real-time updates
-  useEffect(() => {
-    const ws = connectToAlertStream(handleWSMessage)
-    return () => ws.close()
-  }, [])
-
   // Restore scroll position after WebSocket updates
   useEffect(() => {
     if (isWebSocketUpdateRef.current && scrollPositionRef.current > 0 && !loading) {
@@ -135,6 +129,17 @@ export default function AlertsPage() {
       loadDataWithFilters(currentFilter)
     }
   }
+
+  // Stable ref so the WS callback always sees the latest closure without causing reconnects
+  // Declared after handleWSMessage to avoid the temporal dead zone
+  const handleWSMessageRef = useRef<(msg: WSMessage) => void>(() => {})
+  handleWSMessageRef.current = handleWSMessage
+
+  // Connect to WebSocket for real-time updates (auto-reconnect on disconnect)
+  useEffect(() => {
+    const cleanup = connectToAlertStream((msg) => handleWSMessageRef.current(msg))
+    return cleanup
+  }, [])
 
   const showToast = (message: string, type: Toast['type'] = 'info') => {
     const id = Date.now().toString()

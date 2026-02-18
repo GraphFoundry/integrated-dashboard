@@ -254,37 +254,98 @@ export const bffApi = {
   },
 }
 
-// WebSocket connection helper
+// WebSocket connection helper — returns a cleanup function (auto-reconnects)
 export function connectToAlertStream(
   onMessage: (message: WSMessage) => void,
-  onError?: (error: Event) => void
-): WebSocket {
-  const wsUrl = BFF_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://')
-  const ws = new WebSocket(`${wsUrl}/ws`)
+  options?: { reconnectDelayMs?: number }
+): () => void {
+  const reconnectDelay = options?.reconnectDelayMs ?? 3000
+  let ws: WebSocket | null = null
+  let closed = false
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let initialConnectTimer: ReturnType<typeof setTimeout> | null = null
 
-  ws.onopen = () => {
-    console.log('Connected to alert stream')
-  }
-
-  ws.onmessage = (event) => {
-    try {
-      const message = JSON.parse(event.data) as WSMessage
-      onMessage(message)
-    } catch (error) {
-      console.error('Failed to parse WebSocket message:', error)
+  const clearReconnectTimer = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
     }
   }
 
-  ws.onerror = (error) => {
-    console.error('WebSocket error:', error)
-    if (onError) onError(error)
+  const scheduleReconnect = () => {
+    if (closed || reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, reconnectDelay)
   }
 
-  ws.onclose = () => {
-    console.log('Disconnected from alert stream')
+  function connect() {
+    if (closed) return
+    clearReconnectTimer()
+
+    const wsUrl = BFF_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://')
+    const socket = new WebSocket(`${wsUrl}/ws`)
+    ws = socket
+
+    socket.onopen = () => {
+      if (closed || ws !== socket) return
+      console.log('Connected to alert stream')
+    }
+
+    socket.onmessage = (event) => {
+      if (closed || ws !== socket) return
+      try {
+        const message = JSON.parse(event.data) as WSMessage
+        onMessage(message)
+      } catch (error) {
+        console.error('Failed to parse WebSocket message:', error)
+      }
+    }
+
+    socket.onerror = (error) => {
+      if (closed || ws !== socket) return
+      console.error('WebSocket error:', error)
+    }
+
+    socket.onclose = () => {
+      if (ws !== socket) return
+      ws = null
+      if (closed) return
+      console.log('Disconnected from alert stream')
+      scheduleReconnect()
+    }
   }
 
-  return ws
+  initialConnectTimer = setTimeout(() => {
+    initialConnectTimer = null
+    connect()
+  }, 0)
+
+  return () => {
+    closed = true
+    if (initialConnectTimer) {
+      clearTimeout(initialConnectTimer)
+      initialConnectTimer = null
+    }
+    clearReconnectTimer()
+    const socket = ws
+    ws = null
+    if (socket) {
+      socket.onmessage = null
+      socket.onerror = null
+      socket.onclose = null
+      if (socket.readyState === WebSocket.CONNECTING) {
+        // Avoid "closed before the connection is established" noise on fast unmount/remount.
+        socket.onopen = () => socket.close()
+      } else {
+        socket.onopen = null
+      }
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close()
+      }
+    }
+  }
 }
 
 /**
@@ -301,18 +362,38 @@ export function connectToGraphStream(
   let ws: WebSocket | null = null
   let closed = false
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let initialConnectTimer: ReturnType<typeof setTimeout> | null = null
+
+  const clearReconnectTimer = () => {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+  }
+
+  const scheduleReconnect = () => {
+    if (closed || reconnectTimer) return
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null
+      connect()
+    }, reconnectDelay)
+  }
 
   function connect() {
     if (closed) return
+    clearReconnectTimer()
 
     const wsUrl = BFF_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://')
-    ws = new WebSocket(`${wsUrl}/ws`)
+    const socket = new WebSocket(`${wsUrl}/ws`)
+    ws = socket
 
-    ws.onopen = () => {
+    socket.onopen = () => {
+      if (closed || ws !== socket) return
       console.log('[GraphStream] Connected to BFF WebSocket')
     }
 
-    ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (closed || ws !== socket) return
       try {
         const message = JSON.parse(event.data) as WSMessage
         if (message.type === 'graph_update') {
@@ -323,27 +404,48 @@ export function connectToGraphStream(
       }
     }
 
-    ws.onerror = (error) => {
+    socket.onerror = (error) => {
+      if (closed || ws !== socket) return
       console.error('[GraphStream] WebSocket error:', error)
     }
 
-    ws.onclose = () => {
+    socket.onclose = () => {
+      if (ws !== socket) return
+      ws = null
+      if (closed) return
       console.log('[GraphStream] Disconnected')
-      if (!closed) {
-        reconnectTimer = setTimeout(connect, reconnectDelay)
-      }
+      scheduleReconnect()
     }
   }
 
-  connect()
+  initialConnectTimer = setTimeout(() => {
+    initialConnectTimer = null
+    connect()
+  }, 0)
 
   // Return cleanup function
   return () => {
     closed = true
-    if (reconnectTimer) clearTimeout(reconnectTimer)
-    if (ws) {
-      ws.close()
-      ws = null
+    if (initialConnectTimer) {
+      clearTimeout(initialConnectTimer)
+      initialConnectTimer = null
+    }
+    clearReconnectTimer()
+    const socket = ws
+    ws = null
+    if (socket) {
+      socket.onmessage = null
+      socket.onerror = null
+      socket.onclose = null
+      if (socket.readyState === WebSocket.CONNECTING) {
+        // Avoid "closed before the connection is established" noise on fast unmount/remount.
+        socket.onopen = () => socket.close()
+      } else {
+        socket.onopen = null
+      }
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.close()
+      }
     }
   }
 }

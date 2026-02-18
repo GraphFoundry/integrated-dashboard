@@ -28,3 +28,20 @@
 - `npx eslint src --quiet` passes after each refactor step.
 - `npm run build` passes after each refactor step.
 - Global `npm run lint` may still report existing `bff/**` issues (out of scope for this UI-only refactor).
+
+## 2026-02-18 - BFF Mechanical Refactor (No Behavior Change)
+
+### Scope
+- Refactor limited to `bff/src/**`.
+- No endpoint, request/response contract, webhook flow, WebSocket broadcast shape, SMS invocation flow, or status-code behavior changes.
+
+### Cleanup
+- Removed the blocking lint error in `bff/src/storage.ts` (unused constructor argument) with a behavior-neutral no-op consumption.
+- Organized `bff/src/index.ts` bootstrap/handlers mechanically via shared helpers (env loading, internal error response path, graceful shutdown) while preserving existing route outputs.
+- Improved readability/internal typing in `bff/src/service.ts` and `bff/src/storage.ts` without changing projection/filter/sorting semantics.
+- Normalized formatting and internal typing in `bff/src/sms.service.ts` while preserving FitSMS/OpenAI request payloads, headers, model/prompt intent, fallback truncation paths, and `sendSms` success/error envelope behavior.
+
+### Verification
+- `cd bff && npm run lint` passes with **0 errors**.
+- `cd bff && npm run build` passes.
+- Remaining lint warnings are intentionally out of scope and currently limited to existing `no-explicit-any` usages in `bff/src/types.ts`.

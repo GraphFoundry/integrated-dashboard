@@ -9,7 +9,9 @@ import {
   cn,
   controlInputPanelClass,
   controlLabelClass,
+  glassInteractiveCardClass,
   loadingCardClass,
+  modalPanelClass,
   pageContainerClass,
   secondaryButtonClass,
   subtleIconButtonClass,
@@ -84,7 +86,7 @@ interface DecisionMetricCardProps {
 
 function DecisionMetricCard({ label, className = '', children }: DecisionMetricCardProps) {
   return (
-    <div className={`rounded-lg border border-slate-700/30 bg-slate-900/30 p-3 ${className}`}>
+    <div className={`surface-glass rounded-lg border border-white/12 bg-white/[0.03] p-3 ${className}`}>
       <p className="mb-1 text-xs text-slate-500">{label}</p>
       {children}
     </div>
@@ -316,16 +318,19 @@ export default function SchedulerDecisions() {
           return (
             <div
               key={`${decision.namespace}-${decision.service}-${decision.evaluatedAt}-${idx}`}
-              className="group relative overflow-hidden bg-slate-800/40 backdrop-blur-sm rounded-xl border border-slate-700/50 hover:border-slate-600 transition-all duration-300 hover:shadow-lg hover:shadow-black/20"
+              className={cn(
+                glassInteractiveCardClass,
+                'group relative border-white/12 bg-white/[0.03] hover:border-cyan-300/25 hover:shadow-[0_18px_34px_rgba(2,6,23,0.4)]'
+              )}
             >
               {/* Action Bar (Top Right) */}
               <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                 <button type="button"
                   onClick={() => handleApplyClick(decision)}
                   disabled={isOptimized}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border font-medium ${isOptimized
-                    ? 'bg-slate-800/50 text-slate-500 border-slate-700/50 cursor-not-allowed'
-                    : 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/30'
+                  className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
+                    ? 'cursor-not-allowed border-white/12 bg-white/5 text-slate-500'
+                    : 'border-emerald-300/35 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/18'
                     }`}
                 >
                   {isOptimized ? <CheckCircle className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -415,7 +420,7 @@ export default function SchedulerDecisions() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="apply-decision-title"
-            className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            className={cn(modalPanelClass, 'max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200')}
           >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
@@ -442,7 +447,7 @@ export default function SchedulerDecisions() {
               <div className="space-y-4">
                 {!applyResult ? (
                   <>
-                    <div className="bg-blue-900/20 border border-blue-900/40 rounded-lg p-3 text-sm text-blue-200/80">
+                    <div className="surface-glass rounded-lg border border-cyan-300/24 bg-cyan-400/10 p-3 text-sm text-cyan-100/90">
                       <p>This action will restart the pod to allow it to be rescheduled onto the best node (<b>{selectedDecision?.bestNode}</b>).</p>
                     </div>
 

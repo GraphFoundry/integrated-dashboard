@@ -4,7 +4,13 @@ import { bffApi, IncidentDetail, AlertEvent } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import ErrorBanner from '@/components/common/ErrorBanner'
-import { loadingCardClass, pageContainerClass } from '@/components/common/uiClassTokens'
+import {
+  cn,
+  glassInteractiveCardClass,
+  loadingCardClass,
+  pageContainerClass,
+  tableShellClass,
+} from '@/components/common/uiClassTokens'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   ArrowLeft,
@@ -54,7 +60,7 @@ function EventObjectSection({ title, icon: Icon, iconClassName, data }: EventObj
         <Icon className={`h-4 w-4 ${iconClassName}`} />
         {title}
       </h4>
-      <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+      <div className="surface-glass rounded-lg border border-white/12 p-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
           {Object.entries(data).map(([key, value]) => (
             <div key={key} className="flex flex-col">
@@ -132,38 +138,43 @@ export default function IncidentDetailPage() {
   return (
     <div className={pageContainerClass}>
       {/* Header with gradient */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-purple-600/20 via-blue-600/20 to-cyan-600/20 rounded-2xl border border-gray-700/50 p-8">
+      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-white/12 p-8">
         <div className="relative z-10">
           <Link
             to="/alerts"
-            className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm mb-4 transition-colors"
+            className="neon-focus-ring interactive-soft mb-4 inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-cyan-300 hover:text-cyan-200"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Alerts
           </Link>
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-blue-400" />
-            <h1 className="text-4xl font-bold text-white">Incident Details</h1>
+            <Shield className="h-8 w-8 text-cyan-300" />
+            <h1 className="text-4xl font-bold text-[var(--text-primary)]">Incident Details</h1>
           </div>
           <div className="flex items-center gap-3 mt-3">
-            <code className="text-sm text-gray-300 bg-gray-800/50 px-3 py-1.5 rounded-lg border border-gray-700">
+            <code className="rounded-lg border border-white/14 bg-white/7 px-3 py-1.5 text-sm text-[var(--text-secondary)]">
               {incident.dedupe_key}
             </code>
           </div>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute right-0 top-0 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl" />
       </div>
 
       {/* Incident Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Decision Card - Primary focus */}
-        <div className="group relative overflow-hidden bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-xl border border-green-500/30 p-6 hover:border-green-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/20">
+        <div
+          className={cn(
+            glassInteractiveCardClass,
+            'group relative border-emerald-300/26 bg-emerald-400/6 hover:border-emerald-300/40 hover:shadow-[0_18px_34px_rgba(16,185,129,0.2)]'
+          )}
+        >
           <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-green-500/20 rounded-lg">
+            <div className="rounded-lg bg-emerald-400/18 p-3">
               <Zap className="w-6 h-6 text-green-400" />
             </div>
             {incident.auto && (
-              <span className="px-3 py-1 bg-green-500/20 text-green-300 text-xs font-semibold rounded-full">
+              <span className="rounded-full border border-emerald-300/35 bg-emerald-400/14 px-3 py-1 text-xs font-semibold text-emerald-200">
                 AUTOMATED
               </span>
             )}
@@ -237,13 +248,18 @@ export default function IncidentDetailPage() {
               </DetailField>
             )}
           </div>
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-all"></div>
+          <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-green-500/5 blur-2xl transition-all group-hover:bg-green-500/10" />
         </div>
 
         {/* Incident Metadata */}
-        <div className="group relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-sm rounded-xl border border-blue-500/30 p-6 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20">
+        <div
+          className={cn(
+            glassInteractiveCardClass,
+            'group relative border-blue-300/26 bg-blue-400/6 hover:border-blue-300/42 hover:shadow-[0_18px_34px_rgba(59,130,246,0.2)]'
+          )}
+        >
           <div className="flex items-start justify-between mb-4">
-            <div className="p-3 bg-blue-500/20 rounded-lg">
+            <div className="rounded-lg bg-blue-400/18 p-3">
               <Server className="w-6 h-6 text-blue-400" />
             </div>
           </div>
@@ -337,13 +353,13 @@ export default function IncidentDetailPage() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all"></div>
+          <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-blue-500/5 blur-2xl transition-all group-hover:bg-blue-500/10" />
         </div>
       </div>
 
       {/* Quality Flags */}
       {incident.quality_flags.length > 0 && (
-        <div className="relative overflow-hidden bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded-xl p-6 shadow-lg">
+        <div className="surface-glass relative overflow-hidden rounded-[var(--radius-md)] border border-yellow-300/30 bg-yellow-400/7 p-6 shadow-[0_18px_34px_rgba(245,158,11,0.15)]">
           <div className="flex items-start gap-3">
             <div className="p-2 bg-yellow-500/20 rounded-lg">
               <AlertTriangle className="w-5 h-5 text-yellow-400" />
@@ -362,13 +378,13 @@ export default function IncidentDetailPage() {
               </div>
             </div>
           </div>
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-yellow-500/5 rounded-full blur-2xl"></div>
+          <div className="absolute bottom-0 right-0 h-32 w-32 rounded-full bg-yellow-500/5 blur-2xl" />
         </div>
       )}
 
       {/* Event Timeline */}
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden shadow-lg">
-        <div className="bg-gray-700/30 px-6 py-4 border-b border-gray-700/50">
+      <div className={tableShellClass}>
+        <div className="border-b border-white/10 bg-white/[0.03] px-6 py-4">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-blue-400" />
             <h2 className="text-lg font-semibold text-white">Event Timeline</h2>
@@ -469,13 +485,15 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
 
   return (
     <div
-      className={`relative border ${expanded ? 'border-blue-500/50' : 'border-gray-700'} rounded-xl p-5 transition-all duration-200 ${
-        isLatest ? 'bg-blue-500/5 border-blue-500/30' : 'bg-gray-700/20 hover:bg-gray-700/30'
+      className={`surface-glass relative rounded-[var(--radius-md)] border p-5 transition-all duration-200 ${
+        expanded ? 'border-cyan-300/42' : 'border-white/12'
+      } ${
+        isLatest ? 'bg-cyan-400/6 border-cyan-300/32' : 'bg-white/[0.03] hover:bg-white/[0.06]'
       }`}
     >
       {isLatest && (
         <div className="absolute top-3 right-3">
-          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-500/20 text-blue-400 text-xs font-semibold rounded-full border border-blue-500/30">
+          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/35 bg-cyan-400/14 px-2 py-1 text-xs font-semibold text-cyan-200">
             <TrendingUp className="w-3 h-3" />
             Latest
           </span>
@@ -524,7 +542,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-controls={detailsPanelId}
-        className="flex items-center gap-2 text-blue-400 hover:text-blue-300 text-sm font-medium transition-colors"
+        className="neon-focus-ring interactive-soft mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-cyan-300 hover:text-cyan-200"
       >
         {expanded ? (
           <>

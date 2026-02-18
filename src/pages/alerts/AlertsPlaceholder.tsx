@@ -67,7 +67,7 @@ function OverviewStatCard({
 }: OverviewStatCardProps) {
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl border p-6 backdrop-blur-sm transition-all duration-300 ${borderClass} ${hoverBorderClass} ${hoverShadowClass}`}
+      className={`surface-glass interactive-soft group relative overflow-hidden rounded-[var(--radius-md)] border p-6 ${borderClass} ${hoverBorderClass} ${hoverShadowClass}`}
     >
       <div className="mb-4 flex items-start justify-between">
         <div className={`rounded-lg p-3 ${accentContainerClass}`}>{icon}</div>
@@ -232,27 +232,27 @@ export default function AlertsPage() {
   return (
     <div className={pageContainerClass}>
       {/* Header with gradient */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-2xl border border-gray-700/50 p-8">
+      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-white/12 p-8">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-blue-400" />
-            <h1 className="text-4xl font-bold text-white">Alerts Dashboard</h1>
+            <Shield className="w-8 h-8 text-cyan-300" />
+            <h1 className="text-4xl font-bold text-[var(--text-primary)]">Alerts Dashboard</h1>
           </div>
-          <p className="text-gray-300 text-lg">
+          <p className="text-lg text-[var(--text-secondary)]">
             Real-time incident monitoring and automated response tracking
           </p>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-0 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl"></div>
       </div>
 
       {/* Overview Stats with Enhanced Cards */}
       {overview && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <OverviewStatCard
-            accentContainerClass="bg-orange-500/20"
-            borderClass="border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-red-500/10"
-            hoverBorderClass="hover:border-orange-500/50"
-            hoverShadowClass="hover:shadow-lg hover:shadow-orange-500/20"
+            accentContainerClass="bg-orange-400/15"
+            borderClass="border-orange-300/26 bg-orange-400/6"
+            hoverBorderClass="hover:border-orange-300/42"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(251,146,60,0.18)]"
             glowBaseClass="bg-orange-500/5"
             glowHoverClass="group-hover:bg-orange-500/10"
             icon={<AlertTriangle className="w-6 h-6 text-orange-400" />}
@@ -268,16 +268,16 @@ export default function AlertsPage() {
           />
 
           <OverviewStatCard
-            accentContainerClass="bg-red-500/20"
-            borderClass="border-red-500/30 bg-gradient-to-br from-red-500/10 to-pink-500/10"
-            hoverBorderClass="hover:border-red-500/50"
-            hoverShadowClass="hover:shadow-lg hover:shadow-red-500/20"
+            accentContainerClass="bg-rose-400/15"
+            borderClass="border-rose-300/28 bg-rose-400/6"
+            hoverBorderClass="hover:border-rose-300/45"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(244,63,94,0.2)]"
             glowBaseClass="bg-red-500/5"
             glowHoverClass="group-hover:bg-red-500/10"
             icon={<Zap className="w-6 h-6 text-red-400" />}
             topRight={
               overview.critical_count > 0 ? (
-                <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs font-semibold rounded-full">
+                <span className="rounded-full border border-rose-300/35 bg-rose-400/14 px-2 py-1 text-xs font-semibold text-rose-200">
                   URGENT
                 </span>
               ) : undefined
@@ -288,10 +288,10 @@ export default function AlertsPage() {
           />
 
           <OverviewStatCard
-            accentContainerClass="bg-green-500/20"
-            borderClass="border-green-500/30 bg-gradient-to-br from-green-500/10 to-emerald-500/10"
-            hoverBorderClass="hover:border-green-500/50"
-            hoverShadowClass="hover:shadow-lg hover:shadow-green-500/20"
+            accentContainerClass="bg-emerald-400/15"
+            borderClass="border-emerald-300/26 bg-emerald-400/6"
+            hoverBorderClass="hover:border-emerald-300/42"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(16,185,129,0.2)]"
             glowBaseClass="bg-green-500/5"
             glowHoverClass="group-hover:bg-green-500/10"
             icon={<CheckCircle2 className="w-6 h-6 text-green-400" />}
@@ -307,10 +307,10 @@ export default function AlertsPage() {
           />
 
           <OverviewStatCard
-            accentContainerClass="bg-blue-500/20"
-            borderClass="border-blue-500/30 bg-gradient-to-br from-blue-500/10 to-cyan-500/10"
-            hoverBorderClass="hover:border-blue-500/50"
-            hoverShadowClass="hover:shadow-lg hover:shadow-blue-500/20"
+            accentContainerClass="bg-blue-400/15"
+            borderClass="border-blue-300/26 bg-blue-400/6"
+            hoverBorderClass="hover:border-blue-300/42"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(59,130,246,0.2)]"
             glowBaseClass="bg-blue-500/5"
             glowHoverClass="group-hover:bg-blue-500/10"
             icon={<Users className="w-6 h-6 text-blue-400" />}
@@ -322,7 +322,7 @@ export default function AlertsPage() {
       )}
 
       {/* Filters */}
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 shadow-lg">
+      <div className="surface-glass rounded-[var(--radius-md)] border border-white/12 p-6 shadow-[0_16px_30px_rgba(2,6,23,0.24)]">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="w-5 h-5 text-blue-400" />
           <h2 className="text-lg font-semibold text-white">Filter Incidents</h2>
@@ -536,7 +536,7 @@ export default function AlertsPage() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="flex items-start gap-3 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4 min-w-[320px] max-w-md animate-slide-in"
+            className="surface-glass flex min-w-[320px] max-w-md items-start gap-3 rounded-lg border border-white/14 p-4 shadow-xl animate-slide-in"
           >
             <div
               className={`flex-shrink-0 p-2 rounded-lg ${

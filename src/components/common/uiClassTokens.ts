@@ -106,3 +106,13 @@ export const metricHighlightCardClass = cn(
   'interactive-soft group relative overflow-hidden rounded-[var(--radius-md)] p-6',
   'hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(2,6,23,0.32)]'
 )
+
+export const glassInteractiveCardClass = cn(
+  glassSurfaceClass,
+  'interactive-soft rounded-[var(--radius-md)] p-6 hover:-translate-y-0.5 hover:border-white/22'
+)
+
+export const modalPanelClass = cn(
+  glassPanelClass,
+  'rounded-[var(--radius-md)] border border-white/16 shadow-[0_24px_64px_rgba(2,6,23,0.6)]'
+)

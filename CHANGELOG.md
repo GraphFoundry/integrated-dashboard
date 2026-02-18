@@ -7,27 +7,32 @@
 - `bff/**` intentionally unchanged and remains out of scope.
 
 ### Cleanup
-- Removed pre-existing `src` compile/lint blockers that were behavior-neutral.
-- Removed unused variables/catch bindings touched by this refactor.
+- Normalized shared token usage for page wrappers, loading cards, and common buttons.
+- Removed clearly unreferenced UI/source files after import-graph verification:
+  - `src/pages/pipeline/components/*` + `src/pages/pipeline/pipelineTypes.ts`
+  - `src/widgets/alerts/*`
+  - `src/lib/alertsApiClient.ts`, `src/lib/download.ts`, `src/lib/severity.ts`, `src/lib/time.ts`
+  - `src/components/common/SeverityBadge.tsx`
 
 ### UI Consistency
-- Normalized shared primitives (`PageHeader`, `Section`, `EmptyState`, `KPIStatCard`, `LoadingSpinner`, `ErrorBanner`, `StatusBadge`).
-- Standardized loading/error presentation across major routed pages with existing trigger conditions unchanged.
-- Added centralized UI class tokens for repeated control styles and applied them in high-duplication form/filter areas.
+- Standardized loading/empty presentation on routed pages using shared primitives (`LoadingSpinner`, `EmptyState`, `ErrorBanner`) with unchanged trigger conditions.
+- Applied shared class tokens across overview/history/service/offender/simulation/scheduler/alerts surfaces.
+- Kept existing per-page visual identity (mild standardization, no redesign).
 
 ### Accessibility
-- Added explicit `type="button"` to non-submit buttons.
-- Added `aria-label` to icon-only controls where needed.
-- Added ARIA labels for previously unlabeled alert filter controls.
-- Replaced `outline-none` usage with visible focus styles.
+- Added `htmlFor` + `id` associations for alert filters and scheduler modal pod selector.
+- Added dialog semantics (`role="dialog"`, `aria-modal`, `aria-labelledby`) for scheduler apply modal.
+- Added ARIA expanded-state metadata for expandable incident event details.
+- Added polite live-region attributes for alert toast notifications.
 
 ### Structure / Maintainability
-- Extracted local presentational subcomponents in large pages (`Metrics`, `Simulations`, `SchedulerDecisions`, `IncidentDetail`, `IncidentExplorer`, `NodeResourceGraph`) without moving business logic.
+- Extracted local presentational subcomponents in large pages (`Metrics`, `AlertsPlaceholder`, `IncidentDetail`, `SchedulerDecisions`, `NodeResourceGraph`) without moving business logic.
+- No business logic, API behavior, routing behavior, or state transition behavior changed.
 
 ### Verification
-- `npx eslint src --quiet` passes after each refactor step.
-- `npm run build` passes after each refactor step.
-- Global `npm run lint` may still report existing `bff/**` issues (out of scope for this UI-only refactor).
+- `npm run lint` passes with warnings only (no errors).
+- `npm run build` passes.
+- Existing warning profile remains behavior-sensitive and out of scope (`react-hooks/exhaustive-deps` in select pages, `no-explicit-any` in `bff/**` and select `src/lib/**` utilities).
 
 ## 2026-02-18 - BFF Mechanical Refactor (No Behavior Change)
 

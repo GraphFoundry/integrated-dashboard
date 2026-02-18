@@ -4,6 +4,12 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import {
+  cn,
+  iconActionButtonClass,
+  loadingCardClass,
+  pageContainerClass,
+} from '@/components/common/uiClassTokens'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent } from '@/lib/format'
 import IncidentExplorer from '@/pages/overview/IncidentExplorer'
@@ -84,16 +90,20 @@ export default function Overview() {
   }, [fetchData])
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       <PageHeader
         title="Overview"
         description="System health and top risks"
         icon={LayoutDashboard}
         actions={
-          <button type="button"
+          <button
+            type="button"
             onClick={fetchData}
             disabled={loading}
-            className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer"
+            className={cn(
+              iconActionButtonClass,
+              'cursor-pointer p-2 disabled:bg-slate-600 disabled:opacity-50'
+            )}
             title="Refresh data"
             aria-label="Refresh overview data"
           >
@@ -104,7 +114,7 @@ export default function Overview() {
 
       {/* Loading State */}
       {loading && !kpiData && (
-        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+        <div className={loadingCardClass}>
           <LoadingSpinner fullHeight={false} message="Loading overview..." />
         </div>
       )}

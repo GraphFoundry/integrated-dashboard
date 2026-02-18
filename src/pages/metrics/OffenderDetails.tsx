@@ -6,6 +6,11 @@ import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import {
+  loadingCardClass,
+  pageContainerClass,
+  primaryButtonClass,
+} from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
@@ -127,7 +132,7 @@ export default function OffenderDetails() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={pageContainerClass}>
       {/* Header with Breadcrumb */}
       <div className="space-y-4">
         <button type="button"
@@ -146,7 +151,7 @@ export default function OffenderDetails() {
 
       {/* Loading State */}
       {loading && (
-        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+        <div className={loadingCardClass}>
           <LoadingSpinner fullHeight={false} message="Loading offender details..." />
         </div>
       )}
@@ -350,7 +355,7 @@ export default function OffenderDetails() {
         <Section>
           <button type="button"
             onClick={handleOpenInSimulations}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            className={primaryButtonClass}
           >
             Open in Simulations
           </button>

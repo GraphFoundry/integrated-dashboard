@@ -11,6 +11,8 @@ import {
   controlInputMutedClass,
   controlLabelClass,
   iconActionButtonClass,
+  loadingCardClass,
+  pageContainerClass,
   primaryButtonClass,
   secondaryButtonClass,
 } from '@/components/common/uiClassTokens'
@@ -93,7 +95,7 @@ export default function History() {
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       <PageHeader
         title="History"
         description="Prediction history and decision logs"
@@ -205,7 +207,7 @@ export default function History() {
       )}
 
       {loading && (
-        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+        <div className={loadingCardClass}>
           <LoadingSpinner fullHeight={false} message="Loading history..." />
         </div>
       )}

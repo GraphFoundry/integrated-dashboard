@@ -6,6 +6,11 @@ import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import {
+  loadingCardClass,
+  pageContainerClass,
+  primaryButtonClass,
+} from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
@@ -70,7 +75,7 @@ export default function ServiceHealthDetails() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={pageContainerClass}>
       <PageHeader
         title={serviceName}
         description={`Service Health • Namespace: ${namespace}`}
@@ -88,7 +93,7 @@ export default function ServiceHealthDetails() {
             </select>
             <button type="button"
               onClick={() => navigate(`/simulations?service=${namespace}:${serviceName}`)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
+              className={`${primaryButtonClass} text-sm`}
             >
               Open in Simulations
             </button>
@@ -98,7 +103,7 @@ export default function ServiceHealthDetails() {
 
 
       {loading && !data && (
-        <div className="h-64 flex items-center justify-center">
+        <div className={`${loadingCardClass} flex h-64 items-center justify-center`}>
           <LoadingSpinner fullHeight={false} />
         </div>
       )}

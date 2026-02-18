@@ -4,6 +4,10 @@ export function cn(...classes: ConditionalClass[]): string {
   return classes.filter(Boolean).join(' ')
 }
 
+export const pageContainerClass = 'mx-auto max-w-7xl space-y-6'
+export const pageContainerSpaciousClass = 'mx-auto max-w-7xl space-y-8'
+export const loadingCardClass = 'rounded-xl border border-firebase-border bg-firebase-card p-12 text-center'
+
 export const controlLabelClass = 'mb-2 block text-sm font-medium text-gray-300'
 export const controlLabelCompactClass =
   'mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-400'

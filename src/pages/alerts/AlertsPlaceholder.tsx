@@ -5,10 +5,12 @@ import StatusBadge from '@/components/common/StatusBadge'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import EmptyState from '@/components/layout/EmptyState'
 import {
+  cn,
   controlInputMutedClass,
   controlLabelClass,
   loadingCardClass,
   pageContainerClass,
+  subtleIconButtonClass,
 } from '@/components/common/uiClassTokens'
 import { formatDistanceToNow } from '@/lib/format'
 import {
@@ -328,7 +330,7 @@ export default function AlertsPage() {
               id="alerts-status-filter"
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value as any })}
-              className={controlInputMutedClass}
+              className={cn(controlInputMutedClass, 'appearance-none pr-11')}
             >
               <option value="all">All Statuses</option>
               <option value="open">Open</option>
@@ -344,7 +346,7 @@ export default function AlertsPage() {
               id="alerts-severity-filter"
               value={filter.severity}
               onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
-              className={controlInputMutedClass}
+              className={cn(controlInputMutedClass, 'appearance-none pr-11')}
             >
               <option value="">All Severities</option>
               <option value="critical">🔴 Critical</option>
@@ -568,7 +570,7 @@ export default function AlertsPage() {
             </div>
             <button type="button"
               onClick={() => dismissToast(toast.id)}
-              className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
+              className={cn(subtleIconButtonClass, 'h-8 w-8 bg-white/5 text-gray-300')}
               aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />

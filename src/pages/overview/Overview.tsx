@@ -13,9 +13,9 @@ import PageHeader from '@/components/layout/PageHeader'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import {
   cn,
-  iconActionButtonClass,
   loadingCardClass,
   pageContainerClass,
+  subtleIconButtonClass,
 } from '@/components/common/uiClassTokens'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent } from '@/lib/format'
@@ -144,10 +144,7 @@ export default function Overview() {
             type="button"
             onClick={fetchData}
             disabled={loading}
-            className={cn(
-              iconActionButtonClass,
-              'cursor-pointer p-2 disabled:bg-slate-600 disabled:opacity-50'
-            )}
+            className={cn(subtleIconButtonClass)}
             title="Refresh data"
             aria-label="Refresh overview data"
           >

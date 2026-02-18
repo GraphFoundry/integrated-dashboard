@@ -10,7 +10,7 @@ import {
   cn,
   controlInputDarkClass,
   controlLabelCompactClass,
-  iconActionButtonClass,
+  subtleIconButtonClass,
 } from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
@@ -230,8 +230,8 @@ export default function Metrics() {
       />
 
       {/* Controls */}
-      <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4 backdrop-blur-sm">
-        <div className="flex gap-4 items-end">
+      <div className="surface-glass rounded-[var(--radius-md)] border border-white/12 p-4">
+        <div className="flex items-end gap-4">
           <div className="flex-1">
             <label htmlFor="service-select" className={controlLabelCompactClass}>
               Focus Area (Service)
@@ -241,7 +241,7 @@ export default function Metrics() {
                 id="service-select"
                 value={serviceName}
                 onChange={(e) => setServiceName(e.target.value)}
-                className={cn(controlInputDarkClass, 'appearance-none py-3 shadow-lg')}
+                className={cn(controlInputDarkClass, 'appearance-none pr-11')}
               >
                 <option value="">Entire System (Global)</option>
                 {services.map((service) => (
@@ -250,7 +250,7 @@ export default function Metrics() {
                   </option>
                 ))}
               </select>
-              <div className="absolute right-4 top-3.5 pointer-events-none text-slate-400">
+              <div className="pointer-events-none absolute right-4 top-3.5 text-[var(--text-muted)]">
                 <Settings className="w-4 h-4" />
               </div>
             </div>
@@ -264,7 +264,7 @@ export default function Metrics() {
                 id="time-range-select"
                 value={timeRange}
                 onChange={(e) => setTimeRange(e.target.value)}
-                className={cn(controlInputDarkClass, 'appearance-none py-3 shadow-lg')}
+                className={cn(controlInputDarkClass, 'appearance-none pr-11')}
               >
                 <option value="5m">Last 5 minutes (Real-time)</option>
                 <option value="15m">Last 15 minutes</option>
@@ -272,7 +272,7 @@ export default function Metrics() {
                 <option value="6h">Last 6 hours</option>
                 <option value="24h">Last 24 hours</option>
               </select>
-              <div className="absolute right-4 top-3.5 pointer-events-none text-slate-400">
+              <div className="pointer-events-none absolute right-4 top-3.5 text-[var(--text-muted)]">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
@@ -280,10 +280,7 @@ export default function Metrics() {
           <button type="button"
             onClick={fetchData}
             disabled={loading}
-            className={cn(
-              iconActionButtonClass,
-              'h-[46px] w-[46px] cursor-pointer p-3 shadow-lg shadow-blue-900/20 hover:bg-blue-500 active:bg-blue-700 disabled:bg-slate-700'
-            )}
+            className={cn(subtleIconButtonClass)}
             title="Refresh Vital Signs"
             aria-label="Refresh metrics"
           >

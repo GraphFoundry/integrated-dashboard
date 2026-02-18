@@ -10,11 +10,12 @@ import {
   cn,
   controlInputMutedClass,
   controlLabelClass,
-  iconActionButtonClass,
+  linkActionButtonClass,
   loadingCardClass,
   pageContainerClass,
   primaryButtonClass,
   secondaryButtonClass,
+  subtleIconButtonClass,
 } from '@/components/common/uiClassTokens'
 import { getDecisionHistory } from '@/lib/api'
 import { formatShortDate } from '@/lib/format'
@@ -116,7 +117,7 @@ export default function History() {
                 setTypeFilter(e.target.value)
                 setPage(0)
               }}
-              className={controlInputMutedClass}
+              className={cn(controlInputMutedClass, 'appearance-none pr-11')}
             >
               <option value="">All Types</option>
               <option value="failure">Failure</option>
@@ -127,7 +128,7 @@ export default function History() {
           <button type="button"
             onClick={fetchData}
             disabled={loading}
-            className={cn(iconActionButtonClass, 'h-[42px] w-[42px] cursor-pointer p-2.5')}
+            className={cn(subtleIconButtonClass)}
             title="Refresh data"
             aria-label="Refresh history data"
           >
@@ -154,7 +155,7 @@ export default function History() {
                 </div>
                 <button type="button"
                   onClick={() => navigate(`/history/${record.id}`)}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium transition-colors"
+                  className={cn(linkActionButtonClass, 'border border-cyan-300/30 bg-cyan-400/10')}
                 >
                   View Details
                 </button>

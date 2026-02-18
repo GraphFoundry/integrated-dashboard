@@ -50,6 +50,17 @@ export const secondaryButtonClass = cn(
   'disabled:opacity-50 disabled:hover:bg-white/8 disabled:hover:text-[var(--text-secondary)]'
 )
 
+export const successButtonClass = cn(
+  'neon-focus-ring interactive-soft inline-flex items-center rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-white',
+  'border border-emerald-200/30 bg-gradient-to-r from-emerald-500 to-green-500',
+  'shadow-[0_10px_24px_rgba(5,150,105,0.38)] hover:brightness-110 disabled:opacity-50'
+)
+
+export const subtleIconButtonClass = cn(iconActionButtonClass, 'h-11 w-11 p-2.5')
+
+export const linkActionButtonClass =
+  'neon-focus-ring interactive-soft rounded-md px-2 py-1 text-sm font-semibold text-cyan-200 hover:text-cyan-100'
+
 export const tableShellClass = cn(
   glassSurfaceClass,
   'overflow-hidden border border-white/10 shadow-[0_16px_30px_rgba(2,6,23,0.24)]'

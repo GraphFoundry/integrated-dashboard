@@ -9,10 +9,11 @@ import {
   cn,
   controlInputPanelClass,
   controlLabelClass,
-  iconActionButtonClass,
   loadingCardClass,
   pageContainerClass,
   secondaryButtonClass,
+  subtleIconButtonClass,
+  successButtonClass,
 } from '@/components/common/uiClassTokens'
 import { getServicesWithPlacement } from '@/lib/api'
 import { schedulerApi } from '@/lib/schedulerApiClient'
@@ -62,7 +63,7 @@ function FilterSelect({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={controlInputPanelClass}
+        className={cn(controlInputPanelClass, 'appearance-none pr-11')}
       >
         <option value="">{allLabel}</option>
         {options.map((option) => (
@@ -245,10 +246,7 @@ export default function SchedulerDecisions() {
             <button type="button"
               onClick={loadData}
               disabled={loading}
-              className={cn(
-                iconActionButtonClass,
-                'cursor-pointer p-2 shadow-lg shadow-blue-900/20'
-              )}
+              className={cn(subtleIconButtonClass)}
               title="Refresh data"
               aria-label="Refresh scheduler decisions"
             >
@@ -284,7 +282,7 @@ export default function SchedulerDecisions() {
             }}
             className={cn(
               secondaryButtonClass,
-              'h-[42px] whitespace-nowrap border border-slate-600 px-6'
+              'h-11 whitespace-nowrap px-6'
             )}
           >
             Clear Filters
@@ -434,7 +432,7 @@ export default function SchedulerDecisions() {
                 </div>
                 <button type="button"
                   onClick={closeApplyModal}
-                  className="text-slate-500 hover:text-white transition-colors"
+                  className={cn(subtleIconButtonClass, 'h-9 w-9 bg-white/4 text-slate-400')}
                   aria-label="Close apply decision modal"
                 >
                   <X className="w-5 h-5" />
@@ -457,7 +455,7 @@ export default function SchedulerDecisions() {
                           id="pod-select"
                           value={selectedPod}
                           onChange={(e) => setSelectedPod(e.target.value)}
-                          className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 focus-visible:outline-2 focus-visible:outline-green-500 focus-visible:outline-offset-2"
+                          className={cn(controlInputPanelClass, 'appearance-none pr-11')}
                         >
                           {availablePods.map(pod => (
                             <option key={pod} value={pod}>{pod}</option>
@@ -479,14 +477,14 @@ export default function SchedulerDecisions() {
                     <div className="flex gap-3 pt-2">
                       <button type="button"
                         onClick={closeApplyModal}
-                        className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors font-medium border border-slate-700"
+                        className={cn(secondaryButtonClass, 'flex-1')}
                       >
                         Cancel
                       </button>
                       <button type="button"
                         onClick={confirmApply}
                         disabled={!selectedPod || applying}
-                        className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-900/50 disabled:text-green-300/50 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+                        className={cn(successButtonClass, 'flex-1 justify-center gap-2')}
                       >
                         {applying ? (
                           <>
@@ -518,7 +516,7 @@ export default function SchedulerDecisions() {
                     )}
                     <button type="button"
                       onClick={closeApplyModal}
-                      className="mt-6 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                      className={cn(secondaryButtonClass, 'mt-6 px-6')}
                     >
                       Close
                     </button>

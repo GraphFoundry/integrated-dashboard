@@ -29,3 +29,4 @@ dist-ssr
 .env.*.local
 **.md
 !.github/**/*.md
+!docs/ui-library-migration.md

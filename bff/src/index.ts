@@ -28,7 +28,7 @@ import http from 'http'
 import WebSocket, { WebSocketServer } from 'ws'
 import { Storage } from './storage'
 import { AlertService } from './service'
-import { WSMessage, AlertEvent } from './types'
+import { WSMessage, AlertEvent, GraphUpdateData } from './types'
 import { SmsService } from './sms.service'
 
 const app = express()
@@ -103,6 +103,54 @@ app.post('/ingest/webhook', (req: Request, res: Response) => {
 })
 
 // ===== UI REST API =====
+
+// Store latest graph data in memory for REST fallback
+let latestGraphData: GraphUpdateData | null = null
+let graphDataReceivedAt: string | null = null
+
+// POST /webhook/graph-update - Receive graph updates from analysis-engine
+app.post('/webhook/graph-update', (req: Request, res: Response) => {
+  try {
+    const payload = req.body
+
+    if (payload.event !== 'graph_update' || !payload.data) {
+      return res.status(400).json({ success: false, error: 'Invalid graph update payload' })
+    }
+
+    const graphData = payload.data as GraphUpdateData
+
+    // Cache the latest data for REST fallback
+    latestGraphData = graphData
+    graphDataReceivedAt = new Date().toISOString()
+
+    // Broadcast to all connected WebSocket clients
+    const wsMessage: WSMessage = {
+      type: 'graph_update',
+      data: graphData,
+    }
+    broadcast(wsMessage)
+
+    console.log(
+      `[Graph Webhook] Received and broadcast: ${graphData.metricsSnapshot?.services?.length || 0} services, ${graphData.metricsSnapshot?.edges?.length || 0} edges`
+    )
+
+    res.status(200).json({ success: true, message: 'Graph update broadcast to clients' })
+  } catch (error: any) {
+    console.error('Graph webhook error:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+// GET /api/graph/latest - Get the latest cached graph data (REST fallback)
+app.get('/api/graph/latest', (req: Request, res: Response) => {
+  if (!latestGraphData) {
+    return res.status(404).json({ error: 'No graph data available yet' })
+  }
+  res.json({
+    data: latestGraphData,
+    receivedAt: graphDataReceivedAt,
+  })
+})
 
 // GET /api/overview - Dashboard overview stats
 app.get('/api/overview', (req: Request, res: Response) => {

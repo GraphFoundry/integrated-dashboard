@@ -1,12 +1,11 @@
 import { useMemo, useState, useEffect } from 'react'
 import { GraphCanvas, GraphNode as ReagraphNode, GraphEdge as ReagraphEdge } from 'reagraph'
-import toast from 'react-hot-toast'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import EmptyState from '@/components/layout/EmptyState'
 import { ModeButton } from './incidentExplorerUtils'
 import { NodeDetailsDrawer } from './NodeDetailsDrawer'
 import { getRiskColor } from './graphHelpers'
-import { getDependencyGraphSnapshot } from '@/lib/api'
+import { useDependencyGraphSnapshot } from '@/lib/useGraphStream'
 import {
   Activity,
   Server,
@@ -26,6 +25,7 @@ import {
 type GraphMode = 'impact' | 'suspect' | 'flow'
 
 export default function IncidentExplorer() {
+  const { snapshot } = useDependencyGraphSnapshot()
   const [loading, setLoading] = useState(true)
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [edges, setEdges] = useState<GraphEdge[]>([])
@@ -49,40 +49,15 @@ export default function IncidentExplorer() {
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
 
+  // Update state when WebSocket data arrives (replaces polling)
   useEffect(() => {
-    let isMounted = true
-    const fetchGraphData = async () => {
-      // Only show global loading on first fetch
-      if (nodes.length === 0) {
-        setLoading(true)
-      }
-
-      try {
-        const snapshot = await getDependencyGraphSnapshot()
-        if (isMounted) {
-          setNodes(snapshot.nodes)
-          setEdges(snapshot.edges)
-          setMetadata(snapshot.metadata)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast.error(err instanceof Error ? err.message : 'Failed to load graph data')
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false)
-        }
-      }
+    if (snapshot) {
+      setNodes(snapshot.nodes)
+      setEdges(snapshot.edges)
+      setMetadata(snapshot.metadata)
+      setLoading(false)
     }
-
-    fetchGraphData()
-    const interval = setInterval(fetchGraphData, 5000)
-
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
-  }, []) // Empty dependency array as we want this to run once on mount
+  }, [snapshot])
 
   // Convert to Reagraph format
   const reagraphNodes: ReagraphNode[] = useMemo(() => {

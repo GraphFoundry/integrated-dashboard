@@ -128,8 +128,70 @@ export interface IncidentFilter {
 }
 
 export interface WSMessage {
-  type: 'incident_updated' | 'event_received' | 'stats' | 'connection'
+  type: 'incident_updated' | 'event_received' | 'stats' | 'connection' | 'graph_update'
   data: any
+}
+
+/** Graph update data pushed via WebSocket from BFF */
+export interface GraphUpdateData {
+  metricsSnapshot: {
+    timestamp: string
+    window: string
+    services: Array<{
+      name: string
+      namespace: string
+      rps: number
+      errorRate: number
+      p95: number
+      podCount: number
+      availability: number
+    }>
+    edges: Array<{
+      from: string
+      to: string
+      namespace: string
+      rps: number
+      errorRate: number
+      p95: number
+    }>
+  }
+  services: Array<{
+    name: string
+    namespace: string
+    podCount: number
+    availability: number
+    placement: {
+      nodes: Array<{
+        node: string
+        resources: {
+          cpu: { usagePercent: number; cores: number }
+          ram: { usedMB: number; totalMB: number }
+        }
+        pods: Array<{
+          name: string
+          ramUsedMB: number
+          cpuUsagePercent: number
+          uptimeSeconds: number
+        }>
+      }>
+    }
+  }>
+  infrastructure: {
+    nodes: Array<{
+      name: string
+      resources: {
+        cpu: { usagePercent: number; cores: number }
+        ram: { usedMB: number; totalMB: number }
+      }
+    }>
+  }
+  centrality: {
+    scores: Array<{
+      service: string
+      pagerank: number
+      betweenness: number
+    }>
+  }
 }
 
 // API Client
@@ -223,4 +285,78 @@ export function connectToAlertStream(
   }
 
   return ws
+}
+
+/**
+ * Connect to the BFF WebSocket with auto-reconnect and listen
+ * specifically for graph_update events.
+ *
+ * Returns a cleanup function to close the connection.
+ */
+export function connectToGraphStream(
+  onGraphUpdate: (data: GraphUpdateData) => void,
+  options?: { reconnectDelayMs?: number }
+): () => void {
+  const reconnectDelay = options?.reconnectDelayMs ?? 3000
+  let ws: WebSocket | null = null
+  let closed = false
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+  function connect() {
+    if (closed) return
+
+    const wsUrl = BFF_BASE_URL.replace('http://', 'ws://').replace('https://', 'wss://')
+    ws = new WebSocket(`${wsUrl}/ws`)
+
+    ws.onopen = () => {
+      console.log('[GraphStream] Connected to BFF WebSocket')
+    }
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data) as WSMessage
+        if (message.type === 'graph_update') {
+          onGraphUpdate(message.data as GraphUpdateData)
+        }
+      } catch (error) {
+        console.error('[GraphStream] Failed to parse message:', error)
+      }
+    }
+
+    ws.onerror = (error) => {
+      console.error('[GraphStream] WebSocket error:', error)
+    }
+
+    ws.onclose = () => {
+      console.log('[GraphStream] Disconnected')
+      if (!closed) {
+        reconnectTimer = setTimeout(connect, reconnectDelay)
+      }
+    }
+  }
+
+  connect()
+
+  // Return cleanup function
+  return () => {
+    closed = true
+    if (reconnectTimer) clearTimeout(reconnectTimer)
+    if (ws) {
+      ws.close()
+      ws = null
+    }
+  }
+}
+
+/**
+ * Fetch the latest cached graph data via REST (fallback if WebSocket is not connected yet)
+ */
+export async function getLatestGraphData(): Promise<{ data: GraphUpdateData; receivedAt: string } | null> {
+  try {
+    const response = await fetch(`${BFF_BASE_URL}/api/graph/latest`)
+    if (!response.ok) return null
+    return response.json()
+  } catch {
+    return null
+  }
 }

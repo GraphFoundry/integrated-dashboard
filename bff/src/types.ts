@@ -118,8 +118,69 @@ export interface IncidentDetail extends Incident {
 }
 
 export interface WSMessage {
-  type: 'incident_updated' | 'event_received' | 'stats' | 'connection'
+  type: 'incident_updated' | 'event_received' | 'stats' | 'connection' | 'graph_update'
   data: any
+}
+
+export interface GraphUpdateData {
+  metricsSnapshot: {
+    timestamp: string
+    window: string
+    services: Array<{
+      name: string
+      namespace: string
+      rps: number
+      errorRate: number
+      p95: number
+      podCount: number
+      availability: number
+    }>
+    edges: Array<{
+      from: string
+      to: string
+      namespace: string
+      rps: number
+      errorRate: number
+      p95: number
+    }>
+  }
+  services: Array<{
+    name: string
+    namespace: string
+    podCount: number
+    availability: number
+    placement: {
+      nodes: Array<{
+        node: string
+        resources: {
+          cpu: { usagePercent: number; cores: number }
+          ram: { usedMB: number; totalMB: number }
+        }
+        pods: Array<{
+          name: string
+          ramUsedMB: number
+          cpuUsagePercent: number
+          uptimeSeconds: number
+        }>
+      }>
+    }
+  }>
+  infrastructure: {
+    nodes: Array<{
+      name: string
+      resources: {
+        cpu: { usagePercent: number; cores: number }
+        ram: { usedMB: number; totalMB: number }
+      }
+    }>
+  }
+  centrality: {
+    scores: Array<{
+      service: string
+      pagerank: number
+      betweenness: number
+    }>
+  }
 }
 
 export interface IncidentFilter {

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { toast } from 'react-hot-toast'
 import { GraphCanvas, GraphNode as ReagraphNode } from 'reagraph'
 import {
   ChevronRight,
@@ -16,7 +15,7 @@ import {
 
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
-import { getServicesWithPlacement, getDependencyGraphSnapshot, getNodes } from '@/lib/api'
+import { useServicesWithPlacement } from '@/lib/useGraphStream'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 import {
   extractNodesFromServices,
@@ -79,6 +78,13 @@ interface NodeResourceGraphProps {
 }
 
 export default function NodeResourceGraph({ simulatedService, nodeMetricOverrides }: NodeResourceGraphProps) {
+  const {
+    services: wsServices,
+    allNodes: wsAllNodes,
+    loading: wsLoading,
+    dependencyEdges: wsDependencyEdges,
+  } = useServicesWithPlacement()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
@@ -98,124 +104,78 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
   const hasInitialDrillDown = useRef(false)
 
-  // Fetch initial data with polling
+  // Update from WebSocket stream (replaces polling)
   useEffect(() => {
-    let isMounted = true
+    if (wsServices.length === 0 && wsLoading) return
 
-    const fetchData = async () => {
-      // Don't set loading on poll, only on initial load or manual refresh if we wanted that
-      if (services.length === 0) setLoading(true)
-      setError(null)
+    let fetchedServices: ServiceWithPlacement[] = [...wsServices]
 
-      try {
-        const [servicesData, graphSnapshot, nodesData] = await Promise.all([
-          getServicesWithPlacement(),
-          getDependencyGraphSnapshot().catch(() => ({ nodes: [], edges: [] })),
-          getNodes().catch(() => ({ nodes: [] })),
-        ])
+    // If we have a simulated service, merge it into the services list
+    if (simulatedService) {
+      const simServiceId = `${simulatedService.namespace}:${simulatedService.name}`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const exists = fetchedServices.find((s: any) => `${s.namespace}:${s.name}` === simServiceId)
 
-        if (!isMounted) return
-
-        let fetchedServices = servicesData.services || []
-
-        // If we have a simulated service, merge it into the services list
-        if (simulatedService) {
-          const simServiceId = `${simulatedService.namespace}:${simulatedService.name}`
-
-          // Check if it already exists (unlikely but good practice)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const exists = fetchedServices.find((s: any) => `${s.namespace}:${s.name}` === simServiceId)
-
-          if (!exists) {
-            fetchedServices = [...fetchedServices, {
-              name: simulatedService.name,
-              namespace: simulatedService.namespace,
-              podCount: simulatedService.replicas,
-              availability: 1.0, // Assume perfect health for simulation visualization
-              placement: {
-                nodes: [{
-                  node: simulatedService.nodeName,
-                  resources: {
-                    cpu: { usagePercent: 0, cores: 0 }, // Placeholder
-                    ram: { usedMB: 0, totalMB: 0 } // Placeholder
-                  },
-                  pods: Array(simulatedService.replicas).fill(null).map((_, i) => ({
-                    name: `${simulatedService.name}-sim-${i}`,
-                    ramUsedMB: simulatedService.ramRequest,
-                    cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10, // Rough estimate
-                    uptimeSeconds: 0 // New service
-                  }))
-                }]
-              }
+      if (!exists) {
+        fetchedServices = [...fetchedServices, {
+          name: simulatedService.name,
+          namespace: simulatedService.namespace,
+          podCount: simulatedService.replicas,
+          availability: 1.0,
+          placement: {
+            nodes: [{
+              node: simulatedService.nodeName,
+              resources: {
+                cpu: { usagePercent: 0, cores: 0 },
+                ram: { usedMB: 0, totalMB: 0 }
+              },
+              pods: Array(simulatedService.replicas).fill(null).map((_, i) => ({
+                name: `${simulatedService.name}-sim-${i}`,
+                ramUsedMB: simulatedService.ramRequest,
+                cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10,
+                uptimeSeconds: 0
+              }))
             }]
           }
-        }
-
-
-
-        setServices(fetchedServices)
-        setAllNodes(nodesData.nodes || [])
-
-        // Only drill down on initial load of simulation, not every poll
-        // Use ref to ensure we only do this once per component mount/simulation run
-        if (simulatedService && viewLevel === 'nodes' && !currentNodeId && !hasInitialDrillDown.current) {
-          hasInitialDrillDown.current = true
-          setViewLevel('services')
-          setCurrentNodeId(simulatedService.nodeName)
-          setBreadcrumbs([
-            { label: 'Nodes', level: 'nodes' },
-            { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName }
-          ])
-        }
-
-        // Handle stale data notification
-        if ((servicesData as any).stale) {
-          toast('Displaying cached infrastructure data. Live updates may be delayed.', {
-            id: 'stale-data-toast',
-            duration: 4000,
-            icon: '🕒',
-          })
-        }
-
-        // Extract service dependency edges for Level 2
-        const edges: { source: string; target: string }[] =
-          graphSnapshot.edges?.map((e: any) => ({
-            source: e.source.split(':')[1] || e.source, // extract service name from "namespace:name"
-            target: e.target.split(':')[1] || e.target,
-          })) || []
-
-        // Inject simulated edges
-        if (simulatedService && simulatedService.dependencies) {
-          simulatedService.dependencies.forEach(dep => {
-            const peerName = dep.serviceId.split(':')[1] || dep.serviceId
-            if (dep.relation === 'calls') {
-              edges.push({ source: simulatedService.name, target: peerName })
-            } else {
-              edges.push({ source: peerName, target: simulatedService.name })
-            }
-          })
-        }
-
-        setServiceDependencyEdges(edges)
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to load infrastructure data')
-          // Don't clear services on error to prevent flickering
-        }
-      } finally {
-        if (isMounted) setLoading(false)
+        }]
       }
     }
 
-    fetchData() // Initial fetch
+    setServices(fetchedServices)
+    setAllNodes(wsAllNodes)
+    setLoading(false)
 
-    const intervalId = setInterval(fetchData, 5000) // Poll every 5 seconds
-
-    return () => {
-      isMounted = false
-      clearInterval(intervalId)
+    // Only drill down on initial load of simulation
+    if (simulatedService && viewLevel === 'nodes' && !currentNodeId && !hasInitialDrillDown.current) {
+      hasInitialDrillDown.current = true
+      setViewLevel('services')
+      setCurrentNodeId(simulatedService.nodeName)
+      setBreadcrumbs([
+        { label: 'Nodes', level: 'nodes' },
+        { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName }
+      ])
     }
-  }, [simulatedService, services.length, viewLevel, currentNodeId, allNodes.length])
+
+    // Build dependency edges for Level 2
+    const edges: { source: string; target: string }[] = wsDependencyEdges.map((e) => ({
+      source: e.source,
+      target: e.target,
+    }))
+
+    // Inject simulated edges
+    if (simulatedService && simulatedService.dependencies) {
+      simulatedService.dependencies.forEach(dep => {
+        const peerName = dep.serviceId.split(':')[1] || dep.serviceId
+        if (dep.relation === 'calls') {
+          edges.push({ source: simulatedService.name, target: peerName })
+        } else {
+          edges.push({ source: peerName, target: simulatedService.name })
+        }
+      })
+    }
+
+    setServiceDependencyEdges(edges)
+  }, [wsServices, wsAllNodes, wsLoading, simulatedService, viewLevel, currentNodeId, wsDependencyEdges])
 
   // Generate graph data based on current view level
   const graphData = useMemo(() => {
@@ -407,7 +367,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   const handleBack = () => {
     if (breadcrumbs.length > 1) {
       const newBreadcrumbs = breadcrumbs.slice(0, -1)
-      const previousLevel = newBreadcrumbs.at(-1)
+      const previousLevel = newBreadcrumbs[newBreadcrumbs.length - 1]
       if (previousLevel) {
         handleBreadcrumbClick(previousLevel)
       }

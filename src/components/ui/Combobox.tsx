@@ -84,11 +84,11 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
       </div>
       <Popover
         className={cn(
-          'surface-panel z-50 max-h-72 overflow-auto rounded-[var(--radius-sm)] border border-white/14 p-1',
+          'surface-panel z-50 max-h-72 w-[var(--trigger-width)] min-w-[var(--trigger-width)] overflow-auto rounded-[var(--radius-sm)] border border-white/14 p-1',
           'shadow-[0_20px_40px_rgba(2,8,23,0.45)]'
         )}
       >
-        <ListBox className="outline-none">
+        <ListBox className="w-full outline-none">
           {items.map((item) => (
             <ListBoxItem
               key={item.value}

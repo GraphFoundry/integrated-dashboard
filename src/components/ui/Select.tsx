@@ -153,16 +153,18 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
             className
           )}
         >
-          <SelectValue />
-          <ChevronDown aria-hidden className="h-4 w-4 text-[var(--text-muted)]" />
+          <span className="min-w-0 flex-1 truncate">
+            <SelectValue />
+          </span>
+          <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
         </Button>
         <Popover
           className={cn(
-            'surface-panel z-50 max-h-72 overflow-auto rounded-[var(--radius-sm)] border border-white/14 p-1',
+            'surface-panel z-50 max-h-72 w-[var(--trigger-width)] min-w-[var(--trigger-width)] overflow-auto rounded-[var(--radius-sm)] border border-white/14 p-1',
             'shadow-[0_20px_40px_rgba(2,8,23,0.45)]'
           )}
         >
-          <ListBox className="outline-none">
+          <ListBox className="w-full outline-none">
             {options.map((option) => (
               <ListBoxItem
                 key={option.key}

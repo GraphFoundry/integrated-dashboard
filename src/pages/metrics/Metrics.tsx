@@ -51,6 +51,48 @@ const METRIC_LABELS = {
   }
 }
 
+interface VitalSignCardProps {
+  readonly label: string
+  readonly description: string
+  readonly icon: React.ComponentType<{ className?: string }>
+  readonly iconClassName: string
+  readonly hoverBorderClass: string
+  readonly value: React.ReactNode
+  readonly valueClassName: string
+  readonly note?: React.ReactNode
+}
+
+function VitalSignCard({
+  label,
+  description,
+  icon: Icon,
+  iconClassName,
+  hoverBorderClass,
+  value,
+  valueClassName,
+  note,
+}: VitalSignCardProps) {
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-xl border border-slate-700/50 bg-slate-800/50 p-6 backdrop-blur-sm transition-colors ${hoverBorderClass}`}
+    >
+      <div className="absolute right-0 top-0 p-4 opacity-10 transition-opacity group-hover:opacity-20">
+        <Icon className={`h-16 w-16 ${iconClassName}`} />
+      </div>
+      <div className="relative z-10 flex h-full flex-col justify-between">
+        <div>
+          <h3 className="mb-1 text-sm font-medium uppercase tracking-wider text-slate-400">{label}</h3>
+          <p className="mb-4 text-xs text-slate-500">{description}</p>
+        </div>
+        <div>
+          <div className={`text-3xl font-bold tracking-tight ${valueClassName}`}>{value}</div>
+          {note}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Metrics() {
   const navigate = useNavigate()
   const [serviceName, setServiceName] = useState('')
@@ -225,88 +267,67 @@ export default function Metrics() {
       {/* Vital Signs Cards */}
       {summaryStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Traffic */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm relative overflow-hidden group hover:border-blue-500/30 transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <METRIC_LABELS.requestRate.icon className="w-16 h-16 text-blue-400" />
-            </div>
-            <div className="flex flex-col h-full justify-between relative z-10">
-              <div>
-                <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">{METRIC_LABELS.requestRate.label}</h3>
-                <p className="text-slate-500 text-xs mb-4">{METRIC_LABELS.requestRate.desc}</p>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-white tracking-tight">
-                  {formatRps(summaryStats.requestRate)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Health (Inverse of Error Rate) */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm relative overflow-hidden group hover:border-emerald-500/30 transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <METRIC_LABELS.errorRate.icon className="w-16 h-16 text-emerald-400" />
-            </div>
-            <div className="flex flex-col h-full justify-between relative z-10">
-              <div>
-                <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">{METRIC_LABELS.errorRate.label}</h3>
-                <p className="text-slate-500 text-xs mb-4">{METRIC_LABELS.errorRate.desc}</p>
-              </div>
-              <div>
-                <div className={`text-3xl font-bold tracking-tight ${summaryStats.healthScore > 99 ? 'text-emerald-400' :
-                  summaryStats.healthScore > 95 ? 'text-amber-400' : 'text-rose-400'
-                  }`}>
-                  {formatPercent(summaryStats.healthScore)}
-                </div>
-                {summaryStats.healthScore < 100 && (
-                  <p className="text-xs text-rose-300 mt-1">
-                    {formatPercent(summaryStats.errorRate)} requests failing
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Speed (P95) */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm relative overflow-hidden group hover:border-amber-500/30 transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <METRIC_LABELS.p95.icon className="w-16 h-16 text-amber-400" />
-            </div>
-            <div className="flex flex-col h-full justify-between relative z-10">
-              <div>
-                <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">{METRIC_LABELS.p95.label}</h3>
-                <p className="text-slate-500 text-xs mb-4">{METRIC_LABELS.p95.desc}</p>
-              </div>
-              <div>
-                <div className={`text-3xl font-bold tracking-tight ${summaryStats.p95 < 500 ? 'text-emerald-400' :
-                  summaryStats.p95 < 1000 ? 'text-amber-400' : 'text-rose-400'
-                  }`}>
-                  {formatMs(summaryStats.p95)}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Uptime */}
-          <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm relative overflow-hidden group hover:border-purple-500/30 transition-colors">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <METRIC_LABELS.availability.icon className="w-16 h-16 text-purple-400" />
-            </div>
-            <div className="flex flex-col h-full justify-between relative z-10">
-              <div>
-                <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">{METRIC_LABELS.availability.label}</h3>
-                <p className="text-slate-500 text-xs mb-4">{METRIC_LABELS.availability.desc}</p>
-              </div>
-              <div>
-                <div className={`text-3xl font-bold tracking-tight ${summaryStats.availability > 99.9 ? 'text-emerald-400' :
-                  summaryStats.availability > 99 ? 'text-blue-400' : 'text-rose-400'
-                  }`}>
-                  {formatPercent(summaryStats.availability)}
-                </div>
-              </div>
-            </div>
-          </div>
+          <VitalSignCard
+            label={METRIC_LABELS.requestRate.label}
+            description={METRIC_LABELS.requestRate.desc}
+            icon={METRIC_LABELS.requestRate.icon}
+            iconClassName="text-blue-400"
+            hoverBorderClass="hover:border-blue-500/30"
+            value={formatRps(summaryStats.requestRate)}
+            valueClassName="text-white"
+          />
+          <VitalSignCard
+            label={METRIC_LABELS.errorRate.label}
+            description={METRIC_LABELS.errorRate.desc}
+            icon={METRIC_LABELS.errorRate.icon}
+            iconClassName="text-emerald-400"
+            hoverBorderClass="hover:border-emerald-500/30"
+            value={formatPercent(summaryStats.healthScore)}
+            valueClassName={
+              summaryStats.healthScore > 99
+                ? 'text-emerald-400'
+                : summaryStats.healthScore > 95
+                  ? 'text-amber-400'
+                  : 'text-rose-400'
+            }
+            note={
+              summaryStats.healthScore < 100 ? (
+                <p className="mt-1 text-xs text-rose-300">
+                  {formatPercent(summaryStats.errorRate)} requests failing
+                </p>
+              ) : undefined
+            }
+          />
+          <VitalSignCard
+            label={METRIC_LABELS.p95.label}
+            description={METRIC_LABELS.p95.desc}
+            icon={METRIC_LABELS.p95.icon}
+            iconClassName="text-amber-400"
+            hoverBorderClass="hover:border-amber-500/30"
+            value={formatMs(summaryStats.p95)}
+            valueClassName={
+              summaryStats.p95 < 500
+                ? 'text-emerald-400'
+                : summaryStats.p95 < 1000
+                  ? 'text-amber-400'
+                  : 'text-rose-400'
+            }
+          />
+          <VitalSignCard
+            label={METRIC_LABELS.availability.label}
+            description={METRIC_LABELS.availability.desc}
+            icon={METRIC_LABELS.availability.icon}
+            iconClassName="text-purple-400"
+            hoverBorderClass="hover:border-purple-500/30"
+            value={formatPercent(summaryStats.availability)}
+            valueClassName={
+              summaryStats.availability > 99.9
+                ? 'text-emerald-400'
+                : summaryStats.availability > 99
+                  ? 'text-blue-400'
+                  : 'text-rose-400'
+            }
+          />
         </div>
       )}
 

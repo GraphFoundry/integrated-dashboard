@@ -35,6 +35,22 @@ type BreadcrumbItem = {
   serviceName?: string
 }
 
+function GraphShell({
+  children,
+  className = '',
+}: {
+  readonly children: React.ReactNode
+  readonly className?: string
+}) {
+  return (
+    <div
+      className={`bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px] ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
+
 // Helper function for empty state messages
 function getEmptyStateMessage(
   level: ViewLevel,
@@ -378,17 +394,17 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
   if (loading) {
     return (
-      <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px]">
+      <GraphShell>
         <div className="flex-1 flex items-center justify-center">
           <LoadingSpinner fullHeight={false} message="Loading infrastructure data..." />
         </div>
-      </div>
+      </GraphShell>
     )
   }
 
   if (error) {
     return (
-      <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px]">
+      <GraphShell>
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="w-full max-w-md space-y-3">
             <ErrorBanner message={error} />
@@ -397,14 +413,14 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
             </p>
           </div>
         </div>
-      </div>
+      </GraphShell>
     )
   }
 
   const hasData = graphData.nodes.length > 0
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px] relative">
+    <GraphShell className="relative">
       {/* Header with Breadcrumb and Back Button */}
       <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
         <div className="flex items-center gap-2">
@@ -792,6 +808,6 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
           </div>
         )}
       </div>
-    </div>
+    </GraphShell>
   )
 }

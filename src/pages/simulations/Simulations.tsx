@@ -20,6 +20,47 @@ import type {
   ScenarioType,
 } from '@/lib/types'
 
+interface ServiceListCardProps {
+  readonly title: string
+  readonly count: number
+  readonly emptyMessage: string
+  readonly borderClassName: string
+  readonly items: Array<{ namespace?: string; name?: string }> | undefined
+  readonly keyPrefix: string
+}
+
+function ServiceListCard({
+  title,
+  count,
+  emptyMessage,
+  borderClassName,
+  items,
+  keyPrefix,
+}: ServiceListCardProps) {
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-semibold text-slate-300">
+        {title} ({count})
+      </h3>
+      {count === 0 ? (
+        <p className="text-sm text-slate-500">{emptyMessage}</p>
+      ) : (
+        <div className="space-y-2">
+          {items?.map((item, idx) => (
+            <div
+              key={`${keyPrefix}-${item.namespace ?? 'unknown'}-${item.name ?? 'unknown'}-${idx}`}
+              className={`rounded border p-3 ${borderClassName}`}
+            >
+              <div className="font-medium text-white">{item.name ?? 'Unknown service'}</div>
+              <div className="text-xs text-slate-400">{item.namespace ?? 'unknown'}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Simulations() {
   const [searchParams] = useSearchParams()
   const [scenarioType, setScenarioType] = useState<ScenarioType>('add-service')
@@ -151,49 +192,22 @@ export default function Simulations() {
         {/* Dependency Neighborhood */}
         <Section title="Dependency Neighborhood" icon={Network}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Upstream Callers */}
-            <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Upstream Callers ({affectedCallersCount})
-              </h3>
-              {affectedCallersCount === 0 ? (
-                <p className="text-sm text-slate-500">No upstream callers affected</p>
-              ) : (
-                <div className="space-y-2">
-                  {failureResult.affectedCallers?.map((caller, idx) => (
-                    <div
-                      key={`caller-${caller.namespace}-${caller.name}-${idx}`}
-                      className="p-3 bg-slate-900 rounded border border-yellow-700/30"
-                    >
-                      <div className="font-medium text-white">{caller.name}</div>
-                      <div className="text-xs text-slate-400">{caller.namespace}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Downstream Dependencies */}
-            <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Downstream Impacted ({affectedDownstreamCount})
-              </h3>
-              {affectedDownstreamCount === 0 ? (
-                <p className="text-sm text-slate-500">No downstream services impacted</p>
-              ) : (
-                <div className="space-y-2">
-                  {failureResult.affectedDownstream?.map((downstream, idx) => (
-                    <div
-                      key={`downstream-${downstream.namespace}-${downstream.name}-${idx}`}
-                      className="p-3 bg-slate-900 rounded border border-red-700/30"
-                    >
-                      <div className="font-medium text-white">{downstream.name}</div>
-                      <div className="text-xs text-slate-400">{downstream.namespace}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ServiceListCard
+              title="Upstream Callers"
+              count={affectedCallersCount}
+              emptyMessage="No upstream callers affected"
+              borderClassName="border-yellow-700/30 bg-slate-900"
+              items={failureResult.affectedCallers}
+              keyPrefix="caller"
+            />
+            <ServiceListCard
+              title="Downstream Impacted"
+              count={affectedDownstreamCount}
+              emptyMessage="No downstream services impacted"
+              borderClassName="border-red-700/30 bg-slate-900"
+              items={failureResult.affectedDownstream}
+              keyPrefix="downstream"
+            />
           </div>
         </Section>
       </>

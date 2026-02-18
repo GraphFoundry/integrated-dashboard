@@ -25,6 +25,14 @@ import {
 
 type GraphMode = 'impact' | 'suspect' | 'flow'
 
+function ExplorerFrame({ children }: { readonly children: React.ReactNode }) {
+  return (
+    <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px]">
+      {children}
+    </div>
+  )
+}
+
 export default function IncidentExplorer() {
   const { snapshot } = useDependencyGraphSnapshot()
   const [loading, setLoading] = useState(true)
@@ -136,19 +144,20 @@ export default function IncidentExplorer() {
 
   if (loading && nodes.length === 0) {
     return (
-      <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px]">
+      <ExplorerFrame>
         <div className="p-4 border-b border-slate-700 bg-slate-800/50">
           <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
         </div>
         <div className="flex-1 flex items-center justify-center">
           <LoadingSpinner fullHeight={false} message="Scanning infrastructure topology..." />
         </div>
-      </div>
+      </ExplorerFrame>
     )
   }
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px] relative">
+    <ExplorerFrame>
+      <div className="relative flex h-full flex-col">
       {/* Header with Mode Controls */}
       <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
         <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
@@ -327,7 +336,8 @@ export default function IncidentExplorer() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </ExplorerFrame>
   )
 }
 

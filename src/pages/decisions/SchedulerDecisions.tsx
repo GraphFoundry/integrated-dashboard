@@ -33,6 +33,45 @@ interface RestartResponse {
   error?: string
 }
 
+interface FilterSelectProps {
+  readonly id: string
+  readonly label: string
+  readonly value: string
+  readonly allLabel: string
+  readonly options: string[]
+  readonly onChange: (value: string) => void
+}
+
+function FilterSelect({
+  id,
+  label,
+  value,
+  allLabel,
+  options,
+  onChange,
+}: FilterSelectProps) {
+  return (
+    <div className="flex-1 w-full">
+      <label htmlFor={id} className={controlLabelClass}>
+        {label}
+      </label>
+      <select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={controlInputPanelClass}
+      >
+        <option value="">{allLabel}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export default function SchedulerDecisions() {
   const [decisions, setDecisions] = useState<SchedulerDecision[]>([])
   const [services, setServices] = useState<Record<string, string[]>>({})
@@ -204,45 +243,22 @@ export default function SchedulerDecisions() {
       {/* Filters */}
       <Section icon={Filter}>
         <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label
-              htmlFor="namespace-filter"
-              className={controlLabelClass}
-            >
-              Filter by Namespace
-            </label>
-            <select
-              id="namespace-filter"
-              value={namespaceFilter}
-              onChange={(e) => setNamespaceFilter(e.target.value)}
-              className={controlInputPanelClass}
-            >
-              <option value="">All Namespaces</option>
-              {uniqueNamespaces.map((ns) => (
-                <option key={ns} value={ns}>
-                  {ns}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex-1 w-full">
-            <label htmlFor="status-filter" className={controlLabelClass}>
-              Filter by Status
-            </label>
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={controlInputPanelClass}
-            >
-              <option value="">All Statuses</option>
-              {uniqueStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FilterSelect
+            id="namespace-filter"
+            label="Filter by Namespace"
+            value={namespaceFilter}
+            allLabel="All Namespaces"
+            options={uniqueNamespaces}
+            onChange={setNamespaceFilter}
+          />
+          <FilterSelect
+            id="status-filter"
+            label="Filter by Status"
+            value={statusFilter}
+            allLabel="All Statuses"
+            options={uniqueStatuses}
+            onChange={setStatusFilter}
+          />
           <button type="button"
             onClick={() => {
               setNamespaceFilter('')

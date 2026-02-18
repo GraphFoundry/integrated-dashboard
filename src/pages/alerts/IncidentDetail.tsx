@@ -20,6 +20,23 @@ import {
   ExternalLink,
 } from 'lucide-react'
 
+function DetailField({
+  label,
+  children,
+  className = '',
+}: {
+  readonly label: string
+  readonly children: React.ReactNode
+  readonly className?: string
+}) {
+  return (
+    <div className={className}>
+      <div className="mb-1 text-sm text-gray-400">{label}</div>
+      {children}
+    </div>
+  )
+}
+
 export default function IncidentDetailPage() {
   const { dedupeKey } = useParams<{ dedupeKey: string }>()
   const [searchParams] = useSearchParams()
@@ -116,13 +133,11 @@ export default function IncidentDetailPage() {
           </div>
           <h2 className="text-xl font-semibold text-white mb-4">Decision & Action</h2>
           <div className="space-y-4">
-            <div>
-              <div className="text-sm text-gray-400 mb-1">Action</div>
+            <DetailField label="Action">
               <div className="text-2xl font-bold text-white">{incident.current_action}</div>
-            </div>
+            </DetailField>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-gray-400 mb-1">Automation</div>
+              <DetailField label="Automation">
                 <div className="flex items-center gap-2">
                   {incident.auto ? (
                     <>
@@ -136,9 +151,8 @@ export default function IncidentDetailPage() {
                     </>
                   )}
                 </div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-400 mb-1">Priority</div>
+              </DetailField>
+              <DetailField label="Priority">
                 <span
                   className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-semibold ${
                     incident.current_priority === 'P1'
@@ -150,10 +164,9 @@ export default function IncidentDetailPage() {
                 >
                   {incident.current_priority}
                 </span>
-              </div>
+              </DetailField>
             </div>
-            <div>
-              <div className="text-sm text-gray-400 mb-1">Risk Score</div>
+            <DetailField label="Risk Score">
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-gray-700/50 rounded-full h-2 overflow-hidden">
                   <div
@@ -171,10 +184,9 @@ export default function IncidentDetailPage() {
                   {incident.risk_score}
                 </span>
               </div>
-            </div>
+            </DetailField>
             {incident.reason_codes.length > 0 && (
-              <div>
-                <div className="text-sm text-gray-400 mb-2">Reason Codes</div>
+              <DetailField label="Reason Codes">
                 <div className="flex flex-wrap gap-2">
                   {incident.reason_codes.map((code, idx) => (
                     <span
@@ -185,7 +197,7 @@ export default function IncidentDetailPage() {
                     </span>
                   ))}
                 </div>
-              </div>
+              </DetailField>
             )}
           </div>
           <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-all"></div>
@@ -200,11 +212,10 @@ export default function IncidentDetailPage() {
           </div>
           <h2 className="text-xl font-semibold text-white mb-4">Service Information</h2>
           <div className="space-y-4">
-            <div>
-              <div className="text-sm text-gray-400 mb-1">Service</div>
+            <DetailField label="Service">
               <div className="text-xl font-bold text-white">{incident.service}</div>
               <div className="text-sm text-gray-500 mt-0.5">{incident.namespace}</div>
-            </div>
+            </DetailField>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-sm text-gray-400 mb-1">Status</div>

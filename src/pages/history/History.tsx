@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { getDecisionHistory } from '@/lib/api'
 import { formatShortDate } from '@/lib/format'
 import type { DecisionRecord } from '@/lib/types'
@@ -195,9 +196,8 @@ export default function History() {
       )}
 
       {loading && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-slate-400">Loading history...</p>
+        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+          <LoadingSpinner fullHeight={false} message="Loading history..." />
         </div>
       )}
     </div>

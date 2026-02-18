@@ -15,6 +15,8 @@ import {
 
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
+import ErrorBanner from '@/components/common/ErrorBanner'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 import {
@@ -378,7 +380,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     return (
       <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px]">
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-slate-400">Loading infrastructure data...</div>
+          <LoadingSpinner fullHeight={false} message="Loading infrastructure data..." />
         </div>
       </div>
     )
@@ -388,15 +390,12 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     return (
       <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px]">
         <div className="flex-1 flex items-center justify-center p-8">
-          <EmptyState
-            icon={<AlertCircle className="w-12 h-12 text-red-500" />}
-            message={error}
-            action={
-              <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">
-                Check backend connectivity to Graph Engine
-              </span>
-            }
-          />
+          <div className="w-full max-w-md space-y-3">
+            <ErrorBanner message={error} />
+            <p className="text-center text-xs text-slate-500">
+              Check backend connectivity to Graph Engine
+            </p>
+          </div>
         </div>
       </div>
     )

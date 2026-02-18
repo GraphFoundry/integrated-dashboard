@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router'
 import { bffApi, IncidentDetail, AlertEvent } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
+import ErrorBanner from '@/components/common/ErrorBanner'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   ArrowLeft,
@@ -55,7 +57,9 @@ export default function IncidentDetailPage() {
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto">
-        <div className="text-gray-400">Loading incident details...</div>
+        <div className="rounded-xl border border-firebase-border bg-firebase-card p-10">
+          <LoadingSpinner fullHeight={false} message="Loading incident details..." />
+        </div>
       </div>
     )
   }
@@ -63,9 +67,7 @@ export default function IncidentDetailPage() {
   if (error || !incident) {
     return (
       <div className="max-w-7xl mx-auto">
-        <div className="bg-red-900/20 border border-red-500 rounded-lg p-4 text-red-400">
-          {error || 'Incident not found'}
-        </div>
+        <ErrorBanner message={error || 'Incident not found'} />
         <Link to="/alerts" className="text-blue-400 hover:text-blue-300 mt-4 inline-block">
           ← Back to Alerts
         </Link>

@@ -5,6 +5,7 @@ import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
@@ -98,7 +99,7 @@ export default function ServiceHealthDetails() {
 
       {loading && !data && (
         <div className="h-64 flex items-center justify-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
+          <LoadingSpinner fullHeight={false} />
         </div>
       )}
 

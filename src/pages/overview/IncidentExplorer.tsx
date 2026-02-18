@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { GraphCanvas, GraphNode as ReagraphNode, GraphEdge as ReagraphEdge } from 'reagraph'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { ModeButton } from './incidentExplorerUtils'
 import { NodeDetailsDrawer } from './NodeDetailsDrawer'
 import { getRiskColor } from './graphHelpers'
@@ -140,7 +141,7 @@ export default function IncidentExplorer() {
           <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
         </div>
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-slate-400 animate-pulse">Scanning infrastructure topology...</div>
+          <LoadingSpinner fullHeight={false} message="Scanning infrastructure topology..." />
         </div>
       </div>
     )

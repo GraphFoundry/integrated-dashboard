@@ -6,6 +6,7 @@ import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 
 import ScenarioForm from '@/pages/pipeline/components/ScenarioForm'
 import NodeResourceGraph from './NodeResourceGraph'
@@ -444,9 +445,8 @@ export default function Simulations() {
       {/* Results */}
       <div className="space-y-6">
         {loading && (
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-            <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-            <p className="text-slate-400">Running simulation...</p>
+          <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+            <LoadingSpinner fullHeight={false} message="Running simulation..." />
           </div>
         )}
 

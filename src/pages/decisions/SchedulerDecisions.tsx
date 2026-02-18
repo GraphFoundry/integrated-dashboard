@@ -3,6 +3,7 @@ import { RefreshCw, Calendar, Filter, Server, X, Play, CheckCircle, AlertTriangl
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import { getServicesWithPlacement } from '@/lib/api'
 import { schedulerApi } from '@/lib/schedulerApiClient'
 
@@ -245,11 +246,8 @@ export default function SchedulerDecisions() {
 
       {/* Loading State */}
       {loading && decisions.length === 0 && (
-        <div className="flex justify-center py-12">
-          <div className="flex flex-col items-center gap-3">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
-            <p className="text-slate-400">Loading live decisions...</p>
-          </div>
+        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12">
+          <LoadingSpinner fullHeight={false} message="Loading live decisions..." />
         </div>
       )}
 

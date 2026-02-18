@@ -5,6 +5,7 @@ import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
@@ -145,9 +146,8 @@ export default function OffenderDetails() {
 
       {/* Loading State */}
       {loading && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-slate-400">Loading offender details...</p>
+        <div className="rounded-xl border border-firebase-border bg-firebase-card p-12 text-center">
+          <LoadingSpinner fullHeight={false} message="Loading offender details..." />
         </div>
       )}
 

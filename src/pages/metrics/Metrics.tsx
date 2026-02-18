@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import LoadingSpinner from '@/components/common/LoadingSpinner'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
@@ -487,10 +488,21 @@ export default function Metrics() {
       )}
 
       {loading && (
-        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-24 text-center backdrop-blur-sm">
-          <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-6" />
-          <h3 className="text-xl font-medium text-white mb-2">Analyzing System Vital Signs...</h3>
-          <p className="text-slate-400">Connecting to telemetry satellites</p>
+        <div className="rounded-xl border border-firebase-border bg-firebase-card p-24 text-center backdrop-blur-sm">
+          <LoadingSpinner
+            fullHeight={false}
+            size="lg"
+            message={
+              <span className="flex flex-col items-center gap-1">
+                <span className="text-xl font-medium text-firebase-text-primary">
+                  Analyzing System Vital Signs...
+                </span>
+                <span className="text-firebase-text-secondary">
+                  Connecting to telemetry satellites
+                </span>
+              </span>
+            }
+          />
         </div>
       )}
     </div>

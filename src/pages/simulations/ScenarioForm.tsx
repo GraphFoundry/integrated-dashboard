@@ -7,7 +7,7 @@ import {
   controlLabelClass,
   primaryButtonClass,
 } from '@/components/common/uiClassTokens'
-import { Input, Slider } from '@/components/ui'
+import { Field, Input, Slider } from '@/components/ui'
 
 // Example services for Mock mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
@@ -386,41 +386,57 @@ export default function ScenarioForm({
         <>
           {/* Existing Fields for Failure/Scale */}
           <div>
-            <label
-              htmlFor="serviceId"
-              className={controlLabelClass}
-            >
-              Service ID
-              {mode === 'live' && (
-                <span className="ml-1 text-xs text-slate-500">(namespace:name)</span>
-              )}
-              {mode === 'live' && servicesLoading && (
-                <span className="ml-2 text-xs text-blue-400">Loading services...</span>
-              )}
-              {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
-                <span className="ml-2 text-xs text-green-400">
-                  {discoveredServices.length} service
-                  {discoveredServices.length === 1 ? '' : 's'} available
-                  {servicesStale && <span className="text-yellow-400 ml-1">(stale)</span>}
-                </span>
-              )}
-            </label>
-            <Input
+            <Field
               id="serviceId"
-              type="text"
-              value={serviceId}
-              onChange={(e) => setServiceId(e.target.value)}
-              list={mode === 'live' ? 'discovered-services' : undefined}
-              placeholder={
-                mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'
+              label={
+                <>
+                  Service ID
+                  {mode === 'live' && (
+                    <span className="ml-1 text-xs text-slate-500">(namespace:name)</span>
+                  )}
+                  {mode === 'live' && servicesLoading && (
+                    <span className="ml-2 text-xs text-blue-400">Loading services...</span>
+                  )}
+                  {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
+                    <span className="ml-2 text-xs text-green-400">
+                      {discoveredServices.length} service
+                      {discoveredServices.length === 1 ? '' : 's'} available
+                      {servicesStale && <span className="ml-1 text-yellow-400">(stale)</span>}
+                    </span>
+                  )}
+                </>
               }
-              className={cn(
-                compactControlClass,
-                'placeholder-slate-500',
-                serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
-              )}
-              disabled={mode === 'live' && servicesLoading}
-            />
+              helperClassName={cn(serviceIdHint ? 'text-yellow-400' : 'text-slate-500')}
+              helperText={
+                serviceIdHint ||
+                (mode === 'live' &&
+                !serviceId.trim() &&
+                !servicesLoading &&
+                discoveredServices.length === 0 &&
+                !servicesError
+                  ? `Examples: ${EXAMPLE_SERVICES.slice(0, 2).join(', ')}`
+                  : undefined)
+              }
+              errorClassName="text-red-400"
+              errorText={mode === 'live' ? servicesError : null}
+            >
+              <Input
+                id="serviceId"
+                type="text"
+                value={serviceId}
+                onChange={(e) => setServiceId(e.target.value)}
+                list={mode === 'live' ? 'discovered-services' : undefined}
+                placeholder={
+                  mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'
+                }
+                className={cn(
+                  compactControlClass,
+                  'placeholder-slate-500',
+                  serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
+                )}
+                disabled={mode === 'live' && servicesLoading}
+              />
+            </Field>
             {/* Datalist for Live mode autocomplete */}
             {mode === 'live' && discoveredServices.length > 0 && (
               <datalist id="discovered-services">
@@ -442,21 +458,6 @@ export default function ScenarioForm({
                 })}
               </datalist>
             )}
-            {serviceIdHint && (
-              <p className="mt-1 text-xs text-yellow-400">{serviceIdHint}</p>
-            )}
-            {mode === 'live' && servicesError && (
-              <p className="mt-1 text-xs text-red-400">{servicesError}</p>
-            )}
-            {mode === 'live' &&
-              !serviceId.trim() &&
-              !servicesLoading &&
-              discoveredServices.length === 0 &&
-              !servicesError && (
-                <p className="mt-1 text-xs text-slate-500">
-                  Examples: {EXAMPLE_SERVICES.slice(0, 2).join(', ')}
-                </p>
-              )}
           </div>
 
           {/* Max Depth */}

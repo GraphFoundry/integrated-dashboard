@@ -93,3 +93,9 @@ export const sectionHeaderIconClass =
   'surface-glass rounded-lg border border-cyan-300/25 p-2 text-cyan-300'
 
 export const emphasizedTitleClass = 'text-[var(--text-primary)]'
+
+export const metricHighlightCardClass = cn(
+  glassSurfaceClass,
+  'interactive-soft group relative overflow-hidden rounded-[var(--radius-md)] p-6',
+  'hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(2,6,23,0.32)]'
+)

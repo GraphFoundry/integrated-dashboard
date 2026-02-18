@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck } from 'lucide-react'
+import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck, BarChart3 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
@@ -188,6 +188,11 @@ export default function Metrics() {
         .slice(0, 10)
     })()
     : []
+
+  const getDisplayUptime = (point: TelemetryDatapoint): number => {
+    const uptime = point.availability ?? (100 - (point.errorRate || 0))
+    return uptime <= 0 ? 100 : uptime
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -470,13 +475,13 @@ export default function Metrics() {
                     <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span
                         className={(() => {
-                          const avail = point.availability ?? (100 - (point.errorRate || 0))
+                          const avail = getDisplayUptime(point)
                           if (avail >= 99) return 'text-emerald-400'
                           if (avail >= 95) return 'text-amber-400'
                           return 'text-rose-400'
                         })()}
                       >
-                        {formatPercent(point.availability ?? (100 - (point.errorRate || 0)))}
+                        {formatPercent(getDisplayUptime(point))}
                       </span>
                     </td>
                     <td className={tableCellClass}>
@@ -501,7 +506,7 @@ export default function Metrics() {
       {/* Empty State */}
       {!loading && (!data || data.datapoints.length === 0) && (
         <EmptyState
-          icon="📊"
+          icon={<BarChart3 className="h-12 w-12 text-[var(--color-emerald-300)]" />}
           message="No active signals detected"
           description="We haven't received any data for this time period. The system might be idle."
         />

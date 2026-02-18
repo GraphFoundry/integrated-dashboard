@@ -25,6 +25,8 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
+  Check,
+  X,
 } from 'lucide-react'
 
 function DetailField({
@@ -372,7 +374,8 @@ export default function IncidentDetailPage() {
                     key={idx}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 text-yellow-300 rounded-md text-xs font-medium border border-yellow-500/30"
                   >
-                    ⚠️ {flag.replace(/_/g, ' ')}
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {flag.replace(/_/g, ' ')}
                   </span>
                 ))}
               </div>
@@ -587,8 +590,14 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                 </div>
                 <div>
                   <span className="text-gray-400">Automated:</span>{' '}
-                  <span className={event.decision.auto ? 'text-green-400' : 'text-orange-400'}>
-                    {event.decision.auto ? '✓ Yes' : '✗ No'}
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5',
+                      event.decision.auto ? 'text-green-400' : 'text-orange-400'
+                    )}
+                  >
+                    {event.decision.auto ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+                    {event.decision.auto ? 'Yes' : 'No'}
                   </span>
                 </div>
                 {event.decision.risk_score !== undefined && (

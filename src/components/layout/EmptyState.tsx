@@ -1,3 +1,4 @@
+import { BarChart3 } from 'lucide-react'
 import { cn, glassPanelClass } from '@/components/common/uiClassTokens'
 
 interface EmptyStateProps {
@@ -9,7 +10,7 @@ interface EmptyStateProps {
 }
 
 export default function EmptyState({
-  icon = '📊',
+  icon = <BarChart3 className="h-12 w-12 text-[var(--color-emerald-300)]" />,
   title,
   message,
   description,

@@ -17,7 +17,7 @@ import { getTelemetryMetrics } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import type { TelemetryMetricsResponse, TelemetryDatapoint } from '@/lib/types'
 import { getGlossaryTerm } from '@/lib/glossary'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, BarChart3 } from 'lucide-react'
 
 export default function OffenderDetails() {
   const { serviceKey } = useParams() // Expects "namespace:serviceName"
@@ -365,7 +365,7 @@ export default function OffenderDetails() {
       {/* Empty State */}
       {!loading && (!data || data.datapoints.length === 0) && (
         <EmptyState
-          icon="📊"
+          icon={<BarChart3 className="h-12 w-12 text-[var(--color-emerald-300)]" />}
           message="No telemetry data available for this service in the selected time range"
         />
       )}

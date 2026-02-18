@@ -25,7 +25,7 @@ export const controlLabelCompactClass =
 export const controlInputBaseClass = cn(
   'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-white/14',
   'bg-white/6 px-4 text-sm text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]',
-  'placeholder:text-[var(--text-muted)] hover:border-white/22 disabled:opacity-60'
+  'placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] disabled:opacity-60'
 )
 
 export const controlInputMutedClass = cn(controlInputBaseClass, 'bg-white/8')
@@ -34,14 +34,14 @@ export const controlInputDarkClass = cn(controlInputBaseClass, 'bg-slate-950/45'
 
 export const iconActionButtonClass = cn(
   'neon-focus-ring interactive-soft inline-flex items-center justify-center rounded-[var(--radius-sm)]',
-  'border border-blue-400/30 bg-blue-500/20 text-blue-100 shadow-[0_10px_24px_rgba(2,6,23,0.35)]',
-  'hover:border-cyan-300/45 hover:bg-blue-500/30 disabled:opacity-50'
+  'border border-[var(--color-emerald-300)]/45 bg-emerald-500/18 text-emerald-100 shadow-[0_10px_24px_rgba(2,6,23,0.35)]',
+  'hover:border-[var(--color-emerald-300)] hover:bg-emerald-500/28 disabled:opacity-50'
 )
 
 export const primaryButtonClass = cn(
   'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-white',
-  'border border-blue-300/35 bg-gradient-to-r from-blue-500 to-indigo-500',
-  'shadow-[0_10px_24px_rgba(30,64,175,0.38)] hover:brightness-110 disabled:opacity-50'
+  'border border-[var(--color-emerald-300)]/45 bg-gradient-to-r from-emerald-500 to-emerald-400',
+  'shadow-[0_10px_24px_rgba(5,150,105,0.38)] hover:brightness-110 disabled:opacity-50'
 )
 
 export const secondaryButtonClass = cn(
@@ -59,7 +59,7 @@ export const successButtonClass = cn(
 export const subtleIconButtonClass = cn(iconActionButtonClass, 'h-11 w-11 p-2.5')
 
 export const linkActionButtonClass =
-  'neon-focus-ring interactive-soft rounded-md px-2 py-1 text-sm font-semibold text-cyan-200 hover:text-cyan-100'
+  'neon-focus-ring interactive-soft rounded-md px-2 py-1 text-sm font-semibold text-[var(--color-emerald-300)] hover:text-emerald-100'
 
 export const tableShellClass = cn(
   glassSurfaceClass,
@@ -70,7 +70,7 @@ export const tableHeadRowClass =
   'bg-slate-900/72 text-[var(--text-muted)] backdrop-blur-md supports-[backdrop-filter]:bg-slate-900/58'
 
 export const tableBodyRowClass =
-  'border-b border-white/8 odd:bg-white/[0.02] even:bg-white/[0.01] hover:bg-cyan-400/[0.05]'
+  'border-b border-white/8 odd:bg-white/[0.02] even:bg-white/[0.01] hover:bg-emerald-400/[0.07]'
 
 export const tableHeaderCellClass =
   'px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]'
@@ -81,7 +81,7 @@ export const tableHeadStickyClass = 'sticky top-0 z-10 backdrop-blur-md'
 
 export const tableActionLinkClass = cn(
   linkActionButtonClass,
-  'border border-cyan-300/30 bg-cyan-400/10 text-cyan-200 hover:bg-cyan-400/18'
+  'border border-[var(--color-emerald-300)]/45 bg-emerald-400/12 text-[var(--color-emerald-300)] hover:bg-emerald-400/20'
 )
 
 export const shellSidebarClass = cn(
@@ -97,7 +97,7 @@ export const shellTopbarClass = cn(
 export const shellMainClass = 'relative flex-1 overflow-auto p-4 sm:p-6 lg:p-8'
 
 export const sectionHeaderIconClass =
-  'surface-glass rounded-lg border border-cyan-300/25 p-2 text-cyan-300'
+  'surface-glass rounded-lg border border-[var(--color-emerald-300)]/45 p-2 text-[var(--color-emerald-300)]'
 
 export const emphasizedTitleClass = 'text-[var(--text-primary)]'
 
@@ -109,7 +109,7 @@ export const metricHighlightCardClass = cn(
 
 export const glassInteractiveCardClass = cn(
   glassSurfaceClass,
-  'interactive-soft rounded-[var(--radius-md)] p-6 hover:-translate-y-0.5 hover:border-white/22'
+  'interactive-soft rounded-[var(--radius-md)] p-6 hover:-translate-y-0.5 hover:border-[var(--color-emerald-300)]'
 )
 
 export const modalPanelClass = cn(

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import { MetricTooltip } from './incidentExplorerUtils'
 import { getRiskBadgeClass, formatMetric } from './graphHelpers'
@@ -48,7 +49,7 @@ export function NodeDetailsDrawer({
           className="text-slate-400 hover:text-white transition-colors"
           aria-label="Close node details"
         >
-          ✕
+          <X className="h-4 w-4" />
         </button>
       </div>
 

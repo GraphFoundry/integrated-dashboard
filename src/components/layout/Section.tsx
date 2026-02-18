@@ -27,8 +27,8 @@ export default function Section({
               {title && (
                 <div className="flex items-center gap-3">
                   {Icon && (
-                    <div className="surface-glass rounded-lg border border-cyan-300/25 p-2">
-                      <Icon className="h-4 w-4 text-cyan-300" />
+                    <div className="surface-glass rounded-lg border border-[var(--color-emerald-300)]/40 p-2">
+                      <Icon className="h-4 w-4 text-[var(--color-emerald-300)]" />
                     </div>
                   )}
                   <h2 className="text-xl font-semibold text-[var(--text-primary)]">{title}</h2>

@@ -15,9 +15,9 @@ interface MetricHighlightCardProps {
 
 const TONE_STYLES: Record<MetricTone, { border: string; icon: string; glow: string }> = {
   default: {
-    border: 'hover:border-cyan-300/35',
-    icon: 'text-cyan-300',
-    glow: 'bg-cyan-400/10',
+    border: 'hover:border-[var(--color-emerald-300)]/60',
+    icon: 'text-[var(--color-emerald-300)]',
+    glow: 'bg-emerald-400/12',
   },
   indigo: {
     border: 'hover:border-indigo-300/35',

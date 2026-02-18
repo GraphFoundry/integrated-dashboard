@@ -51,13 +51,13 @@ export function RadioGroup({
               <span
                 className={cn(
                   'h-4 w-4 rounded-full border border-white/30 bg-white/5 p-0.5',
-                  isSelected && 'border-cyan-300/45 bg-cyan-500/20'
+                  isSelected && 'border-[var(--color-emerald-300)]/50 bg-emerald-500/20'
                 )}
               >
                 <span
                   className={cn(
                     'block h-full w-full rounded-full bg-transparent',
-                    isSelected && 'bg-cyan-200'
+                    isSelected && 'bg-[var(--color-emerald-300)]'
                   )}
                 />
               </span>

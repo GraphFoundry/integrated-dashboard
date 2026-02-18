@@ -48,7 +48,7 @@ export default function KPIStatCard({
       title={tooltip}
       className={cn(
         glassSurfaceClass,
-        'interactive-soft rounded-[var(--radius-md)] p-4 hover:-translate-y-0.5 hover:border-cyan-300/30',
+        'interactive-soft rounded-[var(--radius-md)] p-4 hover:-translate-y-0.5 hover:border-[var(--color-emerald-300)]/60',
         variantColors[variant],
         className
       )}

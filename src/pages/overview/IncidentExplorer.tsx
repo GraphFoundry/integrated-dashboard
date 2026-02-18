@@ -21,6 +21,7 @@ import {
   AlertOctagon,
   ArrowDownToLine,
   ArrowUpFromLine,
+  CircleAlert,
 } from 'lucide-react'
 
 type GraphMode = 'impact' | 'suspect' | 'flow'
@@ -213,7 +214,12 @@ export default function IncidentExplorer() {
               {metadata.edgeCount !== undefined && <span>{metadata.edgeCount} dependencies</span>}
             </div>
             <div className="flex items-center gap-2">
-              {metadata.stale && <span className="text-yellow-400">⚠️ Stale data</span>}
+              {metadata.stale && (
+                <span className="inline-flex items-center gap-1 text-yellow-400">
+                  <CircleAlert className="h-3.5 w-3.5" />
+                  Stale data
+                </span>
+              )}
               {metadata.lastUpdatedSecondsAgo !== undefined &&
                 metadata.lastUpdatedSecondsAgo !== null && (
                   <span>Updated {metadata.lastUpdatedSecondsAgo}s ago</span>
@@ -324,7 +330,7 @@ export default function IncidentExplorer() {
         ) : (
           <div className="h-full flex flex-col items-center justify-center p-8 bg-[#0f172a]">
             <EmptyState
-              icon="🕸️"
+              icon={<Network className="h-12 w-12 text-[var(--color-emerald-300)]" />}
               message="No dependency graph data available"
               action={
                 <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">

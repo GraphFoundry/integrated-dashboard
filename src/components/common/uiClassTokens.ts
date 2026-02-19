@@ -23,14 +23,18 @@ export const controlLabelCompactClass =
   'mb-2 block text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]'
 
 export const controlInputBaseClass = cn(
-  'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-white/14',
+  'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-[var(--color-emerald-300)]/45',
   'bg-white/6 px-4 text-sm text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]',
-  'placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] disabled:opacity-60'
+  'placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] focus:border-[var(--color-emerald-300)] disabled:opacity-60'
 )
 
 export const controlInputMutedClass = cn(controlInputBaseClass, 'bg-white/8')
 export const controlInputPanelClass = cn(controlInputBaseClass, 'bg-black/25')
 export const controlInputDarkClass = cn(controlInputBaseClass, 'bg-slate-950/45')
+export const controlTextareaClass = cn(
+  controlInputBaseClass,
+  'min-h-28 h-auto resize-y py-3 bg-white/8 leading-relaxed'
+)
 
 export const iconActionButtonClass = cn(
   'neon-focus-ring interactive-soft inline-flex items-center justify-center rounded-[var(--radius-sm)]',
@@ -46,8 +50,8 @@ export const primaryButtonClass = cn(
 
 export const secondaryButtonClass = cn(
   'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold',
-  'border border-white/16 bg-white/8 text-[var(--text-secondary)] hover:bg-white/14 hover:text-[var(--text-primary)]',
-  'disabled:opacity-50 disabled:hover:bg-white/8 disabled:hover:text-[var(--text-secondary)]'
+  'border border-white/16 bg-white/10 text-[var(--text-primary)] hover:border-[var(--color-emerald-300)]/45 hover:bg-white/14 hover:text-[var(--text-primary)]',
+  'disabled:opacity-50 disabled:hover:border-white/16 disabled:hover:bg-white/10 disabled:hover:text-[var(--text-primary)]'
 )
 
 export const successButtonClass = cn(

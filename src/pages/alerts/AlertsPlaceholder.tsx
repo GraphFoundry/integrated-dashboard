@@ -352,7 +352,7 @@ export default function AlertsPage() {
           <h2 className="text-lg font-semibold text-white">Filter Incidents</h2>
         </div>
         <div className="flex flex-wrap gap-4">
-          <div>
+          <div className="w-full sm:flex-1">
             <label htmlFor="alerts-status-filter" className={controlLabelClass}>
               Status
             </label>
@@ -383,7 +383,7 @@ export default function AlertsPage() {
             </Select>
           </div>
 
-          <div>
+          <div className="w-full sm:flex-1">
             <label htmlFor="alerts-severity-filter" className={controlLabelClass}>
               Severity
             </label>

@@ -428,10 +428,10 @@ export default function Simulations() {
         icon={Sparkles}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3">
         {/* Scenario Builder */}
-        <div className="lg:col-span-1">
-          <Section title="Scenario Configuration" icon={Settings}>
+        <div className="lg:col-span-1 h-full">
+          <Section title="Scenario Configuration" icon={Settings} className="h-full">
             <ScenarioForm
               onRun={handleRun}
               loading={loading}
@@ -446,9 +446,9 @@ export default function Simulations() {
           </Section>
         </div>
 
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 h-full">
           {/* Infrastructure Overview */}
-          <Section title="Infrastructure Overview" icon={Network}>
+          <Section title="Infrastructure Overview" icon={Network} className="h-full">
             <NodeResourceGraph
               simulatedService={simulatedService}
               nodeMetricOverrides={nodeMetricOverrides}

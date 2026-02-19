@@ -7,6 +7,8 @@ import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import {
+  cn,
+  controlInputMutedClass,
   loadingCardClass,
   pageContainerClass,
   primaryButtonClass,
@@ -81,12 +83,12 @@ export default function ServiceHealthDetails() {
         title={serviceName}
         description={`Service Health • Namespace: ${namespace}`}
         actions={
-          <div className="flex gap-3">
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
             <Select
               aria-label="Telemetry time range"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2"
+              className={cn(controlInputMutedClass, 'w-full min-w-[16rem] appearance-none pr-11')}
             >
               <option value="1h">Last 1 hour</option>
               <option value="6h">Last 6 hours</option>

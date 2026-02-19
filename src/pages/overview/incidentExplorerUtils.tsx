@@ -35,10 +35,10 @@ export function ModeButton({ active, onClick, children }: ModeButtonProps) {
   return (
     <button type="button"
       onClick={onClick}
-      className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+      className={`neon-focus-ring interactive-soft rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${
         active
-          ? 'bg-sky-500 text-white shadow-sm'
-          : 'bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white'
+          ? 'border-[var(--color-emerald-300)]/45 bg-emerald-500/18 text-emerald-100 shadow-[0_10px_24px_rgba(5,150,105,0.25)]'
+          : 'border-white/16 bg-white/8 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
       }`}
     >
       {children}

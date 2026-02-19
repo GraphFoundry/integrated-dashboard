@@ -7,6 +7,7 @@ import {
   controlInputMutedClass,
   controlLabelClass,
   primaryButtonClass,
+  secondaryButtonClass,
 } from '@/components/common/uiClassTokens'
 import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
 
@@ -37,7 +38,7 @@ interface ScenarioFormProps {
 }
 
 const compactControlClass =
-  'w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:ring-2 focus:ring-blue-500 focus-visible:outline-2 focus-visible:outline-blue-500 focus-visible:outline-offset-2'
+  'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-[var(--color-emerald-300)]/45 bg-white/8 px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] focus:border-[var(--color-emerald-300)]'
 
 export default function ScenarioForm({
   onRun,
@@ -416,7 +417,7 @@ export default function ScenarioForm({
                   <button
                     type="button"
                     onClick={() => handleRemoveDependency(idx)}
-                    className="inline-flex items-center justify-center px-3 py-2 bg-red-900/30 text-red-200 rounded hover:bg-red-900/50 border border-red-800/50"
+                    className="neon-focus-ring interactive-soft inline-flex h-11 items-center justify-center rounded-[var(--radius-sm)] border border-rose-300/45 bg-rose-500/14 px-3 text-rose-200 hover:bg-rose-500/24"
                     aria-label={`Remove dependency ${idx + 1}`}
                   >
                     <X className="h-4 w-4" />
@@ -427,7 +428,7 @@ export default function ScenarioForm({
             <button
               type="button"
               onClick={handleAddDependency}
-              className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              className={cn(secondaryButtonClass, 'inline-flex items-center gap-1 px-3 py-2 text-sm')}
             >
               + Add Dependency
             </button>

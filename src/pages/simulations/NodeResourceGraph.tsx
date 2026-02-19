@@ -17,6 +17,7 @@ import {
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import ErrorBanner from '@/components/common/ErrorBanner'
+import { cn, secondaryButtonClass } from '@/components/common/uiClassTokens'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 import {
@@ -49,7 +50,7 @@ function GraphShell({
 }) {
   return (
     <div
-      className={`bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[500px] ${className}`}
+      className={`bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-full min-h-[640px] ${className}`}
     >
       {children}
     </div>
@@ -65,10 +66,12 @@ function BreadcrumbNav({ breadcrumbs, onBreadcrumbClick }: BreadcrumbNavProps) {
           <button
             type="button"
             onClick={() => onBreadcrumbClick(item)}
-            className={`px-2 py-1 rounded transition-colors ${idx === breadcrumbs.length - 1
-              ? 'text-white font-medium bg-slate-700'
-              : 'text-slate-400 hover:text-white hover:bg-slate-700/50'
-              }`}
+            className={cn(
+              'neon-focus-ring interactive-soft rounded-md px-2.5 py-1.5 text-xs sm:text-sm',
+              idx === breadcrumbs.length - 1
+                ? 'border border-[var(--color-emerald-300)]/45 bg-emerald-500/18 font-semibold text-emerald-100'
+                : 'border border-white/16 bg-white/8 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
+            )}
           >
             {item.label}
           </button>
@@ -454,7 +457,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
           {breadcrumbs.length > 1 && (
             <button type="button"
               onClick={handleBack}
-              className="p-1.5 rounded hover:bg-slate-700 transition-colors text-slate-400 hover:text-white"
+              className="neon-focus-ring interactive-soft rounded-md border border-white/16 bg-white/8 p-1.5 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]"
               title="Go back"
               aria-label="Go back to previous graph level"
             >
@@ -810,7 +813,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                 viewLevel === 'services' || viewLevel === 'pods' ? (
                   <button type="button"
                     onClick={handleBack}
-                    className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm transition-colors"
+                    className={cn(secondaryButtonClass, 'mt-4')}
                   >
                     Go Back
                   </button>

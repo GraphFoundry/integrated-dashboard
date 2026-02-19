@@ -173,7 +173,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
                 textValue={option.textValue}
                 className={({ isFocused, isSelected }) =>
                   cn(
-                    'cursor-default rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] outline-none',
+                    'cursor-pointer rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] outline-none',
                     isFocused && 'bg-white/10 text-[var(--text-primary)]',
                     isSelected && 'bg-emerald-500/20 text-[var(--color-emerald-300)]'
                   )

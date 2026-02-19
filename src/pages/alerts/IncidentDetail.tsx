@@ -39,7 +39,7 @@ function DetailField({
 }) {
   return (
     <div className={className}>
-      <div className="mb-1 text-sm text-gray-400">{label}</div>
+      <div className="mb-1 text-sm text-[var(--text-muted)]">{label}</div>
       {children}
     </div>
   )
@@ -57,16 +57,16 @@ function EventObjectSection({ title, icon: Icon, iconClassName, data }: EventObj
 
   return (
     <div>
-      <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
+      <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)] mb-3">
         <Icon className={`h-4 w-4 ${iconClassName}`} />
         {title}
       </h4>
-      <div className="surface-glass rounded-lg border border-white/12 p-4">
+      <div className="surface-glass rounded-lg border border-[var(--border)] p-4">
         <div className="grid grid-cols-2 gap-3 text-sm">
           {Object.entries(data).map(([key, value]) => (
             <div key={key} className="flex flex-col">
-              <span className="text-gray-400 text-xs mb-0.5">{key}:</span>
-              <span className="text-white font-mono text-xs">
+              <span className="text-[var(--text-muted)] text-xs mb-0.5">{key}:</span>
+              <span className="text-[var(--text-primary)] font-mono text-xs">
                 {value === null || value === undefined
                   ? '—'
                   : typeof value === 'object'
@@ -118,7 +118,7 @@ export default function IncidentDetailPage() {
   if (loading) {
     return (
       <div className={pageContainerClass} aria-busy="true">
-        <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-white/12 p-8">
+        <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
           <div className="relative z-10">
             <SkeletonBlock variant="line" className="mb-4 h-6 w-40" />
             <div className="flex items-center gap-3 mb-2">
@@ -133,7 +133,7 @@ export default function IncidentDetailPage() {
           {Array.from({ length: 2 }).map((_, index) => (
             <div
               key={`incident-card-skeleton-${index}`}
-              className={cn(glassInteractiveCardClass, 'group relative border-white/20')}
+              className={cn(glassInteractiveCardClass, 'group relative border-[var(--border)]')}
             >
               <div className="flex items-start justify-between mb-4">
                 <SkeletonBlock variant="line" className="h-12 w-12 rounded-lg" />
@@ -153,7 +153,7 @@ export default function IncidentDetailPage() {
         </div>
 
         <div className={tableShellClass}>
-          <div className="border-b border-white/10 bg-white/[0.03] px-6 py-4">
+          <div className="border-b border-[var(--border)] bg-[var(--surface-subtle)] px-6 py-4">
             <div className="flex items-center gap-2">
               <SkeletonBlock variant="line" className="h-5 w-48" />
               <SkeletonBlock variant="line" className="ml-auto h-4 w-20" />
@@ -163,7 +163,7 @@ export default function IncidentDetailPage() {
             {Array.from({ length: 4 }).map((_, index) => (
               <div
                 key={`incident-event-skeleton-${index}`}
-                className="surface-glass relative rounded-[var(--radius-md)] border border-white/12 p-5"
+                className="surface-glass relative rounded-[var(--radius-md)] border border-[var(--border)] p-5"
               >
                 <SkeletonBlock variant="line" className="mb-3 h-7 w-32 rounded-full" />
                 <SkeletonBlock variant="line" className="mb-2 h-5 w-3/4" />
@@ -190,7 +190,7 @@ export default function IncidentDetailPage() {
   return (
     <div className={pageContainerClass}>
       {/* Header with gradient */}
-      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-white/12 p-8">
+      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
         <div className="relative z-10">
           <Link
             to="/alerts"
@@ -204,7 +204,7 @@ export default function IncidentDetailPage() {
             <h1 className="text-4xl font-bold text-[var(--text-primary)]">Incident Details</h1>
           </div>
           <div className="flex items-center gap-3 mt-3">
-            <code className="rounded-lg border border-white/14 bg-white/7 px-3 py-1.5 text-sm text-[var(--text-secondary)]">
+            <code className="rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1.5 text-sm text-[var(--text-secondary)]">
               {incident.dedupe_key}
             </code>
           </div>
@@ -231,10 +231,10 @@ export default function IncidentDetailPage() {
               </span>
             )}
           </div>
-          <h2 className="text-xl font-semibold text-white mb-4">Decision & Action</h2>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Decision & Action</h2>
           <div className="space-y-4">
             <DetailField label="Action">
-              <div className="text-2xl font-bold text-white">{incident.current_action}</div>
+              <div className="text-2xl font-bold text-[var(--text-primary)]">{incident.current_action}</div>
             </DetailField>
             <div className="grid grid-cols-2 gap-4">
               <DetailField label="Automation">
@@ -268,7 +268,7 @@ export default function IncidentDetailPage() {
             </div>
             <DetailField label="Risk Score">
               <div className="flex items-center gap-3">
-                <div className="flex-1 bg-gray-700/50 rounded-full h-2 overflow-hidden">
+                <div className="flex-1 bg-[var(--surface-soft)] rounded-full h-2 overflow-hidden">
                   <div
                     className={`h-full transition-all ${
                       incident.risk_score >= 80
@@ -280,7 +280,7 @@ export default function IncidentDetailPage() {
                     style={{ width: `${incident.risk_score}%` }}
                   />
                 </div>
-                <span className="text-lg font-bold text-white min-w-[3rem] text-right">
+                <span className="text-lg font-bold text-[var(--text-primary)] min-w-[3rem] text-right">
                   {incident.risk_score}
                 </span>
               </div>
@@ -315,21 +315,21 @@ export default function IncidentDetailPage() {
               <Server className="w-6 h-6 text-blue-400" />
             </div>
           </div>
-          <h2 className="text-xl font-semibold text-white mb-4">Service Information</h2>
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] mb-4">Service Information</h2>
           <div className="space-y-4">
             <DetailField label="Service">
-              <div className="text-xl font-bold text-white">{incident.service}</div>
-              <div className="text-sm text-gray-500 mt-0.5">{incident.namespace}</div>
+              <div className="text-xl font-bold text-[var(--text-primary)]">{incident.service}</div>
+              <div className="text-sm text-[var(--text-dim)] mt-0.5">{incident.namespace}</div>
             </DetailField>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-sm text-gray-400 mb-1">Status</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Status</div>
                 <StatusBadge variant={incident.status === 'OPEN' ? 'warning' : 'success'}>
                   {incident.status}
                 </StatusBadge>
               </div>
               <div>
-                <div className="text-sm text-gray-400 mb-2">Severity</div>
+                <div className="text-sm text-[var(--text-muted)] mb-2">Severity</div>
                 <span
                   className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
                     incident.current_severity === 'critical'
@@ -375,31 +375,31 @@ export default function IncidentDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-sm text-gray-400 mb-1">Event Count</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Event Count</div>
                 <div className="flex items-center gap-2">
-                  <div className="inline-flex items-center justify-center w-8 h-8 bg-gray-700/50 rounded-full">
-                    <span className="text-sm font-semibold text-white">{incident.event_count}</span>
+                  <div className="inline-flex items-center justify-center w-8 h-8 bg-[var(--surface-soft)] rounded-full">
+                    <span className="text-sm font-semibold text-[var(--text-primary)]">{incident.event_count}</span>
                   </div>
                 </div>
               </div>
               <div>
-                <div className="text-sm text-gray-400 mb-1">Duration</div>
-                <div className="flex items-center gap-1.5 text-sm text-white">
-                  <Clock className="w-4 h-4 text-gray-500" />
+                <div className="text-sm text-[var(--text-muted)] mb-1">Duration</div>
+                <div className="flex items-center gap-1.5 text-sm text-[var(--text-primary)]">
+                  <Clock className="w-4 h-4 text-[var(--text-dim)]" />
                   {formatDistanceToNow(incident.first_observed_at)}
                 </div>
               </div>
             </div>
-            <div className="pt-3 border-t border-gray-700/50">
+            <div className="pt-3 border-t border-[var(--border)]">
               <div className="flex justify-between text-xs">
-                <span className="text-gray-400">First Observed</span>
-                <span className="text-gray-300">
+                <span className="text-[var(--text-muted)]">First Observed</span>
+                <span className="text-[var(--text-secondary)]">
                   {formatDistanceToNow(incident.first_observed_at)}
                 </span>
               </div>
               <div className="flex justify-between text-xs mt-2">
-                <span className="text-gray-400">Last Update</span>
-                <span className="text-gray-300">
+                <span className="text-[var(--text-muted)]">Last Update</span>
+                <span className="text-[var(--text-secondary)]">
                   {formatDistanceToNow(incident.last_observed_at)}
                 </span>
               </div>
@@ -437,11 +437,11 @@ export default function IncidentDetailPage() {
 
       {/* Event Timeline */}
       <div className={tableShellClass}>
-        <div className="border-b border-white/10 bg-white/[0.03] px-6 py-4">
+        <div className="border-b border-[var(--border)] bg-[var(--surface-subtle)] px-6 py-4">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-blue-400" />
-            <h2 className="text-lg font-semibold text-white">Event Timeline</h2>
-            <span className="ml-auto text-sm text-gray-400">{incident.events.length} events</span>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Event Timeline</h2>
+            <span className="ml-auto text-sm text-[var(--text-muted)]">{incident.events.length} events</span>
           </div>
         </div>
         <div className="p-6 space-y-4">
@@ -522,12 +522,12 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       },
     }[severity] || {
       gradient: 'bg-gradient-to-r from-gray-500/30 to-gray-600/30',
-      text: 'text-gray-300',
-      border: 'border-gray-500/50',
+      text: 'text-[var(--text-secondary)]',
+      border: 'border-[var(--border)]',
       shadow: 'shadow-lg shadow-gray-500/20',
-      dotBg: 'bg-gray-400',
-      dotPing: 'bg-gray-400',
-      dot: 'bg-gray-500',
+      dotBg: 'bg-[var(--text-muted)]',
+      dotPing: 'bg-[var(--text-muted)]',
+      dot: 'bg-[var(--text-dim)]',
       pulse: false,
     }
 
@@ -539,9 +539,9 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
   return (
     <div
       className={`surface-glass relative rounded-[var(--radius-md)] border p-5 transition-all duration-200 ${
-        expanded ? 'border-cyan-300/42' : 'border-white/12'
+        expanded ? 'border-cyan-300/42' : 'border-[var(--border)]'
       } ${
-        isLatest ? 'bg-cyan-400/6 border-cyan-300/32' : 'bg-white/[0.03] hover:bg-white/[0.06]'
+        isLatest ? 'bg-cyan-400/6 border-cyan-300/32' : 'bg-[var(--surface-subtle)] hover:bg-[var(--surface-soft)]'
       }`}
     >
       {isLatest && (
@@ -578,15 +578,15 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
             >
               {event.alert.state}
             </span>
-            <span className="text-xs text-gray-400 bg-gray-700/50 px-2 py-1 rounded">
+            <span className="text-xs text-[var(--text-muted)] bg-[var(--surface-soft)] px-2 py-1 rounded">
               {event.alert.type}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
             <Clock className="w-3.5 h-3.5" />
             <span>{new Date(event.observed_at).toLocaleString()}</span>
-            <span className="text-gray-600">•</span>
-            <code className="text-gray-500">ID: {event.event_id}</code>
+            <span className="text-[var(--text-dim)]">•</span>
+            <code className="text-[var(--text-dim)]">ID: {event.event_id}</code>
           </div>
         </div>
       </div>
@@ -611,21 +611,21 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       </button>
 
       {expanded && (
-        <div id={detailsPanelId} className="mt-5 space-y-4 border-t border-gray-700/50 pt-5">
+        <div id={detailsPanelId} className="mt-5 space-y-4 border-t border-[var(--border)] pt-5">
           {/* Decision */}
           <div>
-            <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)] mb-3">
               <Zap className="w-4 h-4 text-green-400" />
               Decision
             </h4>
-            <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+            <div className="bg-[var(--surface-subtle)] rounded-lg p-4 border border-[var(--border)]">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-400">Action:</span>{' '}
-                  <span className="text-white font-medium">{event.decision.action}</span>
+                  <span className="text-[var(--text-muted)]">Action:</span>{' '}
+                  <span className="text-[var(--text-primary)] font-medium">{event.decision.action}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400">Priority:</span>{' '}
+                  <span className="text-[var(--text-muted)]">Priority:</span>{' '}
                   <span
                     className={`font-semibold ${
                       event.decision.priority === 'P1'
@@ -639,7 +639,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-400">Automated:</span>{' '}
+                  <span className="text-[var(--text-muted)]">Automated:</span>{' '}
                   <span
                     className={cn(
                       'inline-flex items-center gap-1.5',
@@ -652,7 +652,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                 </div>
                 {event.decision.risk_score !== undefined && (
                   <div>
-                    <span className="text-gray-400">Risk Score:</span>{' '}
+                    <span className="text-[var(--text-muted)]">Risk Score:</span>{' '}
                     <span
                       className={`font-semibold ${
                         event.decision.risk_score >= 80
@@ -668,8 +668,8 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                 )}
               </div>
               {event.decision.reason_codes.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-700/50">
-                  <span className="text-gray-400 text-sm">Reason Codes:</span>
+                <div className="mt-3 pt-3 border-t border-[var(--border)]">
+                  <span className="text-[var(--text-muted)] text-sm">Reason Codes:</span>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {event.decision.reason_codes.map((code, idx) => (
                       <span
@@ -709,16 +709,16 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
           {/* Links */}
           {event.links && Object.keys(event.links).length > 0 && (
             <div>
-              <h4 className="flex items-center gap-2 text-sm font-semibold text-gray-300 mb-3">
+              <h4 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)] mb-3">
                 <ExternalLink className="w-4 h-4 text-cyan-400" />
                 Links
               </h4>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-700/50">
+              <div className="bg-[var(--surface-subtle)] rounded-lg p-4 border border-[var(--border)]">
                 <div className="space-y-2 text-sm">
                   {Object.entries(event.links).map(([key, value]) =>
                     value ? (
                       <div key={key} className="flex items-center gap-2">
-                        <span className="text-gray-400 min-w-[100px]">{key}:</span>
+                        <span className="text-[var(--text-muted)] min-w-[100px]">{key}:</span>
                         <a
                           href={value as string}
                           className="text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors"

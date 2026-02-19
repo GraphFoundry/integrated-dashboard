@@ -87,8 +87,8 @@ interface DecisionMetricCardProps {
 
 function DecisionMetricCard({ label, className = '', children }: DecisionMetricCardProps) {
   return (
-    <div className={`surface-glass rounded-lg border border-white/12 bg-white/[0.03] p-3 ${className}`}>
-      <p className="mb-1 text-xs text-slate-500">{label}</p>
+    <div className={`surface-glass rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3 ${className}`}>
+      <p className="mb-1 text-xs text-[var(--text-dim)]">{label}</p>
       {children}
     </div>
   )
@@ -218,7 +218,7 @@ export default function SchedulerDecisions() {
       case 'StaleMetrics':
         return 'bg-red-900/30 text-red-300 border-red-700/50'
       default:
-        return 'bg-slate-900/30 text-slate-300 border-slate-700/50'
+        return 'bg-[var(--surface-subtle)] text-[var(--text-secondary)] border-[var(--border)]'
     }
   }
 
@@ -307,7 +307,7 @@ export default function SchedulerDecisions() {
       {/* Empty State */}
       {!loading && filteredDecisions.length === 0 && (
         <EmptyState
-          icon={<Server className="h-12 w-12 text-slate-600" />}
+          icon={<Server className="h-12 w-12 text-[var(--text-dim)]" />}
           title="No decisions found"
           message="Try adjusting your filters."
           description="No scheduling events currently match the selected criteria."
@@ -325,7 +325,7 @@ export default function SchedulerDecisions() {
               key={`${decision.namespace}-${decision.service}-${decision.evaluatedAt}-${idx}`}
               className={cn(
                 glassInteractiveCardClass,
-                'group relative border-white/12 bg-white/[0.03] hover:border-cyan-300/25 hover:shadow-[0_18px_34px_rgba(2,6,23,0.4)]'
+                'group relative border-[var(--border)] bg-[var(--surface-subtle)] hover:border-cyan-300/25 hover:shadow-[0_18px_34px_rgba(2,6,23,0.4)]'
               )}
             >
               {/* Action Bar (Top Right) */}
@@ -334,7 +334,7 @@ export default function SchedulerDecisions() {
                   onClick={() => handleApplyClick(decision)}
                   disabled={isOptimized}
                   className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
-                    ? 'cursor-not-allowed border-white/12 bg-white/5 text-slate-500'
+                    ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-dim)]'
                     : 'border-emerald-300/35 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/18'
                     }`}
                 >
@@ -350,9 +350,9 @@ export default function SchedulerDecisions() {
                     <Server className="w-6 h-6 text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-1.5">{decision.service}</h3>
+                    <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1.5">{decision.service}</h3>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded border border-slate-600">
+                      <span className="text-xs px-2 py-0.5 bg-[var(--surface-soft)] text-[var(--text-secondary)] rounded border border-[var(--border-strong)]">
                         {decision.namespace}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(decision.status)}`}>
@@ -367,7 +367,7 @@ export default function SchedulerDecisions() {
 
                   {/* Timestamp */}
                   <DecisionMetricCard label="Evaluated At">
-                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                       <Calendar className="w-3.5 h-3.5" />
                       {formatTimestamp(decision.evaluatedAt)}
                     </div>
@@ -385,27 +385,27 @@ export default function SchedulerDecisions() {
                     <div className="flex flex-wrap gap-1.5">
                       {decision.currentNodes?.length > 0 ? (
                         decision.currentNodes.map(node => (
-                          <span key={node} className="text-xs font-mono bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">
+                          <span key={node} className="text-xs font-mono bg-[var(--surface-solid)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded border border-[var(--border)]">
                             {node}
                           </span>
                         ))
                       ) : (
-                        <span className="text-xs text-slate-600 italic">None</span>
+                        <span className="text-xs text-[var(--text-dim)] italic">None</span>
                       )}
                     </div>
                   </DecisionMetricCard>
                 </div>
 
                 {/* Scores List */}
-                <div className="border-t border-slate-700/50 pt-4">
-                  <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">Node Scores</p>
+                <div className="border-t border-[var(--border)] pt-4">
+                  <p className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-3">Node Scores</p>
                   <div className="flex flex-wrap gap-3">
                     {Object.entries(decision.scores || {})
                       .sort(([, a], [, b]) => b - a)
                       .map(([node, score]) => (
-                        <div key={node} className="flex items-center gap-2 bg-slate-900/40 rounded px-2.5 py-1.5 border border-slate-700/40">
-                          <span className="text-sm text-slate-400 font-mono">{node}</span>
-                          <div className="h-4 w-px bg-slate-700"></div>
+                        <div key={node} className="flex items-center gap-2 bg-[var(--surface-subtle)] rounded px-2.5 py-1.5 border border-[var(--border)]">
+                          <span className="text-sm text-[var(--text-muted)] font-mono">{node}</span>
+                          <div className="h-4 w-px bg-[var(--surface-soft)]"></div>
                           <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score}</span>
                         </div>
                       ))}
@@ -420,7 +420,7 @@ export default function SchedulerDecisions() {
 
       {/* Apply/Restart Confirm Modal */}
       {applyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--overlay-backdrop)] backdrop-blur-sm animate-in fade-in duration-200">
           <div
             role="dialog"
             aria-modal="true"
@@ -434,15 +434,15 @@ export default function SchedulerDecisions() {
                     <Play className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <h3 id="apply-decision-title" className="text-lg font-semibold text-white">
+                    <h3 id="apply-decision-title" className="text-lg font-semibold text-[var(--text-primary)]">
                       Apply Decision
                     </h3>
-                    <p className="text-sm text-slate-400">Apply placement for <b>{selectedDecision?.service}</b></p>
+                    <p className="text-sm text-[var(--text-muted)]">Apply placement for <b>{selectedDecision?.service}</b></p>
                   </div>
                 </div>
                 <button type="button"
                   onClick={closeApplyModal}
-                  className={cn(subtleIconButtonClass, 'h-9 w-9 bg-white/4 text-slate-400')}
+                  className={cn(subtleIconButtonClass, 'h-9 w-9 bg-[var(--surface-subtle)] text-[var(--text-muted)]')}
                   aria-label="Close apply decision modal"
                 >
                   <X className="w-5 h-5" />
@@ -452,12 +452,12 @@ export default function SchedulerDecisions() {
               <div className="space-y-4">
                 {!applyResult ? (
                   <>
-                    <div className="surface-glass rounded-lg border border-cyan-300/24 bg-cyan-400/10 p-3 text-sm text-cyan-100/90">
+                    <div className="surface-glass rounded-lg border border-cyan-300/24 bg-cyan-400/10 p-3 text-sm text-[var(--text-secondary)]">
                       <p>This action will restart the pod to allow it to be rescheduled onto the best node (<b>{selectedDecision?.bestNode}</b>).</p>
                     </div>
 
                     <div>
-                      <label htmlFor="pod-select" className="block text-sm font-medium text-slate-300 mb-1.5">
+                      <label htmlFor="pod-select" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
                         Select Pod to Restart
                       </label>
                       {availablePods.length > 0 ? (
@@ -478,7 +478,7 @@ export default function SchedulerDecisions() {
                       )}
 
                       {availablePods.length > 0 && (
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-[var(--text-dim)] mt-1.5">
                           Select the specific pod instance to migrate to the best node.
                         </p>
                       )}
@@ -515,13 +515,13 @@ export default function SchedulerDecisions() {
                           <CheckCircle className="w-6 h-6" />
                         </div>
                         <h4 className="font-semibold text-lg">Applied Successfully</h4>
-                        <p className="text-sm text-slate-400 px-4">{applyResult.message}</p>
+                        <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <AlertTriangle className="w-8 h-8 mb-2" />
                         <h4 className="font-semibold text-lg">Apply Failed</h4>
-                        <p className="text-sm text-slate-400 px-4">{applyResult.message}</p>
+                        <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
                       </div>
                     )}
                     <button type="button"

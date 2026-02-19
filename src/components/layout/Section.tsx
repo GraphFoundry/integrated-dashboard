@@ -21,7 +21,7 @@ export default function Section({
   return (
     <section className={cn(glassSurfaceClass, 'rounded-[var(--radius-md)]', className)}>
       {(title || description || actions) && (
-        <header className="border-b border-white/10 p-6">
+        <header className="border-b border-[var(--border)] p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               {title && (

@@ -35,7 +35,7 @@ const getConfidenceBadge = (confidence?: string) => {
   }
   return (
     <span
-      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-slate-700 text-slate-300'}`}
+      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-[var(--surface-soft)] text-[var(--text-secondary)]'}`}
     >
       {confidence}
     </span>
@@ -83,7 +83,7 @@ export default function DecisionDetail() {
         </div>
 
         <Section title="Summary">
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
             <SkeletonBlock variant="line" className="mb-3 h-5 w-4/5" />
             <SkeletonBlock variant="line" className="h-5 w-2/3" />
           </div>
@@ -94,7 +94,7 @@ export default function DecisionDetail() {
             {Array.from({ length: 5 }).map((_, index) => (
               <div
                 key={`decision-config-skeleton-${index}`}
-                className="p-4 bg-slate-900 rounded-lg border border-slate-800"
+                className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]"
               >
                 <SkeletonBlock variant="line" className="mb-2 h-3 w-1/3" />
                 <SkeletonBlock variant="line" className="h-5 w-2/3" />
@@ -106,7 +106,7 @@ export default function DecisionDetail() {
         <Section title="Evidence Chain">
           <div className="space-y-4">
             {Array.from({ length: 3 }).map((_, index) => (
-              <div key={`decision-evidence-skeleton-${index}`} className="p-3 bg-slate-900 rounded border border-slate-700">
+              <div key={`decision-evidence-skeleton-${index}`} className="p-3 bg-[var(--surface-solid)] rounded border border-[var(--border)]">
                 <SkeletonBlock variant="line" className="mb-2 h-4 w-2/5" />
                 <SkeletonBlock variant="line" className="h-3 w-1/2" />
               </div>
@@ -146,7 +146,7 @@ export default function DecisionDetail() {
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center gap-4">
-        <Link to="/history" className="text-slate-400 hover:text-white transition-colors">
+        <Link to="/history" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <PageHeader
@@ -157,11 +157,11 @@ export default function DecisionDetail() {
 
       {/* Summary */}
       <Section title="Summary">
-        <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-          <p className="text-lg text-white leading-relaxed">{summary}</p>
+        <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+          <p className="text-lg text-[var(--text-primary)] leading-relaxed">{summary}</p>
           {confidence && (
             <div className="flex items-center gap-2 mt-3">
-              <span className="text-sm text-slate-400">Confidence:</span>
+              <span className="text-sm text-[var(--text-muted)]">Confidence:</span>
               {getConfidenceBadge(confidence)}
             </div>
           )}
@@ -174,31 +174,31 @@ export default function DecisionDetail() {
         description="System state inputs used for this simulation"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-            <div className="text-xs text-slate-500 uppercase mb-1">Scenario Type</div>
-            <div className="text-white font-medium capitalize">{decision.type}</div>
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Scenario Type</div>
+            <div className="text-[var(--text-primary)] font-medium capitalize">{decision.type}</div>
           </div>
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-            <div className="text-xs text-slate-500 uppercase mb-1">Target Service</div>
-            <div className="text-white font-medium">{decision.scenario.serviceId as string}</div>
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Target Service</div>
+            <div className="text-[var(--text-primary)] font-medium">{decision.scenario.serviceId as string}</div>
           </div>
           {(decision.type === 'scale' || decision.type === 'scaling') && (
             <>
-              <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-                <div className="text-xs text-slate-500 uppercase mb-1">Current Pods</div>
-                <div className="text-white font-medium">
+              <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+                <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Current Pods</div>
+                <div className="text-[var(--text-primary)] font-medium">
                   {decision.scenario.currentPods as number}
                 </div>
               </div>
-              <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-                <div className="text-xs text-slate-500 uppercase mb-1">Target Pods</div>
-                <div className="text-white font-medium">{decision.scenario.newPods as number}</div>
+              <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+                <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Target Pods</div>
+                <div className="text-[var(--text-primary)] font-medium">{decision.scenario.newPods as number}</div>
               </div>
             </>
           )}
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-            <div className="text-xs text-slate-500 uppercase mb-1">Simulation Depth</div>
-            <div className="text-white font-medium">
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Simulation Depth</div>
+            <div className="text-[var(--text-primary)] font-medium">
               {(decision.scenario.maxDepth as number) ?? 'N/A'} hops
             </div>
           </div>
@@ -212,13 +212,13 @@ export default function DecisionDetail() {
             {pipelineTrace.stages.map((stage, idx) => (
               <div
                 key={idx}
-                className="relative pl-6 pb-4 border-l border-slate-700 last:pb-0 last:border-0"
+                className="relative pl-6 pb-4 border-l border-[var(--border)] last:pb-0 last:border-0"
               >
                 <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-slate-900" />
-                <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                <div className="bg-[var(--surface-solid)] p-3 rounded border border-[var(--border)]">
                   <div className="flex justify-between items-start mb-1">
-                    <span className="text-sm font-medium text-white">{stage.name}</span>
-                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">{stage.name}</span>
+                    <span className="text-xs text-[var(--text-dim)] flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatMs(stage.ms)}
                     </span>
@@ -249,13 +249,13 @@ export default function DecisionDetail() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Upstream Callers */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
                 Upstream Callers ({affectedCallers.length})
               </h3>
               {affectedCallers.length === 0 ? (
-                <div className="p-8 text-center bg-slate-900 rounded border border-slate-800 border-dashed">
-                  <CheckCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">No upstream callers affected</p>
+                <div className="p-8 text-center bg-[var(--surface-solid)] rounded border border-[var(--border)] border-dashed">
+                  <CheckCircle className="w-8 h-8 text-[var(--text-dim)] mx-auto mb-2" />
+                  <p className="text-sm text-[var(--text-dim)]">No upstream callers affected</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -264,10 +264,10 @@ export default function DecisionDetail() {
                     return (
                       <div
                         key={`caller-${c.namespace}-${c.name}-${idx}`}
-                        className="p-3 bg-slate-900 rounded border border-yellow-700/30"
+                        className="p-3 bg-[var(--surface-solid)] rounded border border-yellow-700/30"
                       >
-                        <div className="font-medium text-white">{c.name as string}</div>
-                        <div className="text-xs text-slate-400">{c.namespace as string}</div>
+                        <div className="font-medium text-[var(--text-primary)]">{c.name as string}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{c.namespace as string}</div>
                         {c.lostTrafficRps !== undefined && (
                           <div className="text-sm text-yellow-300 mt-1">
                             Lost: {formatRps(c.lostTrafficRps as number)} RPS
@@ -282,13 +282,13 @@ export default function DecisionDetail() {
 
             {/* Downstream Dependencies */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
                 Downstream Impacted ({affectedDownstream.length})
               </h3>
               {affectedDownstream.length === 0 ? (
-                <div className="p-8 text-center bg-slate-900 rounded border border-slate-800 border-dashed">
-                  <CheckCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">No downstream services impacted</p>
+                <div className="p-8 text-center bg-[var(--surface-solid)] rounded border border-[var(--border)] border-dashed">
+                  <CheckCircle className="w-8 h-8 text-[var(--text-dim)] mx-auto mb-2" />
+                  <p className="text-sm text-[var(--text-dim)]">No downstream services impacted</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -297,10 +297,10 @@ export default function DecisionDetail() {
                     return (
                       <div
                         key={`downstream-${d.namespace}-${d.name}-${idx}`}
-                        className="p-3 bg-slate-900 rounded border border-red-700/30"
+                        className="p-3 bg-[var(--surface-solid)] rounded border border-red-700/30"
                       >
-                        <div className="font-medium text-white">{d.name as string}</div>
-                        <div className="text-xs text-slate-400">{d.namespace as string}</div>
+                        <div className="font-medium text-[var(--text-primary)]">{d.name as string}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{d.namespace as string}</div>
                         {d.lostTrafficRps !== undefined && (
                           <div className="text-sm text-red-300 mt-1">
                             Lost: {formatRps(d.lostTrafficRps as number)} RPS
@@ -320,20 +320,20 @@ export default function DecisionDetail() {
       {(decision.type === 'scale' || decision.type === 'scaling') && latencyEstimate && (
         <Section title="Latency Impact">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-900 rounded-lg">
-              <div className="text-xs text-slate-500 uppercase mb-1">Baseline</div>
-              <div className="text-white text-xl font-semibold">
+            <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Baseline</div>
+              <div className="text-[var(--text-primary)] text-xl font-semibold">
                 {formatMs((latencyEstimate.baselineMs as number) ?? 0)}
               </div>
             </div>
-            <div className="p-4 bg-slate-900 rounded-lg">
-              <div className="text-xs text-slate-500 uppercase mb-1">Projected</div>
-              <div className="text-white text-xl font-semibold">
+            <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Projected</div>
+              <div className="text-[var(--text-primary)] text-xl font-semibold">
                 {formatMs((latencyEstimate.projectedMs as number) ?? 0)}
               </div>
             </div>
-            <div className="p-4 bg-slate-900 rounded-lg">
-              <div className="text-xs text-slate-500 uppercase mb-1">Delta</div>
+            <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Delta</div>
               <div
                 className={`text-xl font-semibold ${((latencyEstimate.deltaMs as number) ?? 0) < 0 ? 'text-green-400' : 'text-red-400'}`}
               >
@@ -362,7 +362,7 @@ export default function DecisionDetail() {
               return (
                 <div
                   key={`rec-${rec.description}-${idx}`}
-                  className="p-4 bg-slate-900 rounded-lg border border-slate-700"
+                  className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]"
                 >
                   <div className="flex items-start gap-3">
                     <span
@@ -370,7 +370,7 @@ export default function DecisionDetail() {
                     >
                       {rec.priority || 'info'}
                     </span>
-                    <p className="text-sm text-slate-300 flex-1">{rec.description}</p>
+                    <p className="text-sm text-[var(--text-secondary)] flex-1">{rec.description}</p>
                   </div>
                 </div>
               )
@@ -383,18 +383,18 @@ export default function DecisionDetail() {
       <Section>
         <button type="button"
           onClick={() => setShowRawJson(!showRawJson)}
-          className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
+          className="w-full flex items-center justify-between p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors"
         >
-          <span className="text-sm font-medium text-slate-300">Raw Record (Debug)</span>
-          <span className="text-slate-500">{showRawJson ? '▼' : '▶'}</span>
+          <span className="text-sm font-medium text-[var(--text-secondary)]">Raw Record (Debug)</span>
+          <span className="text-[var(--text-dim)]">{showRawJson ? '▼' : '▶'}</span>
         </button>
 
         {showRawJson && (
-          <div className="mt-4 p-4 bg-slate-900 rounded-lg">
-            <div className="text-xs text-slate-500 mb-2 font-mono">
+          <div className="mt-4 p-4 bg-[var(--surface-solid)] rounded-lg">
+            <div className="text-xs text-[var(--text-dim)] mb-2 font-mono">
               ID: {decision.id} | Correlation: {decision.correlationId || 'N/A'}
             </div>
-            <pre className="text-xs text-slate-300 overflow-x-auto font-mono">
+            <pre className="text-xs text-[var(--text-secondary)] overflow-x-auto font-mono">
               {JSON.stringify(decision, null, 2)}
             </pre>
           </div>

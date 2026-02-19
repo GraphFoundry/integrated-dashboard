@@ -77,12 +77,12 @@ function ChartPanel({
   children,
 }: ChartPanelProps) {
   return (
-    <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-4">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
       <div className="mb-4 flex items-center gap-2">
         <div className={`rounded-lg p-2 ${iconWrapperClassName}`}>
           <Icon className={`h-4 w-4 ${iconClassName}`} />
         </div>
-        <h3 className="font-semibold text-slate-200">{title}</h3>
+        <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
       </div>
       {children}
     </div>
@@ -203,7 +203,7 @@ export default function Metrics() {
       />
 
       {/* Controls */}
-      <div className="surface-glass rounded-[var(--radius-md)] border border-white/12 p-4">
+      <div className="surface-glass rounded-[var(--radius-md)] border border-[var(--border)] p-4">
         <div className="flex items-end gap-4">
           <div className="flex-1">
             <label htmlFor="service-select" className={controlLabelCompactClass}>
@@ -287,7 +287,7 @@ export default function Metrics() {
             }
             note={
               summaryStats.healthScore < 100 ? (
-                <p className="mt-1 text-xs text-rose-200">
+                <p className="mt-1 text-xs text-rose-400">
                   {formatPercent(summaryStats.errorRate)} requests failing
                 </p>
               ) : undefined
@@ -465,7 +465,7 @@ export default function Metrics() {
                     <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span
                         className={
-                          point.p95 < 500 ? 'text-slate-200' :
+                          point.p95 < 500 ? 'text-[var(--text-primary)]' :
                             point.p95 < 1000 ? 'text-amber-400' : 'text-rose-400'
                         }
                       >

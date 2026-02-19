@@ -38,7 +38,7 @@ interface ScenarioFormProps {
 }
 
 const compactControlClass =
-  'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-[var(--color-emerald-300)]/45 bg-white/8 px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] focus:border-[var(--color-emerald-300)]'
+  'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-[var(--color-emerald-300)]/45 bg-[var(--surface-subtle)] px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] focus:border-[var(--color-emerald-300)]'
 
 export default function ScenarioForm({
   onRun,
@@ -384,7 +384,7 @@ export default function ScenarioForm({
                   <button
                     type="button"
                     onClick={() => handleRemoveDependency(idx)}
-                    className="neon-focus-ring interactive-soft inline-flex h-11 items-center justify-center rounded-[var(--radius-sm)] border border-rose-300/45 bg-rose-500/14 px-3 text-rose-200 hover:bg-rose-500/24"
+                    className="neon-focus-ring interactive-soft inline-flex h-11 items-center justify-center rounded-[var(--radius-sm)] border border-rose-300/45 bg-rose-500/14 px-3 text-rose-400 hover:bg-rose-500/24"
                     aria-label={`Remove dependency ${idx + 1}`}
                   >
                     <X className="h-4 w-4" />
@@ -411,7 +411,7 @@ export default function ScenarioForm({
                 <>
                   Service ID
                   {mode === 'live' && (
-                    <span className="ml-1 text-xs text-slate-500">(namespace:name)</span>
+                    <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>
                   )}
                   {mode === 'live' && servicesLoading && (
                     <span className="ml-2 text-xs text-blue-400">Loading services...</span>
@@ -425,7 +425,7 @@ export default function ScenarioForm({
                   )}
                 </>
               }
-              helperClassName={cn(serviceIdHint ? 'text-yellow-400' : 'text-slate-500')}
+              helperClassName={cn(serviceIdHint ? 'text-yellow-400' : 'text-[var(--text-dim)]')}
               helperText={
                 serviceIdHint ||
                 (mode === 'live' &&
@@ -450,7 +450,7 @@ export default function ScenarioForm({
                 className={cn(
                   compactControlClass,
                   'placeholder-slate-500',
-                  serviceIdHint ? 'border-yellow-600' : 'border-slate-600'
+                  serviceIdHint ? 'border-yellow-600' : 'border-[var(--border-strong)]'
                 )}
                 disabled={mode === 'live' && servicesLoading}
               />
@@ -474,7 +474,7 @@ export default function ScenarioForm({
               onChange={(e) => setMaxDepth(Number(e.target.value))}
               className="w-full"
             />
-            <div className="flex justify-between text-xs text-slate-500 mt-1">
+            <div className="flex justify-between text-xs text-[var(--text-dim)] mt-1">
               <span>1</span>
               <span>2</span>
               <span>3</span>
@@ -547,7 +547,7 @@ export default function ScenarioForm({
         disabled={!isValid() || loading}
         className={cn(
           primaryButtonClass,
-          'w-full py-3 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500'
+          'w-full py-3 disabled:cursor-not-allowed disabled:bg-[var(--surface-soft)] disabled:text-[var(--text-dim)]'
         )}
       >
         {loading ? 'Running...' : 'Run Simulation'}

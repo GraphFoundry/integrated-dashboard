@@ -77,7 +77,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchAdapterProps>(function 
           <>
             <span
               className={cn(
-                'relative flex h-6 w-11 items-center rounded-full border border-white/20 bg-white/8 p-0.5',
+                'relative flex h-6 w-11 items-center rounded-full border border-[var(--border)] bg-[var(--surface-soft)] p-0.5',
                 isSelected && 'border-cyan-300/35 bg-cyan-500/30',
                 isFocusVisible && 'shadow-[var(--shadow-neon)]',
                 isDisabled && 'opacity-60'
@@ -85,7 +85,7 @@ export const Switch = forwardRef<HTMLInputElement, SwitchAdapterProps>(function 
             >
               <span
                 className={cn(
-                  'h-5 w-5 rounded-full bg-white/90 transition-transform',
+                  'h-5 w-5 rounded-full bg-[var(--surface-contrast)] transition-transform',
                   isSelected && 'translate-x-5'
                 )}
               />

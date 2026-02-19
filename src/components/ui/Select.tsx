@@ -168,8 +168,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         </Button>
         <Popover
           className={cn(
-            'surface-panel z-50 max-h-72 w-[var(--trigger-width)] min-w-[var(--trigger-width)] overflow-auto rounded-[var(--radius-sm)] border border-white/14 p-1',
-            'shadow-[0_20px_40px_rgba(2,8,23,0.45)]'
+            'surface-panel z-50 max-h-72 w-[var(--trigger-width)] min-w-[var(--trigger-width)] overflow-auto rounded-[var(--radius-sm)] border border-[var(--border)] p-1',
+            'shadow-[0_20px_40px_rgba(2,8,23,0.3)]'
           )}
         >
           <ListBox className="w-full outline-none">
@@ -182,7 +182,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
                 className={({ isFocused, isSelected }) =>
                   cn(
                     'cursor-pointer rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] outline-none',
-                    isFocused && 'bg-white/10 text-[var(--text-primary)]',
+                    isFocused && 'bg-[var(--surface-soft)] text-[var(--text-primary)]',
                     isSelected && 'bg-emerald-500/20 text-[var(--color-emerald-300)]'
                   )
                 }

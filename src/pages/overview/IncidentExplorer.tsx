@@ -7,6 +7,7 @@ import { ModeButton } from './incidentExplorerUtils'
 import { NodeDetailsDrawer } from './NodeDetailsDrawer'
 import { getRiskColor } from './graphHelpers'
 import { useDependencyGraphSnapshot } from '@/lib/useGraphStream'
+import { useTheme } from '@/theme/useTheme'
 import {
   Activity,
   Server,
@@ -28,7 +29,7 @@ type GraphMode = 'impact' | 'suspect' | 'flow'
 
 function ExplorerFrame({ children }: { readonly children: React.ReactNode }) {
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-[600px]">
+    <div className="bg-[var(--surface-solid)] border border-[var(--border)] rounded-lg overflow-hidden flex flex-col h-[600px]">
       {children}
     </div>
   )
@@ -36,6 +37,7 @@ function ExplorerFrame({ children }: { readonly children: React.ReactNode }) {
 
 export default function IncidentExplorer() {
   const { snapshot } = useDependencyGraphSnapshot()
+  const { resolvedTheme } = useTheme()
   const [loading, setLoading] = useState(true)
   const [nodes, setNodes] = useState<GraphNode[]>([])
   const [edges, setEdges] = useState<GraphEdge[]>([])
@@ -88,6 +90,8 @@ export default function IncidentExplorer() {
       label: e.reqRate ? `${e.reqRate} RPS` : undefined,
     }))
   }, [edges])
+
+  const graphTheme = useMemo(() => createGraphTheme(resolvedTheme), [resolvedTheme])
 
   // Helper mapping for fast lookup
   const nodeMap = useMemo(() => {
@@ -146,7 +150,7 @@ export default function IncidentExplorer() {
   if (loading && nodes.length === 0) {
     return (
       <ExplorerFrame>
-        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50" aria-busy="true">
+        <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]" aria-busy="true">
           <SkeletonBlock variant="line" className="h-7 w-40" />
           <div className="flex gap-2">
             <SkeletonBlock variant="line" className="h-8 w-28 rounded-md" />
@@ -154,7 +158,7 @@ export default function IncidentExplorer() {
             <SkeletonBlock variant="line" className="h-8 w-28 rounded-md" />
           </div>
         </div>
-        <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
+        <div className="px-4 py-2 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
           <SkeletonBlock variant="line" className="h-4 w-2/3" />
         </div>
         <div className="flex-1 p-4">
@@ -168,8 +172,8 @@ export default function IncidentExplorer() {
     <ExplorerFrame>
       <div className="relative flex h-full flex-col">
       {/* Header with Mode Controls */}
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
-        <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
+      <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]">
+        <h3 className="text-lg font-medium text-[var(--text-primary)]">Incident Explorer</h3>
         <div className="flex gap-2">
           <ModeButton active={mode === 'impact'} onClick={() => setMode('impact')}>
             Impact Analysis
@@ -184,9 +188,9 @@ export default function IncidentExplorer() {
       </div>
 
       {/* Mode Legend */}
-      <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
+      <div className="px-4 py-2 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
         <div className="flex justify-between items-center">
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-[var(--text-muted)]">
             {mode === 'impact' && (
               <span className="flex items-center gap-2">
                 <AlertTriangle className="w-3 h-3 text-orange-400" />
@@ -216,7 +220,7 @@ export default function IncidentExplorer() {
         </div>
         {/* Metadata stats row */}
         {metadata && (
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-700/50 text-xs text-slate-500">
+          <div className="flex items-center justify-between mt-2 pt-2 border-t border-[var(--border)] text-xs text-[var(--text-dim)]">
             <div className="flex items-center gap-4">
               {metadata.nodeCount !== undefined && <span>{metadata.nodeCount} services</span>}
               {metadata.edgeCount !== undefined && <span>{metadata.edgeCount} dependencies</span>}
@@ -253,7 +257,7 @@ export default function IncidentExplorer() {
               actives={actives}
               layoutType="radialOut2d"
               labelType="all"
-              theme={darkGraphTheme}
+              theme={graphTheme}
               onNodeClick={(node) => handleNodeClick(node)}
               onNodePointerOver={(node) => {
                 setHoveredNode(node.data as GraphNode)
@@ -336,12 +340,12 @@ export default function IncidentExplorer() {
             )}
           </div>
         ) : (
-          <div className="h-full flex flex-col items-center justify-center p-8 bg-[#0f172a]">
+          <div className="h-full flex flex-col items-center justify-center p-8 bg-[var(--graph-canvas)]">
             <EmptyState
               icon={<Network className="h-12 w-12 text-[var(--color-emerald-300)]" />}
               message="No dependency graph data available"
               action={
-                <span className="text-xs text-slate-500 mt-2 block max-w-xs text-center">
+                <span className="text-xs text-[var(--text-dim)] mt-2 block max-w-xs text-center">
                   Traffic is required to discover service dependencies. Try running a load test or
                   waiting for traffic to flow.
                 </span>
@@ -415,7 +419,7 @@ function GraphTooltip({
 
   return (
     <div
-      className="fixed z-50 pointer-events-none bg-[#1e293b]/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl animate-in fade-in zoom-in-95 duration-75"
+      className="fixed z-50 pointer-events-none bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl animate-in fade-in zoom-in-95 duration-75"
       style={{
         left: `${left}px`,
         top: `${top}px`,
@@ -424,22 +428,22 @@ function GraphTooltip({
     >
       <div className="p-3">
         {/* Header */}
-        <div className="flex items-center gap-2 mb-3 border-b border-slate-700/50 pb-2">
+        <div className="flex items-center gap-2 mb-3 border-b border-[var(--border)] pb-2">
           <div
-            className="w-3 h-3 rounded-full ring-2 ring-slate-700 shadow-sm"
+            className="w-3 h-3 rounded-full ring-2 ring-[var(--border)] shadow-sm"
             style={{ backgroundColor: getRiskColor(node.riskLevel) }}
           />
           <div className="overflow-hidden">
-            <div className="font-bold text-white text-sm truncate" title={node.name}>
+            <div className="font-bold text-[var(--text-primary)] text-sm truncate" title={node.name}>
               {node.name}
             </div>
-            <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+            <div className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-semibold">
               {node.namespace}
             </div>
           </div>
-          <div className="ml-auto flex items-center gap-1 bg-slate-800 rounded px-1.5 py-0.5">
-            <Server className="w-3 h-3 text-slate-400" />
-            <span className="text-xs font-mono text-slate-300">
+          <div className="ml-auto flex items-center gap-1 bg-[var(--surface-solid)] rounded px-1.5 py-0.5">
+            <Server className="w-3 h-3 text-[var(--text-muted)]" />
+            <span className="text-xs font-mono text-[var(--text-secondary)]">
               {node.podCount !== undefined ? node.podCount : '-'}
             </span>
           </div>
@@ -454,14 +458,14 @@ function GraphTooltip({
               </div>
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div>
-                  <div className="text-lg font-bold text-white">{analysis.blastRadiusCount}</div>
-                  <div className="text-[10px] text-slate-400">Services at Risk</div>
+                  <div className="text-lg font-bold text-[var(--text-primary)]">{analysis.blastRadiusCount}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Services at Risk</div>
                 </div>
                 <div>
-                  <div className="text-lg font-bold text-white">
+                  <div className="text-lg font-bold text-[var(--text-primary)]">
                     {analysis.totalImpactedRps.toFixed(1)}
                   </div>
-                  <div className="text-[10px] text-slate-400">Impacted RPS</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">Impacted RPS</div>
                 </div>
               </div>
             </div>
@@ -475,7 +479,7 @@ function GraphTooltip({
               {analysis.suspects.length > 0 ? (
                 <div className="space-y-1">
                   {analysis.suspects.slice(0, 2).map((s, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs text-slate-300">
+                    <div key={i} className="flex items-center justify-between text-xs text-[var(--text-secondary)]">
                       <span className="truncate max-w-[120px]">{s.node?.name}</span>
                       <span className="text-red-400 font-bold text-[10px] px-1 bg-red-900/40 rounded">
                         {s.node?.riskLevel}
@@ -483,13 +487,13 @@ function GraphTooltip({
                     </div>
                   ))}
                   {analysis.suspects.length > 2 && (
-                    <div className="text-[10px] text-slate-500 italic">
+                    <div className="text-[10px] text-[var(--text-dim)] italic">
                       + {analysis.suspects.length - 2} more...
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="text-xs text-slate-400 italic">No risky upstream services found.</div>
+                <div className="text-xs text-[var(--text-muted)] italic">No risky upstream services found.</div>
               )}
             </div>
           )}
@@ -501,104 +505,104 @@ function GraphTooltip({
               </div>
               <div className="flex items-center justify-between gap-2">
                 <div className="text-center flex-1">
-                  <div className="text-xs text-slate-400 mb-0.5">Inbound</div>
-                  <div className="text-sm font-bold text-white font-mono">
+                  <div className="text-xs text-[var(--text-muted)] mb-0.5">Inbound</div>
+                  <div className="text-sm font-bold text-[var(--text-primary)] font-mono">
                     {analysis.inboundRps.toFixed(1)}
                   </div>
-                  <div className="text-[9px] text-slate-500">req/sec</div>
+                  <div className="text-[9px] text-[var(--text-dim)]">req/sec</div>
                 </div>
-                <div className="text-slate-600">
+                <div className="text-[var(--text-dim)]">
                   <ArrowRight className="w-4 h-4" />
                 </div>
                 <div className="text-center flex-1">
-                  <div className="text-xs text-slate-400 mb-0.5">Outbound</div>
-                  <div className="text-sm font-bold text-white font-mono">
+                  <div className="text-xs text-[var(--text-muted)] mb-0.5">Outbound</div>
+                  <div className="text-sm font-bold text-[var(--text-primary)] font-mono">
                     {analysis.outboundRps.toFixed(1)}
                   </div>
-                  <div className="text-[9px] text-slate-500">req/sec</div>
+                  <div className="text-[9px] text-[var(--text-dim)]">req/sec</div>
                 </div>
               </div>
             </div>
           )}
 
           {/* Core Metrics */}
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700/50">
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">Availability</div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border)]">
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">Availability</div>
               <div className="flex items-center gap-1.5">
                 <TrendingUp
                   className={`w-3 h-3 ${(node.availabilityPct ?? 100) > 99 ? 'text-green-400' : 'text-red-400'
                     }`}
                 />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {node.availabilityPct !== undefined ? node.availabilityPct.toFixed(1) : '-'}%
                 </span>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">Error Rate</div>
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">Error Rate</div>
               <div className="flex items-center gap-1.5">
                 <AlertOctagon className={`w-3 h-3 ${(node.errorRatePct ?? 0) > 1 ? 'text-red-400' : 'text-green-400'}`} />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {node.errorRatePct !== undefined ? node.errorRatePct.toFixed(2) : '-'}%
                 </span>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">RPS</div>
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">RPS</div>
               <div className="flex items-center gap-1.5">
                 <Zap className="w-3 h-3 text-yellow-400" />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {node.reqRate !== undefined ? node.reqRate.toFixed(1) : '-'}
                 </span>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">Latency (P95)</div>
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">Latency (P95)</div>
               <div className="flex items-center gap-1.5">
                 <Activity className="w-3 h-3 text-sky-400" />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {node.latencyP95Ms !== undefined ? Math.round(node.latencyP95Ms) : '-'}
-                  <span className="text-[10px] text-slate-500 font-sans ml-0.5">ms</span>
+                  <span className="text-[10px] text-[var(--text-dim)] font-sans ml-0.5">ms</span>
                 </span>
               </div>
             </div>
           </div>
 
           {/* Topology Metrics */}
-          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-700/50">
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">Page Rank</div>
+          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[var(--border)]">
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">Page Rank</div>
               <div className="flex items-center gap-1.5">
                 <Network className="w-3 h-3 text-purple-400" />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {node.pageRank !== undefined ? node.pageRank.toFixed(4) : '-'}
                 </span>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">Betweenness</div>
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">Betweenness</div>
               <div className="flex items-center gap-1.5">
                 <GitCommit className="w-3 h-3 text-pink-400" />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {node.betweenness !== undefined ? node.betweenness.toFixed(4) : '-'}
                 </span>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">In-Degree</div>
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">In-Degree</div>
               <div className="flex items-center gap-1.5">
                 <ArrowDownToLine className="w-3 h-3 text-emerald-400" />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {analysis.inDegree}
                 </span>
               </div>
             </div>
-            <div className="bg-slate-800/50 rounded p-1.5 px-2">
-              <div className="text-[10px] text-slate-400 mb-0.5">Out-Degree</div>
+            <div className="bg-[var(--surface-soft)] rounded p-1.5 px-2">
+              <div className="text-[10px] text-[var(--text-muted)] mb-0.5">Out-Degree</div>
               <div className="flex items-center gap-1.5">
                 <ArrowUpFromLine className="w-3 h-3 text-indigo-400" />
-                <span className="font-mono text-xs font-semibold text-white">
+                <span className="font-mono text-xs font-semibold text-[var(--text-primary)]">
                   {analysis.outDegree}
                 </span>
               </div>
@@ -618,7 +622,7 @@ function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <div className="flex items-center gap-1">
       <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getRiskColor(color) }} />
-      <span className="text-slate-400">{label}</span>
+      <span className="text-[var(--text-muted)]">{label}</span>
     </div>
   )
 }
@@ -660,50 +664,58 @@ function getUpstreamNodes(nodeId: string, edges: ReagraphEdge[], maxHops: number
   return Array.from(visited)
 }
 
-const darkGraphTheme = {
-  canvas: {
-    background: '#0f172a',
-  },
-  node: {
-    fill: '#64748b',
-    activeFill: '#38bdf8',
-    opacity: 0.9,
-    selectedOpacity: 1,
-    inactiveOpacity: 0.2,
-    label: {
-      color: '#e2e8f0',
-      stroke: '#0f172a',
-      activeColor: '#ffffff',
+function createGraphTheme(resolvedTheme: 'light' | 'dark') {
+  void resolvedTheme
+  const rootStyles = typeof window !== 'undefined'
+    ? window.getComputedStyle(document.documentElement)
+    : null
+  const getVar = (name: string, fallback: string) => rootStyles?.getPropertyValue(name).trim() || fallback
+
+  return {
+    canvas: {
+      background: getVar('--graph-canvas', '#0f172a'),
     },
-    subLabel: {
-      color: '#94a3b8',
-      stroke: 'transparent',
-      activeColor: '#e2e8f0',
+    node: {
+      fill: getVar('--graph-node-fill', '#64748b'),
+      activeFill: getVar('--graph-node-active-fill', '#38bdf8'),
+      opacity: 0.9,
+      selectedOpacity: 1,
+      inactiveOpacity: 0.2,
+      label: {
+        color: getVar('--graph-node-label', '#e2e8f0'),
+        stroke: getVar('--graph-node-label-stroke', '#0f172a'),
+        activeColor: getVar('--graph-edge-label-active', '#ffffff'),
+      },
+      subLabel: {
+        color: getVar('--graph-node-sublabel', '#94a3b8'),
+        stroke: 'transparent',
+        activeColor: getVar('--graph-node-label', '#e2e8f0'),
+      },
     },
-  },
-  lasso: {
-    border: '1px solid #38bdf8',
-    background: 'rgba(56, 189, 248, 0.1)',
-  },
-  ring: {
-    fill: '#334155',
-    activeFill: '#3b82f6',
-  },
-  edge: {
-    fill: '#475569',
-    activeFill: '#94a3b8',
-    opacity: 0.6,
-    selectedOpacity: 1,
-    inactiveOpacity: 0.1,
-    label: {
-      fill: '#f8fafc',
-      color: '#f8fafc',
-      activeColor: '#ffffff',
-      fontSize: 6,
+    lasso: {
+      border: `1px solid ${getVar('--graph-lasso-border', '#38bdf8')}`,
+      background: getVar('--graph-lasso-bg', 'rgba(56, 189, 248, 0.1)'),
     },
-  },
-  arrow: {
-    fill: '#475569',
-    activeFill: '#94a3b8',
-  },
+    ring: {
+      fill: getVar('--graph-ring-fill', '#334155'),
+      activeFill: getVar('--graph-ring-active-fill', '#3b82f6'),
+    },
+    edge: {
+      fill: getVar('--graph-edge-fill', '#475569'),
+      activeFill: getVar('--graph-edge-active-fill', '#94a3b8'),
+      opacity: 0.6,
+      selectedOpacity: 1,
+      inactiveOpacity: 0.1,
+      label: {
+        fill: getVar('--graph-edge-label', '#f8fafc'),
+        color: getVar('--graph-edge-label', '#f8fafc'),
+        activeColor: getVar('--graph-edge-label-active', '#ffffff'),
+        fontSize: 6,
+      },
+    },
+    arrow: {
+      fill: getVar('--graph-arrow-fill', '#475569'),
+      activeFill: getVar('--graph-arrow-active-fill', '#94a3b8'),
+    },
+  }
 }

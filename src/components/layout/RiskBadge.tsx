@@ -6,9 +6,9 @@ interface RiskBadgeProps {
 }
 
 const riskStyles: Record<RiskLevel, string> = {
-  high: 'bg-firebase-error/20 text-firebase-error border-firebase-error/30',
-  medium: 'bg-firebase-warning/20 text-firebase-warning border-firebase-warning/30',
-  low: 'bg-firebase-success/20 text-firebase-success border-firebase-success/30',
+  high: 'bg-red-500/20 text-red-400 border-red-500/30',
+  medium: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  low: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
 }
 
 const riskLabels: Record<RiskLevel, string> = {

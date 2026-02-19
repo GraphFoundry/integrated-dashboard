@@ -80,8 +80,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxAdapterProps>(funct
           <>
             <span
               className={cn(
-                'flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-white/5',
-                isSelected && 'border-cyan-300/40 bg-cyan-500/25 text-cyan-100',
+                'flex h-5 w-5 items-center justify-center rounded border border-[var(--border)] bg-[var(--surface-subtle)]',
+                isSelected && 'border-cyan-300/40 bg-cyan-500/25 text-[var(--text-primary)]',
                 isFocusVisible && 'shadow-[var(--shadow-neon)]',
                 isDisabled && 'opacity-60'
               )}

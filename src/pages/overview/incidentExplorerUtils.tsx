@@ -9,12 +9,12 @@ interface MetricTooltipProps {
 export function MetricTooltip({ label, tooltip, children }: MetricTooltipProps) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
         <span>{label}</span>
         <div className="group relative inline-block">
-          <Info className="w-3 h-3 text-slate-500 hover:text-slate-400 cursor-help" />
+          <Info className="w-3 h-3 text-[var(--text-dim)] hover:text-[var(--text-muted)] cursor-help" />
           <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 z-50">
-            <div className="bg-slate-800 text-slate-200 text-xs rounded-lg p-2 shadow-xl border border-slate-700">
+            <div className="bg-[var(--surface-solid)] text-[var(--text-primary)] text-xs rounded-lg p-2 shadow-xl border border-[var(--border)]">
               {tooltip}
             </div>
           </div>
@@ -37,8 +37,8 @@ export function ModeButton({ active, onClick, children }: ModeButtonProps) {
       onClick={onClick}
       className={`neon-focus-ring interactive-soft rounded-lg border px-4 py-2 text-sm font-semibold transition-all ${
         active
-          ? 'border-[var(--color-emerald-300)]/45 bg-emerald-500/18 text-emerald-100 shadow-[0_10px_24px_rgba(5,150,105,0.25)]'
-          : 'border-white/16 bg-white/8 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
+          ? 'border-[var(--color-emerald-300)]/45 bg-emerald-500/18 text-[var(--primary-foreground)] shadow-[0_10px_24px_rgba(5,150,105,0.25)]'
+          : 'border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
       }`}
     >
       {children}

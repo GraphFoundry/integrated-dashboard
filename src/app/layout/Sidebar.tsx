@@ -14,7 +14,7 @@ const navItems = [
 export default function Sidebar() {
   return (
     <aside className={shellSidebarClass}>
-      <div className="border-b border-white/10 p-6">
+      <div className="border-b border-[var(--border)] p-6">
         <h1 className="text-xl font-bold text-[var(--text-primary)]">Adaptive Microservices</h1>
         <p className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
           Management Dashboard
@@ -31,8 +31,8 @@ export default function Sidebar() {
                   cn(
                     'neon-focus-ring interactive-soft group relative flex items-center gap-3 overflow-hidden rounded-xl px-4 py-2.5 text-sm font-semibold',
                     isActive
-                      ? 'border border-cyan-300/35 bg-gradient-to-r from-cyan-400/15 to-blue-500/15 text-white shadow-[0_8px_24px_rgba(14,116,144,0.25)]'
-                      : 'border border-transparent text-[var(--text-secondary)] hover:border-white/15 hover:bg-white/6 hover:text-[var(--text-primary)]'
+                      ? 'border border-cyan-300/35 bg-gradient-to-r from-cyan-400/15 to-blue-500/15 text-[var(--text-primary)] shadow-[0_8px_24px_rgba(14,116,144,0.25)]'
+                      : 'border border-transparent text-[var(--text-secondary)] hover:border-[var(--border)] hover:bg-[var(--surface-subtle)] hover:text-[var(--text-primary)]'
                   )
                 }
               >

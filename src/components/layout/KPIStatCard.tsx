@@ -14,7 +14,7 @@ interface KPIStatCardProps {
 }
 
 const variantColors = {
-  default: 'border-white/12',
+  default: 'border-[var(--border)]',
   success: 'border-emerald-300/35',
   warning: 'border-amber-300/35',
   danger: 'border-rose-300/35',

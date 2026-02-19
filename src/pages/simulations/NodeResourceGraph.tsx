@@ -19,6 +19,7 @@ import SkeletonBlock from '@/components/common/SkeletonBlock'
 import ErrorBanner from '@/components/common/ErrorBanner'
 import { cn, secondaryButtonClass } from '@/components/common/uiClassTokens'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
+import { useTheme } from '@/theme/useTheme'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 import {
   extractNodesFromServices,
@@ -50,7 +51,7 @@ function GraphShell({
 }) {
   return (
     <div
-      className={`bg-slate-900 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-full min-h-[640px] ${className}`}
+      className={`bg-[var(--surface-solid)] border border-[var(--border)] rounded-lg overflow-hidden flex flex-col h-full min-h-[640px] ${className}`}
     >
       {children}
     </div>
@@ -62,15 +63,15 @@ function BreadcrumbNav({ breadcrumbs, onBreadcrumbClick }: BreadcrumbNavProps) {
     <nav className="flex items-center gap-1 text-sm">
       {breadcrumbs.map((item, idx) => (
         <div key={`${item.level}-${item.label}-${idx}`} className="flex items-center gap-1">
-          {idx > 0 && <ChevronRight className="w-4 h-4 text-slate-600" />}
+          {idx > 0 && <ChevronRight className="w-4 h-4 text-[var(--text-dim)]" />}
           <button
             type="button"
             onClick={() => onBreadcrumbClick(item)}
             className={cn(
               'neon-focus-ring interactive-soft rounded-md px-2.5 py-1.5 text-xs sm:text-sm',
               idx === breadcrumbs.length - 1
-                ? 'border border-[var(--color-emerald-300)]/45 bg-emerald-500/18 font-semibold text-emerald-100'
-                : 'border border-white/16 bg-white/8 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
+                ? 'border border-[var(--color-emerald-300)]/45 bg-emerald-500/18 font-semibold text-[var(--primary-foreground)]'
+                : 'border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
             )}
           >
             {item.label}
@@ -126,6 +127,7 @@ interface NodeResourceGraphProps {
 }
 
 export default function NodeResourceGraph({ simulatedService, nodeMetricOverrides }: NodeResourceGraphProps) {
+  const { resolvedTheme } = useTheme()
   const {
     services: wsServices,
     allNodes: wsAllNodes,
@@ -149,6 +151,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   const [serviceDependencyEdges, setServiceDependencyEdges] = useState<
     { source: string; target: string }[]
   >([])
+  const graphTheme = useMemo(() => createGraphTheme(resolvedTheme), [resolvedTheme])
 
   const hasInitialDrillDown = useRef(false)
 
@@ -425,14 +428,14 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   if (loading) {
     return (
       <GraphShell>
-        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50" aria-busy="true">
+        <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]" aria-busy="true">
           <div className="flex items-center gap-2">
             <SkeletonBlock variant="line" className="h-8 w-8 rounded-md" />
             <SkeletonBlock variant="line" className="h-8 w-44 rounded-md" />
           </div>
           <SkeletonBlock variant="line" className="h-4 w-28" />
         </div>
-        <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
+        <div className="px-4 py-2 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
           <SkeletonBlock variant="line" className="h-4 w-2/5" />
         </div>
         <div className="flex-1 relative p-4">
@@ -448,7 +451,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         <div className="flex-1 flex items-center justify-center p-8">
           <div className="w-full max-w-md space-y-3">
             <ErrorBanner message={error} />
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-xs text-[var(--text-dim)]">
               Check backend connectivity to Graph Engine
             </p>
           </div>
@@ -462,12 +465,12 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   return (
     <GraphShell className="relative">
       {/* Header with Breadcrumb and Back Button */}
-      <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50">
+      <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]">
         <div className="flex items-center gap-2">
           {breadcrumbs.length > 1 && (
             <button type="button"
               onClick={handleBack}
-              className="neon-focus-ring interactive-soft rounded-md border border-white/16 bg-white/8 p-1.5 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]"
+              className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-1.5 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]"
               title="Go back"
               aria-label="Go back to previous graph level"
             >
@@ -477,7 +480,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
           <BreadcrumbNav breadcrumbs={breadcrumbs} onBreadcrumbClick={handleBreadcrumbClick} />
         </div>
 
-        <div className="text-xs text-slate-500">
+        <div className="text-xs text-[var(--text-dim)]">
           {viewLevel === 'nodes' && `${graphData.nodes.length} nodes`}
           {viewLevel === 'services' && `${graphData.nodes.length} services on ${currentNodeId}`}
           {viewLevel === 'pods' && `${graphData.nodes.length} pods for ${currentServiceName}`}
@@ -485,8 +488,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       </div>
 
       {/* Level indicator */}
-      <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
+      <div className="px-4 py-2 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
+        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
           {viewLevel === 'nodes' && (
             <>
               <Server className="w-4 h-4" />
@@ -523,53 +526,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
               selections={selections}
               layoutType={viewLevel === 'nodes' ? 'circular2d' : 'forceDirected2d'}
               labelType="all"
-              theme={{
-                canvas: {
-                  background: '#0f172a',
-                },
-                node: {
-                  fill: '#64748b',
-                  activeFill: '#38bdf8',
-                  opacity: 0.9,
-                  selectedOpacity: 1,
-                  inactiveOpacity: 0.4,
-                  label: {
-                    color: '#e2e8f0',
-                    stroke: '#0f172a',
-                    activeColor: '#ffffff',
-                  },
-                  subLabel: {
-                    color: '#94a3b8',
-                    stroke: 'transparent',
-                    activeColor: '#e2e8f0',
-                  },
-                },
-                lasso: {
-                  border: '1px solid #38bdf8',
-                  background: 'rgba(56, 189, 248, 0.1)',
-                },
-                ring: {
-                  fill: '#334155',
-                  activeFill: '#3b82f6',
-                },
-                edge: {
-                  fill: '#475569',
-                  activeFill: '#94a3b8',
-                  opacity: 0.6,
-                  selectedOpacity: 1,
-                  inactiveOpacity: 0.1,
-                  label: {
-                    stroke: 'transparent',
-                    color: '#94a3b8',
-                    activeColor: '#f8fafc',
-                    fontSize: 6,
-                  },
-                },
-                arrow: {
-                  fill: '#475569',
-                  activeFill: '#94a3b8',
-                },
-              }}
+              theme={graphTheme}
               onNodeClick={(node) => handleNodeClick(node)}
               onNodePointerOver={(node) => {
                 setHoveredNode(node)
@@ -621,7 +578,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
                 return (
                   <div
-                    className="fixed z-50 pointer-events-none bg-slate-900/95 backdrop-blur-md border border-slate-600 rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
+                    className="fixed z-50 pointer-events-none bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl max-w-sm animate-in fade-in zoom-in-95 duration-150"
                     style={{
                       left: `${left}px`,
                       top: `${top}px`,
@@ -632,15 +589,15 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                         <>
                           <div className="flex items-center gap-2 mb-3">
                             <Server className="w-4 h-4 text-blue-400" />
-                            <span className="font-semibold text-white text-sm">
+                            <span className="font-semibold text-[var(--text-primary)] text-sm">
                               {hoveredNode.data.label}
                             </span>
                           </div>
                           <div className="space-y-2.5 text-xs">
                             <div className="flex items-center gap-2">
                               <Package className="w-3.5 h-3.5 text-purple-400" />
-                              <span className="text-slate-400">Pods:</span>
-                              <span className="font-mono font-semibold text-slate-200">
+                              <span className="text-[var(--text-muted)]">Pods:</span>
+                              <span className="font-mono font-semibold text-[var(--text-primary)]">
                                 {hoveredNode.data.totalPods}
                               </span>
                             </div>
@@ -648,12 +605,12 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                               <Cpu className="w-3.5 h-3.5 text-cyan-400 mt-0.5" />
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-slate-400">CPU:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                  <span className="text-[var(--text-muted)]">CPU:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%
                                   </span>
                                 </div>
-                                <div className="text-slate-500 mt-0.5">
+                                <div className="text-[var(--text-dim)] mt-0.5">
                                   {hoveredNode.data.cpuUsed?.toFixed?.(1) ?? 'N/A'}/
                                   {hoveredNode.data.cpuTotal ?? 'N/A'} cores
                                 </div>
@@ -663,15 +620,15 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                               <HardDrive className="w-3.5 h-3.5 text-emerald-400 mt-0.5" />
                               <div className="flex-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="text-slate-400">RAM:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                  <span className="text-[var(--text-muted)]">RAM:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {hoveredNode.data.ramUsageMB != null
                                       ? (hoveredNode.data.ramUsageMB / 1024).toFixed(2)
                                       : 'N/A'}
                                     GB
                                   </span>
                                 </div>
-                                <div className="text-slate-500 mt-0.5">
+                                <div className="text-[var(--text-dim)] mt-0.5">
                                   {hoveredNode.data.ramTotalMB != null
                                     ? (hoveredNode.data.ramTotalMB / 1024).toFixed(2)
                                     : 'N/A'}
@@ -709,7 +666,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                               <div className="flex items-center gap-2 mb-3">
                                 <Box className="w-4 h-4 text-blue-400" />
                                 <div>
-                                  <div className="font-semibold text-white text-sm flex items-center gap-2">
+                                  <div className="font-semibold text-[var(--text-primary)] text-sm flex items-center gap-2">
                                     {hoveredNode.data.label}
                                     {hoveredNode.data.isSimulated && (
                                       <span className="text-[10px] bg-cyan-900 text-cyan-300 px-1.5 py-0.5 rounded border border-cyan-700">
@@ -717,7 +674,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-xs text-slate-400">
+                                  <div className="text-xs text-[var(--text-muted)]">
                                     {hoveredNode.data.namespace}
                                   </div>
                                 </div>
@@ -725,22 +682,22 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                               <div className="space-y-2 text-xs">
                                 <div className="flex items-center gap-2">
                                   <Package className="w-3.5 h-3.5 text-purple-400" />
-                                  <span className="text-slate-400">Pods:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                  <span className="text-[var(--text-muted)]">Pods:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {hoveredNode.data.podCount}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <TrendingUp className={`w-3.5 h-3.5 ${availIconClass}`} />
-                                  <span className="text-slate-400">Availability:</span>
+                                  <span className="text-[var(--text-muted)]">Availability:</span>
                                   <span className={`font-mono font-semibold ${availColorClass}`}>
                                     {availPct !== null ? availPct.toFixed(1) : 'N/A'}%
                                   </span>
                                 </div>
-                                <div className="flex items-center gap-2 pt-1 border-t border-slate-700/50 mt-1">
-                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                  <span className="text-slate-400">Avg Pod Age:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                <div className="flex items-center gap-2 pt-1 border-t border-[var(--border)] mt-1">
+                                  <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                                  <span className="text-[var(--text-muted)]">Avg Pod Age:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {formatUptime(hoveredNode.data.avgUptimeSeconds)}
                                   </span>
                                 </div>
@@ -761,29 +718,29 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                             <>
                               <div className="flex items-center gap-2 mb-3">
                                 <Package className="w-4 h-4 text-purple-400" />
-                                <span className="font-semibold text-white text-sm">
+                                <span className="font-semibold text-[var(--text-primary)] text-sm">
                                   {hoveredNode.data.label}
                                 </span>
                               </div>
                               <div className="space-y-2 text-xs">
                                 <div className="flex items-center gap-2">
                                   <Server className="w-3.5 h-3.5 text-blue-400" />
-                                  <span className="text-slate-400">Node:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                  <span className="text-[var(--text-muted)]">Node:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {hoveredNode.data.nodeName}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                                  <span className="text-slate-400">CPU:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                  <span className="text-[var(--text-muted)]">CPU:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {hoveredNode.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-                                  <span className="text-slate-400">RAM:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                  <span className="text-[var(--text-muted)]">RAM:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {hoveredNode.data.ramUsedMB != null
                                       ? (hoveredNode.data.ramUsedMB / 1024).toFixed(2)
                                       : 'N/A'}
@@ -791,17 +748,17 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
                                   </span>
                                 </div>
                                 {isServiceUnavailable && (
-                                  <div className="flex items-center gap-2 pt-1 border-t border-slate-700">
+                                  <div className="flex items-center gap-2 pt-1 border-t border-[var(--border)]">
                                     <AlertCircle className="w-3.5 h-3.5 text-red-400" />
                                     <span className={`font-semibold ${availColorClass}`}>
                                       Service Not Available
                                     </span>
                                   </div>
                                 )}
-                                <div className="flex items-center gap-2 pt-1 border-t border-slate-700/50 mt-1">
-                                  <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                  <span className="text-slate-400">Pod Age:</span>
-                                  <span className="font-mono font-semibold text-slate-200">
+                                <div className="flex items-center gap-2 pt-1 border-t border-[var(--border)] mt-1">
+                                  <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                                  <span className="text-[var(--text-muted)]">Pod Age:</span>
+                                  <span className="font-mono font-semibold text-[var(--text-primary)]">
                                     {formatUptime(hoveredNode.data.uptimeSeconds)}
                                   </span>
                                 </div>
@@ -817,7 +774,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
         ) : (
           <div className="h-full flex flex-col items-center justify-center p-8">
             <EmptyState
-              icon={<Database className="w-12 h-12 text-slate-600" />}
+              icon={<Database className="w-12 h-12 text-[var(--text-dim)]" />}
               message={getEmptyStateMessage(viewLevel, currentNodeId, currentServiceName)}
               action={
                 viewLevel === 'services' || viewLevel === 'pods' ? (
@@ -835,4 +792,60 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       </div>
     </GraphShell>
   )
+}
+
+function createGraphTheme(resolvedTheme: 'light' | 'dark') {
+  void resolvedTheme
+  const rootStyles = typeof window !== 'undefined'
+    ? window.getComputedStyle(document.documentElement)
+    : null
+  const getVar = (name: string, fallback: string) => rootStyles?.getPropertyValue(name).trim() || fallback
+
+  return {
+    canvas: {
+      background: getVar('--graph-canvas', '#0f172a'),
+    },
+    node: {
+      fill: getVar('--graph-node-fill', '#64748b'),
+      activeFill: getVar('--graph-node-active-fill', '#38bdf8'),
+      opacity: 0.9,
+      selectedOpacity: 1,
+      inactiveOpacity: 0.4,
+      label: {
+        color: getVar('--graph-node-label', '#e2e8f0'),
+        stroke: getVar('--graph-node-label-stroke', '#0f172a'),
+        activeColor: getVar('--graph-edge-label-active', '#ffffff'),
+      },
+      subLabel: {
+        color: getVar('--graph-node-sublabel', '#94a3b8'),
+        stroke: 'transparent',
+        activeColor: getVar('--graph-node-label', '#e2e8f0'),
+      },
+    },
+    lasso: {
+      border: `1px solid ${getVar('--graph-lasso-border', '#38bdf8')}`,
+      background: getVar('--graph-lasso-bg', 'rgba(56, 189, 248, 0.1)'),
+    },
+    ring: {
+      fill: getVar('--graph-ring-fill', '#334155'),
+      activeFill: getVar('--graph-ring-active-fill', '#3b82f6'),
+    },
+    edge: {
+      fill: getVar('--graph-edge-fill', '#475569'),
+      activeFill: getVar('--graph-edge-active-fill', '#94a3b8'),
+      opacity: 0.6,
+      selectedOpacity: 1,
+      inactiveOpacity: 0.1,
+      label: {
+        stroke: 'transparent',
+        color: getVar('--graph-node-sublabel', '#94a3b8'),
+        activeColor: getVar('--graph-edge-label', '#f8fafc'),
+        fontSize: 6,
+      },
+    },
+    arrow: {
+      fill: getVar('--graph-arrow-fill', '#475569'),
+      activeFill: getVar('--graph-arrow-active-fill', '#94a3b8'),
+    },
+  }
 }

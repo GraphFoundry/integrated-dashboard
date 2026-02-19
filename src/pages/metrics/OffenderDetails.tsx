@@ -149,7 +149,7 @@ export default function OffenderDetails() {
       <div className="space-y-4">
         <button type="button"
           onClick={() => navigate('/metrics')}
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Back to Metrics</span>
@@ -173,7 +173,7 @@ export default function OffenderDetails() {
           </Section>
 
           <Section title="What Changed" description="Comparison: First half vs Second half of time window">
-            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+            <div className="bg-[var(--surface-solid)] border border-[var(--border)] rounded-lg p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {Array.from({ length: 4 }).map((_, index) => (
                   <div key={`offender-delta-skeleton-${index}`}>
@@ -266,16 +266,16 @@ export default function OffenderDetails() {
           title="What Changed"
           description="Comparison: First half vs Second half of time window"
         >
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <div className="bg-[var(--surface-solid)] border border-[var(--border)] rounded-lg p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Traffic Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Traffic</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Traffic</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.requestRate > 0) return 'text-blue-400'
                     if (deltaStats.requestRate < 0) return 'text-orange-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.requestRate > 0 ? '+' : ''}
@@ -285,12 +285,12 @@ export default function OffenderDetails() {
 
               {/* Failed Requests Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Failed Requests</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Failed Requests</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.errorRate > 0) return 'text-red-400'
                     if (deltaStats.errorRate < 0) return 'text-green-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.errorRate > 0 ? '+' : ''}
@@ -300,12 +300,12 @@ export default function OffenderDetails() {
 
               {/* Slow Response Time Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Slow Response Time</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Slow Response Time</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.p95 > 0) return 'text-red-400'
                     if (deltaStats.p95 < 0) return 'text-green-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.p95 > 0 ? '+' : ''}
@@ -315,12 +315,12 @@ export default function OffenderDetails() {
 
               {/* Uptime Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Uptime</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Uptime</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.availability > 0) return 'text-green-400'
                     if (deltaStats.availability < 0) return 'text-red-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.availability > 0 ? '+' : ''}
@@ -338,35 +338,35 @@ export default function OffenderDetails() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Traffic Trend */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Traffic</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Traffic</h3>
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.requestRate,
                 }))}
-                strokeColor="hsl(var(--primary))"
-                fillColor="hsl(var(--primary))"
+                strokeColor="var(--primary)"
+                fillColor="var(--primary)"
                 valueFormatter={(v) => formatRps(v)}
               />
             </div>
 
             {/* Failures Trend */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Failures</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Failures</h3>
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.errorRate,
                 }))}
-                strokeColor="hsl(var(--destructive))"
-                fillColor="hsl(var(--destructive))"
+                strokeColor="var(--destructive)"
+                fillColor="var(--destructive)"
                 valueFormatter={(v) => formatPercent(v)}
               />
             </div>
 
             {/* Slow Response Time Trend (Latency) */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 Slow Response Time (P50/P95/P99)
               </h3>
               <LatencyMultiLineChart
@@ -381,14 +381,14 @@ export default function OffenderDetails() {
 
             {/* Uptime Trend */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Uptime</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Uptime</h3>
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.availability,
                 }))}
-                strokeColor="hsl(var(--success))"
-                fillColor="hsl(var(--success))"
+                strokeColor="var(--success)"
+                fillColor="var(--success)"
                 valueFormatter={(v) => formatPercent(v)}
               />
             </div>

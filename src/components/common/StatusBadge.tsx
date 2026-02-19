@@ -19,12 +19,12 @@ interface StatusBadgeProps {
 }
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  default: 'border-white/18 bg-white/10 text-[var(--text-secondary)]',
-  secondary: 'border-white/12 bg-white/6 text-[var(--text-muted)]',
+  default: 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]',
+  secondary: 'border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-muted)]',
   success: 'border-emerald-300/35 bg-emerald-400/15 text-emerald-200',
-  warning: 'border-amber-300/35 bg-amber-400/15 text-amber-200',
-  destructive: 'border-rose-300/35 bg-rose-400/15 text-rose-200',
-  outline: 'border-white/24 bg-transparent text-[var(--text-secondary)]',
+  warning: 'border-amber-300/35 bg-amber-400/15 text-amber-400',
+  destructive: 'border-rose-300/35 bg-rose-400/15 text-rose-400',
+  outline: 'border-[var(--border)] bg-transparent text-[var(--text-secondary)]',
 }
 
 export default function StatusBadge({

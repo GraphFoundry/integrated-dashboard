@@ -176,7 +176,7 @@ export default function ServiceHealthDetails() {
         <Section title="Performance Trends">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 {getGlossaryTerm('requestRate').label}
               </h3>
               <TimeSeriesLineChart
@@ -190,7 +190,7 @@ export default function ServiceHealthDetails() {
               />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 {getGlossaryTerm('errorRate').label}
               </h3>
               <TimeSeriesLineChart
@@ -201,7 +201,7 @@ export default function ServiceHealthDetails() {
               />
             </div>
             <div className="lg:col-span-2">
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Response Time (Latency)</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Response Time (Latency)</h3>
               <LatencyMultiLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,

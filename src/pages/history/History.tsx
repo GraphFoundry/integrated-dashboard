@@ -62,7 +62,7 @@ function getConfidenceBadge(result: Record<string, unknown>) {
 
   return (
     <span
-      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-slate-700 text-slate-300'}`}
+      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-[var(--surface-soft)] text-[var(--text-secondary)]'}`}
     >
       {confidence}
     </span>
@@ -191,7 +191,7 @@ export default function History() {
 
           {/* Pagination */}
           <div className="mt-6 flex items-center justify-between">
-            <div className="text-sm text-slate-400">
+            <div className="text-sm text-[var(--text-muted)]">
               Showing {page * pageSize + 1} - {Math.min((page + 1) * pageSize, data.total)} of{' '}
               {data.total} decisions
             </div>

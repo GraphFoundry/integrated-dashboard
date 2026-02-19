@@ -5,17 +5,32 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    ;(() => {
+      const STORAGE_KEY = 'theme'
+      const root = document.documentElement
+      const isThemeMode = (value) => value === 'light' || value === 'dark' || value === 'system'
+      let theme = 'system'
+
+      try {
+        const storedTheme = window.localStorage.getItem(STORAGE_KEY)
+        theme = isThemeMode(storedTheme) ? storedTheme : 'system'
+      } catch {
+        theme = 'system'
+      }
+
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      const resolvedTheme = theme === 'system' ? (prefersDark ? 'dark' : 'light') : theme
+      root.setAttribute('data-theme', theme)
+      root.setAttribute('data-resolved-theme', resolvedTheme)
+      root.classList.toggle('dark', resolvedTheme === 'dark')
+      root.style.colorScheme = resolvedTheme
+    })()
+  </script>
   <title>Adaptive Microservices</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    body {
-      background-color: #121212;
-      color: #e8eaed;
-      margin: 0;
-    }
-  </style>
 </head>
 
 <body>

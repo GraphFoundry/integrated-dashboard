@@ -50,7 +50,7 @@ export function RadioGroup({
             <>
               <span
                 className={cn(
-                  'h-4 w-4 rounded-full border border-white/30 bg-white/5 p-0.5',
+                  'h-4 w-4 rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] p-0.5',
                   isSelected && 'border-[var(--color-emerald-300)]/50 bg-emerald-500/20'
                 )}
               >

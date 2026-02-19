@@ -3,32 +3,35 @@ import ReactDOM from 'react-dom/client'
 import { Toaster } from 'react-hot-toast'
 import App from '@/app/App'
 import '@/styles/index.css'
+import { ThemeProvider } from '@/theme/ThemeProvider'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
-    <Toaster
-      position="top-right"
-      toastOptions={{
-        duration: 4000,
-        style: {
-          background: '#1e293b',
-          color: '#f1f5f9',
-          border: '1px solid #334155',
-        },
-        success: {
-          iconTheme: {
-            primary: '#10b981',
-            secondary: '#f1f5f9',
+    <ThemeProvider>
+      <App />
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'var(--popover)',
+            color: 'var(--popover-foreground)',
+            border: '1px solid var(--border)',
           },
-        },
-        error: {
-          iconTheme: {
-            primary: '#ef4444',
-            secondary: '#f1f5f9',
+          success: {
+            iconTheme: {
+              primary: 'var(--color-success)',
+              secondary: 'var(--popover-foreground)',
+            },
           },
-        },
-      }}
-    />
+          error: {
+            iconTheme: {
+              primary: 'var(--color-error)',
+              secondary: 'var(--popover-foreground)',
+            },
+          },
+        }}
+      />
+    </ThemeProvider>
   </React.StrictMode>
 )

@@ -40,11 +40,11 @@ function ServiceListCard({
 }: ServiceListCardProps) {
   return (
     <div>
-      <h3 className="mb-3 text-sm font-semibold text-slate-300">
+      <h3 className="mb-3 text-sm font-semibold text-[var(--text-secondary)]">
         {title} ({count})
       </h3>
       {count === 0 ? (
-        <p className="text-sm text-slate-500">{emptyMessage}</p>
+        <p className="text-sm text-[var(--text-dim)]">{emptyMessage}</p>
       ) : (
         <div className="space-y-2">
           {items?.map((item, idx) => (
@@ -52,8 +52,8 @@ function ServiceListCard({
               key={`${keyPrefix}-${item.namespace ?? 'unknown'}-${item.name ?? 'unknown'}-${idx}`}
               className={`rounded border p-3 ${borderClassName}`}
             >
-              <div className="font-medium text-white">{item.name ?? 'Unknown service'}</div>
-              <div className="text-xs text-slate-400">{item.namespace ?? 'unknown'}</div>
+              <div className="font-medium text-[var(--text-primary)]">{item.name ?? 'Unknown service'}</div>
+              <div className="text-xs text-[var(--text-muted)]">{item.namespace ?? 'unknown'}</div>
             </div>
           ))}
         </div>
@@ -130,7 +130,7 @@ export default function Simulations() {
     }
     return (
       <span
-        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-slate-700 text-slate-300'}`}
+        className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-[var(--surface-soft)] text-[var(--text-secondary)]'}`}
       >
         {confidence}
       </span>
@@ -146,11 +146,11 @@ export default function Simulations() {
       <>
         {/* Impact Summary */}
         <Section title="Impact Summary" icon={Activity}>
-          <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
-            <p className="text-lg text-white leading-relaxed">
+          <div className="mb-6 p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <p className="text-lg text-[var(--text-primary)] leading-relaxed">
               If <span className="font-semibold">{failureResult.target?.name}</span> fails:
             </p>
-            <ul className="mt-3 space-y-2 text-slate-300">
+            <ul className="mt-3 space-y-2 text-[var(--text-secondary)]">
               <li>
                 • <span className="font-semibold">{affectedDownstreamCount}</span> downstream
                 service{affectedDownstreamCount === 1 ? '' : 's'} impacted
@@ -197,7 +197,7 @@ export default function Simulations() {
               title="Upstream Callers"
               count={affectedCallersCount}
               emptyMessage="No upstream callers affected"
-              borderClassName="border-yellow-700/30 bg-slate-900"
+              borderClassName="border-yellow-700/30 bg-[var(--surface-solid)]"
               items={failureResult.affectedCallers}
               keyPrefix="caller"
             />
@@ -205,7 +205,7 @@ export default function Simulations() {
               title="Downstream Impacted"
               count={affectedDownstreamCount}
               emptyMessage="No downstream services impacted"
-              borderClassName="border-red-700/30 bg-slate-900"
+              borderClassName="border-red-700/30 bg-[var(--surface-solid)]"
               items={failureResult.affectedDownstream}
               keyPrefix="downstream"
             />
@@ -227,12 +227,12 @@ export default function Simulations() {
       <>
         {/* Impact Summary */}
         <Section title="Impact Summary" icon={Activity}>
-          <div className="mb-6 p-4 bg-slate-900 rounded-lg border border-slate-700">
-            <p className="text-lg text-white leading-relaxed">
+          <div className="mb-6 p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <p className="text-lg text-[var(--text-primary)] leading-relaxed">
               Scaling <span className="font-semibold">{scaleResult.target?.name}</span> from{' '}
               <span className="font-semibold">{scaleResult.target?.name}</span>:
             </p>
-            <ul className="mt-3 space-y-2 text-slate-300">
+            <ul className="mt-3 space-y-2 text-[var(--text-secondary)]">
               {latency && (
                 <>
                   <li>
@@ -291,7 +291,7 @@ export default function Simulations() {
       <Section title="Placement Analysis" icon={Activity}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-300">Target Node Suitability</h3>
+            <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Target Node Suitability</h3>
             <div className="space-y-3">
               {additionResult.suitableNodes.map((node) => (
                 <div
@@ -300,7 +300,7 @@ export default function Simulations() {
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-white">{node.nodeName}</span>
+                      <span className="font-medium text-[var(--text-primary)]">{node.nodeName}</span>
                       {node.suitable ? (
                         <span className="text-xs bg-green-900 text-green-300 px-2 py-0.5 rounded">
                           Suitable
@@ -311,15 +311,15 @@ export default function Simulations() {
                         </span>
                       )}
                     </div>
-                    <div className="text-xs text-slate-400">Score: {node.score}/100</div>
+                    <div className="text-xs text-[var(--text-muted)]">Score: {node.score}/100</div>
                   </div>
                   {!node.suitable && <div className="text-xs text-red-400 mb-2">{node.reason}</div>}
-                  <div className="grid grid-cols-2 gap-4 text-xs text-slate-400">
+                  <div className="grid grid-cols-2 gap-4 text-xs text-[var(--text-muted)]">
                     <div>
-                      Available CPU: <span className="text-white">{node.availableCpu} cores</span>
+                      Available CPU: <span className="text-[var(--text-primary)]">{node.availableCpu} cores</span>
                     </div>
                     <div>
-                      Available RAM: <span className="text-white">{node.availableRam} MB</span>
+                      Available RAM: <span className="text-[var(--text-primary)]">{node.availableRam} MB</span>
                     </div>
                   </div>
                 </div>
@@ -328,10 +328,10 @@ export default function Simulations() {
           </div>
 
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-slate-300">Risk & Recommendations</h3>
-            <div className="p-4 bg-slate-800 rounded border border-slate-700">
+            <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Risk & Recommendations</h3>
+            <div className="p-4 bg-[var(--surface-solid)] rounded border border-[var(--border)]">
               <div className="mb-4">
-                <div className="text-xs text-slate-500 mb-1">Dependency Risk</div>
+                <div className="text-xs text-[var(--text-dim)] mb-1">Dependency Risk</div>
                 <div
                   className={`text-sm font-medium ${additionResult.riskAnalysis.dependencyRisk === 'low'
                     ? 'text-green-400'
@@ -342,17 +342,17 @@ export default function Simulations() {
                 >
                   {additionResult.riskAnalysis.dependencyRisk.toUpperCase()}
                 </div>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-[var(--text-muted)] mt-1">
                   {additionResult.riskAnalysis.description}
                 </p>
               </div>
 
               {additionResult.recommendations && additionResult.recommendations.length > 0 && (
                 <div>
-                  <div className="text-xs text-slate-500 mb-1">Recommendation</div>
+                  <div className="text-xs text-[var(--text-dim)] mb-1">Recommendation</div>
                   <ul className="space-y-2">
                     {additionResult.recommendations.map((rec, i) => (
-                      <li key={i} className="text-xs text-white">
+                      <li key={i} className="text-xs text-[var(--text-primary)]">
                         • {rec.description}
                       </li>
                     ))}
@@ -477,7 +477,7 @@ export default function Simulations() {
 
         {!result && !loading && (
           <EmptyState
-            icon={<Sparkles className="w-12 h-12 text-slate-600" />}
+            icon={<Sparkles className="w-12 h-12 text-[var(--text-dim)]" />}
             message="Configure a scenario and click Run to see predictions"
           />
         )}

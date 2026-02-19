@@ -49,11 +49,11 @@ export default function TimeSeriesLineChart({
     if (active && payload && payload.length) {
       const data = payload[0]
       return (
-        <div className="bg-firebase-card border border-firebase-border rounded-lg p-3 shadow-lg">
-          <p className="text-xs text-firebase-text-secondary mb-1">
+        <div className="rounded-lg border border-[var(--chart-tooltip-border)] bg-[var(--chart-tooltip-bg)] p-3 shadow-lg">
+          <p className="mb-1 text-xs text-[var(--text-muted)]">
             {new Date(data.payload.timestamp).toLocaleString()}
           </p>
-          <p className="text-sm font-medium text-firebase-text-primary">
+          <p className="text-sm font-medium text-[var(--text-primary)]">
             {valueFormatter ? valueFormatter(data.value) : data.value.toFixed(2)}
           </p>
         </div>
@@ -65,27 +65,27 @@ export default function TimeSeriesLineChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 30 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2c2c2c" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
         <XAxis
           dataKey="timestamp"
           tickFormatter={formatXAxis}
-          stroke="#5f6368"
-          tick={{ fill: '#9aa0a6', fontSize: 12 }}
+          stroke="var(--chart-axis)"
+          tick={{ fill: 'var(--chart-axis-label)', fontSize: 12 }}
           label={
             xAxisLabel
               ? {
                 value: xAxisLabel,
                 position: 'insideBottom',
                 offset: -5,
-                fill: '#9aa0a6',
+                fill: 'var(--chart-axis-label)',
                 fontSize: 12,
               }
               : undefined
           }
         />
         <YAxis
-          stroke="#5f6368"
-          tick={{ fill: '#9aa0a6', fontSize: 12 }}
+          stroke="var(--chart-axis)"
+          tick={{ fill: 'var(--chart-axis-label)', fontSize: 12 }}
           tickFormatter={valueFormatter}
           label={
             yAxisLabel
@@ -93,7 +93,7 @@ export default function TimeSeriesLineChart({
                 value: yAxisLabel,
                 angle: -90,
                 position: 'insideLeft',
-                fill: '#9aa0a6',
+                fill: 'var(--chart-axis-label)',
                 fontSize: 12,
                 style: { textAnchor: 'middle' },
               }

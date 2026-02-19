@@ -1,5 +1,6 @@
 import { Activity } from 'lucide-react'
 import { shellTopbarClass } from '@/components/common/uiClassTokens'
+import ThemeModeSelect from '@/components/theme/ThemeModeSelect'
 
 export default function Topbar() {
   return (
@@ -10,13 +11,16 @@ export default function Topbar() {
           <span>System Active</span>
         </div>
 
-        <div className="text-xs font-medium text-[var(--text-muted)]">
-          {new Date().toLocaleDateString('en-US', {
-            weekday: 'short',
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          })}
+        <div className="flex items-center gap-3">
+          <div className="text-xs font-medium text-[var(--text-muted)]">
+            {new Date().toLocaleDateString('en-US', {
+              weekday: 'short',
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}
+          </div>
+          <ThemeModeSelect />
         </div>
       </div>
     </header>

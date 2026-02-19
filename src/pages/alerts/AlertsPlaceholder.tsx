@@ -77,9 +77,9 @@ function OverviewStatCard({
         {topRight}
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium text-gray-300">{title}</p>
-        <p className="text-4xl font-bold text-white">{value}</p>
-        <p className="text-xs text-gray-400">{subtitle}</p>
+        <p className="text-sm font-medium text-[var(--text-secondary)]">{title}</p>
+        <p className="text-4xl font-bold text-[var(--text-primary)]">{value}</p>
+        <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
       </div>
       <div
         className={`absolute bottom-0 right-0 h-32 w-32 rounded-full blur-2xl transition-all ${glowBaseClass} ${glowHoverClass}`}
@@ -225,7 +225,7 @@ export default function AlertsPage() {
   if (loading) {
     return (
       <div className={pageContainerClass}>
-        <div className="surface-panel rounded-[var(--radius-lg)] border border-white/12 p-8">
+        <div className="surface-panel rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
           <SkeletonBlock variant="title" className="mb-4 w-1/3" />
           <SkeletonBlock variant="line" className="mb-2 w-2/3" />
           <SkeletonBlock variant="line" className="w-1/2" />
@@ -254,7 +254,7 @@ export default function AlertsPage() {
   return (
     <div className={pageContainerClass}>
       {/* Header with gradient */}
-      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-white/12 p-8">
+      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
             <Shield className="w-8 h-8 text-cyan-300" />
@@ -279,7 +279,7 @@ export default function AlertsPage() {
             glowHoverClass="group-hover:bg-orange-500/10"
             icon={<AlertTriangle className="w-6 h-6 text-orange-400" />}
             topRight={
-              <div className="flex items-center gap-1 text-xs text-gray-400">
+              <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
                 <Activity className="w-3 h-3" />
                 <span>Live</span>
               </div>
@@ -299,7 +299,7 @@ export default function AlertsPage() {
             icon={<Zap className="w-6 h-6 text-red-400" />}
             topRight={
               overview.critical_count > 0 ? (
-                <span className="rounded-full border border-rose-300/35 bg-rose-400/14 px-2 py-1 text-xs font-semibold text-rose-200">
+                <span className="rounded-full border border-rose-300/35 bg-rose-400/14 px-2 py-1 text-xs font-semibold text-rose-400">
                   URGENT
                 </span>
               ) : undefined
@@ -344,10 +344,10 @@ export default function AlertsPage() {
       )}
 
       {/* Filters */}
-      <div className="surface-glass rounded-[var(--radius-md)] border border-white/12 p-6 shadow-[0_16px_30px_rgba(2,6,23,0.24)]">
+      <div className="surface-glass rounded-[var(--radius-md)] border border-[var(--border)] p-6 shadow-[0_16px_30px_rgba(2,6,23,0.24)]">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-semibold text-white">Filter Incidents</h2>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Filter Incidents</h2>
         </div>
         <div className="flex flex-wrap gap-4">
           <div className="w-full sm:flex-1">
@@ -390,13 +390,13 @@ export default function AlertsPage() {
 
       {/* Incidents Table */}
       <div className={tableShellClass}>
-        <div className="border-b border-white/10 bg-white/[0.03] px-6 py-4">
+        <div className="border-b border-[var(--border)] bg-[var(--surface-subtle)] px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-400" />
-              <h2 className="text-lg font-semibold text-white">Active Incidents</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Active Incidents</h2>
             </div>
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-[var(--text-muted)]">
               {incidents.length} {incidents.length === 1 ? 'incident' : 'incidents'}
             </div>
           </div>
@@ -419,7 +419,7 @@ export default function AlertsPage() {
                 <tr>
                   <td colSpan={7} className={cn(tableCellClass, 'py-16 text-center')}>
                     <EmptyState
-                      icon={<CheckCircle2 className="h-12 w-12 text-gray-500" />}
+                      icon={<CheckCircle2 className="h-12 w-12 text-[var(--text-dim)]" />}
                       title="No incidents found"
                       message={
                         filter.status === 'open'
@@ -448,7 +448,7 @@ export default function AlertsPage() {
                         <span className="text-blue-400 hover:text-blue-300 font-medium transition-colors group-hover:underline">
                           {incident.service}
                         </span>
-                        <span className="text-xs text-gray-500 mt-0.5">{incident.namespace}</span>
+                        <span className="text-xs text-[var(--text-dim)] mt-0.5">{incident.namespace}</span>
                       </Link>
                     </td>
                     <td className={tableCellClass}>
@@ -503,10 +503,10 @@ export default function AlertsPage() {
                     </td>
                     <td className={tableCellClass}>
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-white">
+                        <span className="text-sm font-medium text-[var(--text-primary)]">
                           {incident.current_action}
                         </span>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                           {incident.auto ? (
                             <>
                               <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full"></span>
@@ -536,14 +536,14 @@ export default function AlertsPage() {
                     </td>
                     <td className={tableCellClass}>
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-7 h-7 bg-gray-700/50 rounded-full text-xs font-semibold text-gray-300">
+                        <span className="inline-flex items-center justify-center w-7 h-7 bg-[var(--surface-soft)] rounded-full text-xs font-semibold text-[var(--text-secondary)]">
                           {incident.event_count}
                         </span>
                       </div>
                     </td>
                     <td className={tableCellClass}>
-                      <div className="flex items-center gap-1.5 text-sm text-gray-300">
-                        <Clock className="w-3.5 h-3.5 text-gray-500" />
+                      <div className="flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+                        <Clock className="w-3.5 h-3.5 text-[var(--text-dim)]" />
                         {formatDistanceToNow(incident.last_observed_at)}
                       </div>
                     </td>
@@ -560,7 +560,7 @@ export default function AlertsPage() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="surface-glass flex min-w-[320px] max-w-md items-start gap-3 rounded-lg border border-white/14 p-4 shadow-xl animate-slide-in"
+            className="surface-glass flex min-w-[320px] max-w-md items-start gap-3 rounded-lg border border-[var(--border)] p-4 shadow-xl animate-slide-in"
           >
             <div
               className={`flex-shrink-0 p-2 rounded-lg ${
@@ -582,11 +582,11 @@ export default function AlertsPage() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white">{toast.message}</p>
+              <p className="text-sm text-[var(--text-primary)]">{toast.message}</p>
             </div>
             <button type="button"
               onClick={() => dismissToast(toast.id)}
-              className={cn(subtleIconButtonClass, 'h-8 w-8 bg-white/5 text-gray-300')}
+              className={cn(subtleIconButtonClass, 'h-8 w-8 bg-[var(--surface-subtle)] text-[var(--text-secondary)]')}
               aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />

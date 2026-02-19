@@ -5,15 +5,15 @@ import { shellMainClass } from '@/components/common/uiClassTokens'
 
 export default function DashboardLayout() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
+    <div className="relative min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-24 top-16 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="absolute right-[-6rem] top-[-3rem] h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
       </div>
 
-      <div className="relative flex min-h-screen">
+      <div className="relative min-h-screen">
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="ml-72 flex min-h-screen min-w-0 flex-1 flex-col">
           <Topbar />
           <main className={shellMainClass}>
             <Outlet />

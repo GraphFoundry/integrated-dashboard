@@ -89,8 +89,8 @@ export const tableActionLinkClass = cn(
 )
 
 export const shellSidebarClass = cn(
-  'surface-panel flex h-screen w-72 flex-col border-r border-white/12',
-  'sticky top-0 shadow-[0_20px_45px_rgba(2,6,23,0.32)]'
+  'surface-panel fixed inset-y-0 left-0 z-40 flex h-screen w-72 flex-col overflow-y-auto border-r border-white/12',
+  'shadow-[0_20px_45px_rgba(2,6,23,0.32)]'
 )
 
 export const shellTopbarClass = cn(
@@ -98,7 +98,7 @@ export const shellTopbarClass = cn(
   'supports-[backdrop-filter]:bg-slate-900/48'
 )
 
-export const shellMainClass = 'relative flex-1 overflow-auto p-4 sm:p-6 lg:p-8'
+export const shellMainClass = 'relative flex-1 p-4 sm:p-6 lg:p-8'
 
 export const sectionHeaderIconClass =
   'surface-glass rounded-lg border border-[var(--color-emerald-300)]/45 p-2 text-[var(--color-emerald-300)]'

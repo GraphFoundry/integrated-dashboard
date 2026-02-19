@@ -148,7 +148,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           autoFocus={autoFocus}
           className={cn(
             controlInputMutedClass,
-            'w-full appearance-none pr-11 text-left',
+            'relative w-full appearance-none pr-11 text-left',
             'flex items-center justify-between gap-2',
             className
           )}
@@ -156,13 +156,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           <span className="min-w-0 flex-1 truncate">
             <SelectValue />
           </span>
+          <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
           {suffixIcon ? (
-            <span aria-hidden className="h-4 w-4 shrink-0 text-[var(--color-emerald-300)]">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-emerald-300)]"
+            >
               {suffixIcon}
             </span>
-          ) : (
-            <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-          )}
+          ) : null}
         </Button>
         <Popover
           className={cn(

@@ -1,5 +1,5 @@
 import { Activity, Menu, X } from 'lucide-react'
-import { shellTopbarClass } from '@/components/common/uiClassTokens'
+import { cn, shellTopbarClass } from '@/components/common/uiClassTokens'
 import ThemeModeSelect from '@/components/theme/ThemeModeSelect'
 
 interface TopbarProps {
@@ -9,7 +9,13 @@ interface TopbarProps {
 
 export default function Topbar({ sidebarOpen, onToggleSidebar }: TopbarProps) {
   return (
-    <header className={shellTopbarClass}>
+    <header
+      className={cn(
+        shellTopbarClass,
+        '!fixed right-0 !top-0 !z-50 transition-[left] duration-300 ease-out',
+        sidebarOpen ? 'left-72' : 'left-0'
+      )}
+    >
       <div className="mx-auto flex h-full w-full max-w-screen-2xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3">
           <button

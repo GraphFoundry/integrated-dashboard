@@ -23,6 +23,7 @@ export default function DashboardLayout() {
           )}
         >
           <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
+          <div className="h-16 shrink-0" aria-hidden />
           <main className={shellMainClass}>
             <Outlet />
           </main>

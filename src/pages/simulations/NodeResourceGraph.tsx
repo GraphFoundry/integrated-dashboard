@@ -15,7 +15,7 @@ import {
 
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import ErrorBanner from '@/components/common/ErrorBanner'
 import { cn, secondaryButtonClass } from '@/components/common/uiClassTokens'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
@@ -425,8 +425,18 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   if (loading) {
     return (
       <GraphShell>
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner fullHeight={false} message="Loading infrastructure data..." />
+        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50" aria-busy="true">
+          <div className="flex items-center gap-2">
+            <SkeletonBlock variant="line" className="h-8 w-8 rounded-md" />
+            <SkeletonBlock variant="line" className="h-8 w-44 rounded-md" />
+          </div>
+          <SkeletonBlock variant="line" className="h-4 w-28" />
+        </div>
+        <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
+          <SkeletonBlock variant="line" className="h-4 w-2/5" />
+        </div>
+        <div className="flex-1 relative p-4">
+          <SkeletonBlock variant="card" className="h-full w-full rounded-lg" />
         </div>
       </GraphShell>
     )

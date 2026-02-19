@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router'
 import { ArrowLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import { getDecisionHistory } from '@/lib/api'
 import { formatDate, formatRps, formatMs } from '@/lib/format'
 import type { DecisionRecord, Recommendation, PipelineTrace } from '@/lib/types'
@@ -73,8 +74,45 @@ export default function DecisionDetail() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto" />
+      <div className="p-8 space-y-6" aria-busy="true">
+        <div className="flex items-center gap-4">
+          <SkeletonBlock variant="line" className="h-5 w-5 rounded" />
+          <div className="w-full">
+            <PageHeader title="Decision Details" description="Loading timeline..." />
+          </div>
+        </div>
+
+        <Section title="Summary">
+          <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
+            <SkeletonBlock variant="line" className="mb-3 h-5 w-4/5" />
+            <SkeletonBlock variant="line" className="h-5 w-2/3" />
+          </div>
+        </Section>
+
+        <Section title="Configuration Audit">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={`decision-config-skeleton-${index}`}
+                className="p-4 bg-slate-900 rounded-lg border border-slate-800"
+              >
+                <SkeletonBlock variant="line" className="mb-2 h-3 w-1/3" />
+                <SkeletonBlock variant="line" className="h-5 w-2/3" />
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Evidence Chain">
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`decision-evidence-skeleton-${index}`} className="p-3 bg-slate-900 rounded border border-slate-700">
+                <SkeletonBlock variant="line" className="mb-2 h-4 w-2/5" />
+                <SkeletonBlock variant="line" className="h-3 w-1/2" />
+              </div>
+            ))}
+          </div>
+        </Section>
       </div>
     )
   }

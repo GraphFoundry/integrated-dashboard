@@ -5,11 +5,12 @@ import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import {
-  loadingCardClass,
   pageContainerClass,
   primaryButtonClass,
+  cn,
+  glassSurfaceClass,
 } from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
@@ -18,6 +19,17 @@ import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import type { TelemetryMetricsResponse, TelemetryDatapoint } from '@/lib/types'
 import { getGlossaryTerm } from '@/lib/glossary'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
+
+function KpiCardSkeleton() {
+  return (
+    <div className={cn(glassSurfaceClass, 'interactive-soft rounded-[var(--radius-md)] p-4')}>
+      <SkeletonBlock variant="line" className="mb-2 h-3 w-2/5" />
+      <div className="flex items-baseline gap-2">
+        <SkeletonBlock variant="title" className="h-8 w-1/2" />
+      </div>
+    </div>
+  )
+}
 
 export default function OffenderDetails() {
   const { serviceKey } = useParams() // Expects "namespace:serviceName"
@@ -132,7 +144,7 @@ export default function OffenderDetails() {
   }
 
   return (
-    <div className={pageContainerClass}>
+    <div className={pageContainerClass} aria-busy={loading}>
       {/* Header with Breadcrumb */}
       <div className="space-y-4">
         <button type="button"
@@ -151,9 +163,43 @@ export default function OffenderDetails() {
 
       {/* Loading State */}
       {loading && (
-        <div className={loadingCardClass}>
-          <LoadingSpinner fullHeight={false} message="Loading offender details..." />
-        </div>
+        <>
+          <Section title="Health Summary" description="Current service performance indicators">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" aria-busy="true">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <KpiCardSkeleton key={`offender-kpi-skeleton-${index}`} />
+              ))}
+            </div>
+          </Section>
+
+          <Section title="What Changed" description="Comparison: First half vs Second half of time window">
+            <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`offender-delta-skeleton-${index}`}>
+                    <SkeletonBlock variant="line" className="mb-2 h-4 w-1/2" />
+                    <SkeletonBlock variant="title" className="h-8 w-3/4" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Trends" description="Time-series performance visualization">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`offender-chart-skeleton-${index}`}>
+                  <SkeletonBlock variant="line" className="mb-3 h-4 w-2/5" />
+                  <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section>
+            <SkeletonBlock variant="line" className="h-10 w-44 rounded-[var(--radius-sm)]" />
+          </Section>
+        </>
       )}
 
       {/* Health Summary (KPI Cards) */}

@@ -5,13 +5,13 @@ import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import {
-  cn,
   controlInputMutedClass,
-  loadingCardClass,
   pageContainerClass,
   primaryButtonClass,
+  cn,
+  glassSurfaceClass,
 } from '@/components/common/uiClassTokens'
 import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
@@ -20,6 +20,17 @@ import { getTelemetryMetrics } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { TelemetryMetricsResponse } from '@/lib/types'
 import { getGlossaryTerm } from '@/lib/glossary'
+
+function KpiCardSkeleton() {
+  return (
+    <div className={cn(glassSurfaceClass, 'interactive-soft rounded-[var(--radius-md)] p-4')}>
+      <SkeletonBlock variant="line" className="mb-2 h-3 w-2/5" />
+      <div className="flex items-baseline gap-2">
+        <SkeletonBlock variant="title" className="h-8 w-1/2" />
+      </div>
+    </div>
+  )
+}
 
 export default function ServiceHealthDetails() {
   const { serviceId } = useParams() // Expects "namespace:serviceName" or just "serviceName"
@@ -78,7 +89,7 @@ export default function ServiceHealthDetails() {
   }
 
   return (
-    <div className={pageContainerClass}>
+    <div className={pageContainerClass} aria-busy={loading && !data}>
       <PageHeader
         title={serviceName}
         description={`Service Health • Namespace: ${namespace}`}
@@ -107,9 +118,29 @@ export default function ServiceHealthDetails() {
 
 
       {loading && !data && (
-        <div className={`${loadingCardClass} flex h-64 items-center justify-center`}>
-          <LoadingSpinner fullHeight={false} />
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4" aria-busy="true">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <KpiCardSkeleton key={`service-health-kpi-skeleton-${index}`} />
+            ))}
+          </div>
+          <Section title="Performance Trends">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <SkeletonBlock variant="line" className="mb-3 h-4 w-2/5" />
+                <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+              </div>
+              <div>
+                <SkeletonBlock variant="line" className="mb-3 h-4 w-2/5" />
+                <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+              </div>
+              <div className="lg:col-span-2">
+                <SkeletonBlock variant="line" className="mb-3 h-4 w-1/3" />
+                <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+              </div>
+            </div>
+          </Section>
+        </>
       )}
 
       {summary && (

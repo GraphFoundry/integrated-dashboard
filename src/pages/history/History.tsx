@@ -6,6 +6,7 @@ import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import {
   cn,
   controlInputMutedClass,
@@ -103,7 +104,7 @@ export default function History() {
   const totalPages = data ? Math.ceil(data.total / pageSize) : 0
 
   return (
-    <div className={pageContainerClass}>
+    <div className={pageContainerClass} aria-busy={loading && !data}>
       <PageHeader
         title="History"
         description="Prediction history and decision logs"
@@ -214,6 +215,30 @@ export default function History() {
         </Section>
       )}
 
+      {loading && !data && (
+        <Section>
+          <div className={tableShellClass} aria-busy="true">
+            <div className="max-h-[560px] overflow-auto p-4">
+              <SkeletonBlock variant="line" className="mb-4 h-8 w-full" />
+              {Array.from({ length: 8 }).map((_, index) => (
+                <SkeletonBlock
+                  key={`history-row-skeleton-${index}`}
+                  variant="table-row"
+                  className="mb-3 h-12 w-full"
+                />
+              ))}
+            </div>
+          </div>
+          <div className="mt-6 flex items-center justify-between">
+            <SkeletonBlock variant="line" className="h-5 w-64" />
+            <div className="flex gap-2">
+              <SkeletonBlock variant="line" className="h-10 w-24 rounded-[var(--radius-sm)]" />
+              <SkeletonBlock variant="line" className="h-10 w-24 rounded-[var(--radius-sm)]" />
+            </div>
+          </div>
+        </Section>
+      )}
+
       {/* Empty State */}
       {!loading && data?.decisions.length === 0 && (
         <EmptyState
@@ -232,7 +257,7 @@ export default function History() {
         />
       )}
 
-      {loading && (
+      {loading && data && (
         <div className={loadingCardClass}>
           <LoadingSpinner fullHeight={false} message="Loading history..." />
         </div>

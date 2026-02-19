@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router'
 import { bffApi, IncidentDetail, AlertEvent } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import ErrorBanner from '@/components/common/ErrorBanner'
 import {
   cn,
   glassInteractiveCardClass,
-  loadingCardClass,
   pageContainerClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
@@ -118,9 +117,60 @@ export default function IncidentDetailPage() {
 
   if (loading) {
     return (
-      <div className={pageContainerClass}>
-        <div className={loadingCardClass}>
-          <LoadingSpinner fullHeight={false} message="Loading incident details..." />
+      <div className={pageContainerClass} aria-busy="true">
+        <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-white/12 p-8">
+          <div className="relative z-10">
+            <SkeletonBlock variant="line" className="mb-4 h-6 w-40" />
+            <div className="flex items-center gap-3 mb-2">
+              <SkeletonBlock variant="line" className="h-8 w-8 rounded-full" />
+              <SkeletonBlock variant="title" className="h-10 w-72" />
+            </div>
+            <SkeletonBlock variant="line" className="mt-3 h-8 w-64 rounded-lg" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div
+              key={`incident-card-skeleton-${index}`}
+              className={cn(glassInteractiveCardClass, 'group relative border-white/20')}
+            >
+              <div className="flex items-start justify-between mb-4">
+                <SkeletonBlock variant="line" className="h-12 w-12 rounded-lg" />
+                <SkeletonBlock variant="line" className="h-6 w-24 rounded-full" />
+              </div>
+              <SkeletonBlock variant="title" className="mb-4 h-7 w-48" />
+              <div className="space-y-4">
+                <SkeletonBlock variant="line" className="h-8 w-3/4" />
+                <div className="grid grid-cols-2 gap-4">
+                  <SkeletonBlock variant="line" className="h-10 w-full" />
+                  <SkeletonBlock variant="line" className="h-10 w-full" />
+                </div>
+                <SkeletonBlock variant="line" className="h-2 w-full rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className={tableShellClass}>
+          <div className="border-b border-white/10 bg-white/[0.03] px-6 py-4">
+            <div className="flex items-center gap-2">
+              <SkeletonBlock variant="line" className="h-5 w-48" />
+              <SkeletonBlock variant="line" className="ml-auto h-4 w-20" />
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={`incident-event-skeleton-${index}`}
+                className="surface-glass relative rounded-[var(--radius-md)] border border-white/12 p-5"
+              >
+                <SkeletonBlock variant="line" className="mb-3 h-7 w-32 rounded-full" />
+                <SkeletonBlock variant="line" className="mb-2 h-5 w-3/4" />
+                <SkeletonBlock variant="line" className="h-4 w-1/2" />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )

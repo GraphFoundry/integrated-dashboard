@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react'
 import { GraphCanvas, GraphNode as ReagraphNode, GraphEdge as ReagraphEdge } from 'reagraph'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import EmptyState from '@/components/layout/EmptyState'
-import LoadingSpinner from '@/components/common/LoadingSpinner'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
 import { ModeButton } from './incidentExplorerUtils'
 import { NodeDetailsDrawer } from './NodeDetailsDrawer'
 import { getRiskColor } from './graphHelpers'
@@ -146,11 +146,19 @@ export default function IncidentExplorer() {
   if (loading && nodes.length === 0) {
     return (
       <ExplorerFrame>
-        <div className="p-4 border-b border-slate-700 bg-slate-800/50">
-          <h3 className="text-lg font-medium text-white">Incident Explorer</h3>
+        <div className="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-800/50" aria-busy="true">
+          <SkeletonBlock variant="line" className="h-7 w-40" />
+          <div className="flex gap-2">
+            <SkeletonBlock variant="line" className="h-8 w-28 rounded-md" />
+            <SkeletonBlock variant="line" className="h-8 w-28 rounded-md" />
+            <SkeletonBlock variant="line" className="h-8 w-28 rounded-md" />
+          </div>
         </div>
-        <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner fullHeight={false} message="Scanning infrastructure topology..." />
+        <div className="px-4 py-2 bg-slate-800/30 border-b border-slate-700">
+          <SkeletonBlock variant="line" className="h-4 w-2/3" />
+        </div>
+        <div className="flex-1 p-4">
+          <SkeletonBlock variant="card" className="h-full w-full rounded-lg" />
         </div>
       </ExplorerFrame>
     )

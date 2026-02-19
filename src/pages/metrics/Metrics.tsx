@@ -198,13 +198,33 @@ export default function Metrics() {
     fetchData(true)
   }, [lastUpdated, fetchData])
 
+  const sortedDatapoints = useMemo((): TelemetryDatapoint[] => {
+    const datapoints = data?.datapoints ?? []
+    return datapoints
+      .map((point, index) => ({
+        point,
+        index,
+        timestampMs: Date.parse(point.timestamp),
+      }))
+      .sort((a, b) => {
+        const aIsValid = Number.isFinite(a.timestampMs)
+        const bIsValid = Number.isFinite(b.timestampMs)
+        if (aIsValid && bIsValid) {
+          return a.timestampMs - b.timestampMs || a.index - b.index
+        }
+        if (aIsValid) return -1
+        if (bIsValid) return 1
+        return a.index - b.index
+      })
+      .map(({ point }) => point)
+  }, [data?.datapoints])
+
   // Latest datapoint per service in the selected window.
   const latestPerService = useMemo((): TelemetryDatapoint[] => {
-    const datapoints = data?.datapoints ?? []
-    if (datapoints.length === 0) return []
+    if (sortedDatapoints.length === 0) return []
 
     const byService = new Map<string, TelemetryDatapoint>()
-    for (const point of datapoints) {
+    for (const point of sortedDatapoints) {
       const key = `${point.namespace}:${point.service}`
       const previous = byService.get(key)
       if (!previous || toTimestampMs(point.timestamp) >= toTimestampMs(previous.timestamp)) {
@@ -213,7 +233,7 @@ export default function Metrics() {
     }
 
     return Array.from(byService.values())
-  }, [data?.datapoints])
+  }, [sortedDatapoints])
 
   // Summary cards: global mode aggregates latest per service; service mode reflects selected scope.
   const summaryStats = useMemo(() => {
@@ -293,7 +313,7 @@ export default function Metrics() {
     liveOptions: DiscoveredService[]
     demoSeededOptions: DiscoveredService[]
   } => {
-    const telemetryServices: DiscoveredService[] = (data?.datapoints ?? []).map((point) => ({
+    const telemetryServices: DiscoveredService[] = sortedDatapoints.map((point) => ({
       serviceId: `${point.namespace}:${point.service}`,
       name: point.service,
       namespace: point.namespace,
@@ -302,17 +322,17 @@ export default function Metrics() {
     const liveServiceIds = new Set(liveOptions.map((service) => service.serviceId))
     const demoSeededOptions = getSeededServices().filter((service) => !liveServiceIds.has(service.serviceId))
     return { liveOptions, demoSeededOptions }
-  }, [data?.datapoints, services])
+  }, [sortedDatapoints, services])
 
   const latencySeries = useMemo(
     () =>
-      (data?.datapoints ?? []).map((d) => ({
+      sortedDatapoints.map((d) => ({
         timestamp: d.timestamp,
         p50: toFiniteNumber((d as { p50?: unknown }).p50) ?? undefined,
         p95: toFiniteNumber(d.p95) ?? undefined,
         p99: toFiniteNumber((d as { p99?: unknown }).p99) ?? undefined,
       })),
-    [data?.datapoints]
+    [sortedDatapoints]
   )
 
   const hasP50Data = useMemo(
@@ -326,13 +346,13 @@ export default function Metrics() {
 
   const availabilitySeries = useMemo(
     () =>
-      (data?.datapoints ?? [])
+      sortedDatapoints
         .map((point) => ({
           timestamp: point.timestamp,
           value: toFiniteNumber((point as { availability?: unknown }).availability),
         }))
         .filter((point): point is { timestamp: string; value: number } => point.value !== null),
-    [data?.datapoints]
+    [sortedDatapoints]
   )
 
   return (
@@ -613,7 +633,7 @@ export default function Metrics() {
       )}
 
       {/* Deep Dive Charts */}
-      {data && data.datapoints.length > 0 && (
+      {data && sortedDatapoints.length > 0 && (
         <Section title="Deep Dive Analytics" description="Visualizing data over time" icon={Activity}>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Traffic Chart */}
@@ -625,7 +645,7 @@ export default function Metrics() {
               tooltip="Shows how request traffic rises and falls over time. Spikes may indicate peak usage windows or sudden demand changes."
             >
               <TimeSeriesLineChart
-                data={data.datapoints.map((d) => ({
+                data={sortedDatapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.requestRate,
                 }))}
@@ -644,7 +664,7 @@ export default function Metrics() {
               tooltip="Shows how the request failure percentage changes over time. Rising trends may indicate incidents or degradations."
             >
               <TimeSeriesLineChart
-                data={data.datapoints.map((d) => ({
+                data={sortedDatapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.errorRate,
                 }))}
@@ -816,7 +836,7 @@ export default function Metrics() {
       )}
 
       {/* Empty State */}
-      {!loading && (!data || data.datapoints.length === 0) && (
+      {!loading && (!data || sortedDatapoints.length === 0) && (
         <EmptyState
           icon={<BarChart3 className="h-12 w-12 text-[var(--color-emerald-300)]" />}
           message="No active signals detected"

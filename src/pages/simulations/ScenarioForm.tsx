@@ -465,7 +465,7 @@ export default function ScenarioForm({
                 <>
                   Service ID
                   <span className="ml-1 align-middle">
-                    <InfoHint text="Pick the service you want to test in this simulation. Use namespace:name so the system can find the exact service correctly." />
+                    <InfoHint text="Pick the service you want to test in this simulation. Use namespace:name so the system can find the exact service correctly and avoid selecting the wrong service with a similar name." />
                   </span>
                   {mode === 'live' && (
                     <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>

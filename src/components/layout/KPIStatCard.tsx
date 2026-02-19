@@ -54,10 +54,12 @@ export default function KPIStatCard({
         className
       )}
     >
-      <div className="mb-1 flex items-start gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-        <span className="min-w-0 break-words leading-tight">{label}</span>
-        <InfoHint text={hintText} />
-      </div>
+      <p className="mb-1 min-w-0 break-words text-xs font-semibold uppercase tracking-[0.08em] leading-tight text-[var(--text-muted)]">
+        {label}
+        <span className="ml-1 inline-flex align-middle">
+          <InfoHint text={hintText} />
+        </span>
+      </p>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-[var(--text-primary)]">{value}</div>
         {trend && TrendIcon && (

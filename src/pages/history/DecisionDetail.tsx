@@ -149,10 +149,12 @@ export default function DecisionDetail() {
         <Link to="/history" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <PageHeader
-          title="Decision Story"
-          description={formatDate(new Date(decision.timestamp))}
-        />
+        <div className="flex-1">
+          <PageHeader
+            title="Decision Story"
+            description={formatDate(new Date(decision.timestamp))}
+          />
+        </div>
       </div>
 
       {/* Summary */}

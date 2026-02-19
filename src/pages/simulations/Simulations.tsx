@@ -18,7 +18,7 @@ import {
   tableHeaderCellClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
-import { Select } from '@/components/ui'
+import { Checkbox, Select } from '@/components/ui'
 import ScenarioForm from '@/pages/simulations/ScenarioForm'
 import {
   getDemoSnapshots,
@@ -326,11 +326,11 @@ export default function Simulations() {
             label="Target Service"
             value={contextData.target.name ?? contextData.target.serviceId ?? 'unknown'}
             variant="default"
-            tooltip="This is the service you picked as the main focus for this simulation run."
+            tooltip="This is the main service you selected for analysis. All impact numbers in this panel are calculated relative to this target."
           />
-          <KPIStatCard label="Visible Services" value={visibleNodes.length} variant="default" tooltip="How many services are currently shown in this preview after filters are applied." />
-          <KPIStatCard label="Visible Connections" value={visibleEdges.length} variant="default" tooltip="How many links between services are currently shown in this preview." />
-          <KPIStatCard label="View Direction" value={contextData.direction} variant="default" tooltip="Shows whether you are viewing incoming callers, outgoing dependencies, or both." />
+          <KPIStatCard label="Visible Services" value={visibleNodes.length} variant="default" tooltip="How many services are currently visible in this preview after your filters are applied. If this number drops, your filter is hiding more nodes." />
+          <KPIStatCard label="Visible Connections" value={visibleEdges.length} variant="default" tooltip="How many service-to-service links are currently visible. This helps you see how connected the selected neighborhood is." />
+          <KPIStatCard label="View Direction" value={contextData.direction} variant="default" tooltip="Shows the direction of analysis: callers (incoming), dependencies (outgoing), or both. Use this to understand whether impact is upstream, downstream, or both." />
         </div>
 
         <div className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-3">
@@ -339,22 +339,16 @@ export default function Simulations() {
             Preview filters
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)]">
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={hideLowRpsEdges}
-                onChange={(event) => setHideLowRpsEdges(event.target.checked)}
-              />
-              Hide low-traffic connections ({'<'}{lowRpsThreshold} req/s)
-            </label>
-            <label className="inline-flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={hideLowAvailabilityNodes}
-                onChange={(event) => setHideLowAvailabilityNodes(event.target.checked)}
-              />
-              Hide lower-health services (availability below 95%)
-            </label>
+            <Checkbox
+              checked={hideLowRpsEdges}
+              onChange={(event) => setHideLowRpsEdges(Boolean(event.target.checked))}
+              label={`Hide low-traffic connections (<${lowRpsThreshold} req/s)`}
+            />
+            <Checkbox
+              checked={hideLowAvailabilityNodes}
+              onChange={(event) => setHideLowAvailabilityNodes(Boolean(event.target.checked))}
+              label="Hide lower-health services (availability below 95%)"
+            />
           </div>
         </div>
 
@@ -368,7 +362,7 @@ export default function Simulations() {
           <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3">
             <div className="mb-2 inline-flex items-center gap-1.5">
               <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Services in neighborhood</h3>
-              <InfoHint text="This list shows nearby services that are directly connected to your selected service." />
+              <InfoHint text="This list shows nearby services directly connected to your selected target. It gives you a quick map of who talks to whom around the target service." />
             </div>
             <div className="max-h-64 space-y-2 overflow-auto pr-1">
               {visibleNodes.map((node) => (
@@ -389,7 +383,7 @@ export default function Simulations() {
           <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3">
             <div className="mb-2 inline-flex items-center gap-1.5">
               <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Top edges by traffic</h3>
-              <InfoHint text="This list highlights the busiest service-to-service links in this local neighborhood." />
+              <InfoHint text="This list highlights the busiest links between services in this local area. Higher traffic links usually carry more risk during failures." />
             </div>
             <div className="max-h-64 space-y-2 overflow-auto pr-1">
               {topEdges.map((edge, index) => (
@@ -433,19 +427,19 @@ export default function Simulations() {
               label="Affected Callers"
               value={affectedCallersCount}
               variant={affectedCallersCount > 0 ? 'warning' : 'success'}
-              tooltip="How many services directly call the selected service and may notice impact quickly."
+              tooltip="Number of services that directly call the selected target. These are usually the first services to feel impact when the target fails."
             />
             <KPIStatCard
               label="Affected Dependencies"
               value={affectedDownstreamCount}
               variant={affectedDownstreamCount > 0 ? 'danger' : 'success'}
-              tooltip="How many downstream services depend on this path and may be affected by this change."
+              tooltip="Number of downstream services that rely on this path. If this count is high, the blast radius can spread wider."
             />
             <KPIStatCard
               label="No Longer Reachable"
               value={unreachableCount}
               variant={unreachableCount > 0 ? 'danger' : 'success'}
-              tooltip="How many services become unreachable in this simulation result."
+              tooltip="Number of services that become completely unreachable in this simulation. These services would effectively be down from the user perspective."
             />
           </div>
         </Section>
@@ -540,25 +534,25 @@ export default function Simulations() {
               label="Current slow-end response time"
               value={formatMs(latency?.baselineMs ?? 0)}
               variant="default"
-              tooltip="Current slow-end response time before the scaling change is applied."
+              tooltip="Current slow-end response time before scaling. This is your baseline and acts as the reference for the projected result."
             />
             <KPIStatCard
               label="Projected slow-end response time"
               value={formatMs(latency?.projectedMs ?? 0)}
               variant="default"
-              tooltip="Estimated slow-end response time after the scaling change is applied."
+              tooltip="Estimated slow-end response time after scaling is applied. Compare this with baseline to understand expected improvement or regression."
             />
             <KPIStatCard
               label="Expected change"
               value={`${(latency?.deltaMs ?? 0) >= 0 ? '+' : ''}${formatMs(latency?.deltaMs ?? 0)}`}
               variant={(latency?.deltaMs ?? 0) < 0 ? 'success' : 'warning'}
-              tooltip="Difference between before and after. Negative means faster; positive means slower."
+              tooltip="Difference between before and after scaling. Negative means faster responses; positive means slower responses."
             />
             <KPIStatCard
               label="Affected workflows"
               value={affectedPaths.length}
               variant="default"
-              tooltip="How many request paths show a meaningful response-time change."
+              tooltip="How many request paths show a clear response-time shift. More affected paths means the scaling effect is broader."
             />
           </div>
 
@@ -709,7 +703,7 @@ export default function Simulations() {
             <label htmlFor="simulationMode" className="mb-2 block text-sm font-semibold text-[var(--text-secondary)]">
               <span className="inline-flex items-center gap-1.5">
                 <span>Source Mode</span>
-                <InfoHint text="Live mode uses current system data. Demo mode uses fixed sample data so results stay repeatable." />
+                <InfoHint text="Live mode uses current platform data, so numbers reflect the latest state. Demo mode uses fixed sample data, so repeated runs return stable results for presentations." />
               </span>
             </label>
             <Select
@@ -728,7 +722,7 @@ export default function Simulations() {
             <label htmlFor="snapshotId" className="mb-2 block text-sm font-semibold text-[var(--text-secondary)]">
               <span className="inline-flex items-center gap-1.5">
                 <span>Demo Snapshot</span>
-                <InfoHint text="A snapshot is a saved point in time. Use it when you want to rerun the same scenario with stable inputs." />
+                <InfoHint text="A snapshot is a saved state of the system at a specific time. Use snapshots when you want consistent reruns and fair comparison across scenarios." />
               </span>
             </label>
             <Select

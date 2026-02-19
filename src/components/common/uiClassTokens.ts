@@ -38,12 +38,12 @@ export const controlTextareaClass = cn(
 
 export const iconActionButtonClass = cn(
   'neon-focus-ring interactive-soft inline-flex items-center justify-center rounded-[var(--radius-sm)]',
-  'border border-[var(--ring)] bg-emerald-500/18 text-[var(--primary-foreground)] shadow-[0_10px_24px_rgba(2,6,23,0.2)]',
+  'border border-[var(--ring)] bg-emerald-500/18 text-[var(--text-primary)] shadow-[0_10px_24px_rgba(2,6,23,0.2)]',
   'hover:border-[var(--ring)] hover:bg-emerald-500/28 disabled:opacity-50'
 )
 
 export const primaryButtonClass = cn(
-  'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-[var(--primary-foreground)]',
+  'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)]',
   'border border-[var(--ring)] bg-gradient-to-r from-emerald-500 to-emerald-400',
   'shadow-[0_10px_24px_rgba(5,150,105,0.3)] hover:brightness-110 disabled:opacity-50'
 )
@@ -55,7 +55,7 @@ export const secondaryButtonClass = cn(
 )
 
 export const successButtonClass = cn(
-  'neon-focus-ring interactive-soft inline-flex items-center rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-[var(--primary-foreground)]',
+  'neon-focus-ring interactive-soft inline-flex items-center rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)]',
   'border border-emerald-200/30 bg-gradient-to-r from-emerald-500 to-green-500',
   'shadow-[0_10px_24px_rgba(5,150,105,0.3)] hover:brightness-110 disabled:opacity-50'
 )

@@ -73,7 +73,7 @@ function BreadcrumbNav({ breadcrumbs, onBreadcrumbClick }: BreadcrumbNavProps) {
             className={cn(
               'neon-focus-ring interactive-soft rounded-md px-2.5 py-1.5 text-xs sm:text-sm',
               idx === breadcrumbs.length - 1
-                ? 'border border-[var(--color-emerald-300)]/45 bg-emerald-500/18 font-semibold text-[var(--primary-foreground)]'
+                ? 'border border-[var(--color-emerald-300)]/45 bg-emerald-500/18 font-semibold text-[var(--text-primary)]'
                 : 'border border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]'
             )}
           >

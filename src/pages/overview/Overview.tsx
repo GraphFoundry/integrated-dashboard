@@ -175,6 +175,7 @@ export default function Overview() {
             value={kpiData?.totalServices ?? 0}
             valueClassName="text-indigo-200"
             tone="indigo"
+            tooltip="Total number of services currently under monitoring. This defines the size of the system scope for the metrics shown on this page."
           />
           <MetricHighlightCard
             label={getGlossaryTerm('requestRate').label}
@@ -183,6 +184,7 @@ export default function Overview() {
             value={formatRps(kpiData?.avgRequestRate ?? 0)}
             valueClassName="text-[var(--text-primary)]"
             tone="blue"
+            tooltip="Average incoming request traffic across monitored services. Higher values mean the platform is handling more demand right now."
           />
           <MetricHighlightCard
             label={getGlossaryTerm('errorRate').label}
@@ -196,6 +198,7 @@ export default function Overview() {
               return 'text-emerald-300'
             })()}
             tone="rose"
+            tooltip="Average failure percentage across observed services. Lower values are better because fewer users see broken requests."
           />
           <MetricHighlightCard
             label={getGlossaryTerm('p95').label}
@@ -209,6 +212,7 @@ export default function Overview() {
               return 'text-emerald-300'
             })()}
             tone="amber"
+            tooltip="Slow-end response time under load (P95). It represents slower user experiences, so lower values indicate better performance."
           />
           <MetricHighlightCard
             label={getGlossaryTerm('availability').label}
@@ -222,6 +226,7 @@ export default function Overview() {
               return 'text-rose-300'
             })()}
             tone="emerald"
+            tooltip="Average uptime across monitored services. Values closer to 100% mean services stayed online and reachable more consistently."
           />
         </div>
       )}

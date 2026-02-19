@@ -86,10 +86,14 @@ function ChartPanel({
         <div className={`rounded-lg p-2 ${iconWrapperClassName}`}>
           <Icon className={`h-4 w-4 ${iconClassName}`} />
         </div>
-        <div className="inline-flex items-center gap-1.5">
-          <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
-          {tooltip ? <InfoHint text={tooltip} /> : null}
-        </div>
+        <h3 className="font-semibold text-[var(--text-primary)]">
+          {title}
+          {tooltip ? (
+            <span className="ml-1 inline-flex align-middle">
+              <InfoHint text={tooltip} />
+            </span>
+          ) : null}
+        </h3>
       </div>
       {children}
     </div>
@@ -304,7 +308,7 @@ export default function Metrics() {
             value={formatRps(summaryStats.requestRate)}
             valueClassName="text-[var(--text-primary)]"
             tone="blue"
-            tooltip="How many requests are coming in each second right now. Higher means busier traffic."
+            tooltip="How many requests are reaching the system each second right now. Higher values mean heavier traffic and more load on services."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.errorRate.label}
@@ -326,7 +330,7 @@ export default function Metrics() {
               ) : undefined
             }
             tone="emerald"
-            tooltip="Overall request success health. Higher means more requests are finishing without errors."
+            tooltip="Overall request success health score. Higher means more requests complete correctly and fewer users see failures."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.p95.label}
@@ -341,7 +345,7 @@ export default function Metrics() {
                   : 'text-rose-700'
             }
             tone="amber"
-            tooltip="How slow requests become during busy moments. Lower values mean faster user experience."
+            tooltip="How slow responses become during heavier periods. Lower numbers usually mean users feel faster performance."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.availability.label}
@@ -356,7 +360,7 @@ export default function Metrics() {
                   : 'text-rose-700'
             }
             tone="purple"
-            tooltip="How often this service stays online and reachable for users."
+            tooltip="How often services stay online and reachable. Values close to 100% indicate stronger stability."
           />
         </div>
       )}
@@ -375,7 +379,7 @@ export default function Metrics() {
               icon={BarChart3}
               value={simulationMetrics.runs}
               tone="blue"
-              tooltip="Total number of simulation runs completed in the last 7 days."
+              tooltip="Total number of simulation runs completed in the last 7 days. This shows overall simulation activity."
             />
             <MetricHighlightCard
               label="Failure Runs"
@@ -383,7 +387,7 @@ export default function Metrics() {
               icon={AlertCircle}
               value={simulationMetrics.failureRuns}
               tone="amber"
-              tooltip="Number of failure scenarios that were tested in the selected period."
+              tooltip="How many failure scenarios were tested in the selected period. Useful for tracking resilience test coverage."
             />
             <MetricHighlightCard
               label="Scale Runs"
@@ -391,7 +395,7 @@ export default function Metrics() {
               icon={Zap}
               value={simulationMetrics.scaleRuns}
               tone="emerald"
-              tooltip="Number of scaling scenarios that were tested in the selected period."
+              tooltip="How many scaling scenarios were tested in the selected period. This helps track performance tuning activity."
             />
             <MetricHighlightCard
               label="Avg Affected"
@@ -399,7 +403,7 @@ export default function Metrics() {
               icon={Activity}
               value={simulationMetrics.avgAffectedServices.toFixed(2)}
               tone="blue"
-              tooltip="Average count of services impacted in each simulation run."
+              tooltip="Average number of services affected per run. Higher values suggest broader impact across the system."
             />
             <MetricHighlightCard
               label="Avg Latency Δ"
@@ -407,7 +411,7 @@ export default function Metrics() {
               icon={Clock}
               value={`${simulationMetrics.avgLatencyDeltaMs >= 0 ? '+' : ''}${simulationMetrics.avgLatencyDeltaMs.toFixed(2)} ms`}
               tone={simulationMetrics.avgLatencyDeltaMs <= 0 ? 'emerald' : 'amber'}
-              tooltip="Average response-time change after scaling actions. Negative is faster, positive is slower."
+              tooltip="Average response-time change after scaling actions. Negative means faster on average; positive means slower on average."
             />
             <MetricHighlightCard
               label="Low Confidence"
@@ -415,36 +419,38 @@ export default function Metrics() {
               icon={ShieldCheck}
               value={simulationMetrics.lowConfidenceRuns}
               tone={simulationMetrics.lowConfidenceRuns > 0 ? 'amber' : 'emerald'}
-              tooltip="Runs where input data quality was weak or stale, so treat outcomes as guidance, not certainty."
+              tooltip="Runs where source data was stale, incomplete, or uncertain. Treat these results as directional guidance, not exact truth."
             />
           </div>
 
-          <div className="mt-4 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-solid)] p-4 shadow-[0_8px_20px_rgba(15,23,42,0.08)]">
+          <div className="mt-4">
             <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Run Trend</h3>
             {simulationMetrics.trend.length === 0 ? (
               <p className="text-sm text-[var(--text-muted)]">No simulation runs in the selected window.</p>
             ) : (
-              <div className="max-h-56 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={cn(tableHeadRowClass, 'bg-[var(--surface-soft)]')}>
-                      <th className={cn(tableHeaderCellClass, 'text-[var(--text-secondary)]')}>Date</th>
-                      <th className={cn(tableHeaderCellClass, 'text-right')}>Runs</th>
-                      <th className={cn(tableHeaderCellClass, 'text-right')}>Failure</th>
-                      <th className={cn(tableHeaderCellClass, 'text-right')}>Scale</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {simulationMetrics.trend.map((point) => (
-                      <tr key={point.date} className={cn(tableBodyRowClass, 'odd:bg-[var(--surface-soft)] even:bg-[var(--surface-subtle)]')}>
-                        <td className={cn(tableCellClass, 'font-semibold text-[var(--text-primary)]')}>{point.date}</td>
-                        <td className={cn(tableCellClass, 'text-right font-mono font-semibold text-[var(--text-primary)]')}>{point.runs}</td>
-                        <td className={cn(tableCellClass, 'text-right font-mono text-[var(--text-secondary)]')}>{point.failureRuns}</td>
-                        <td className={cn(tableCellClass, 'text-right font-mono text-[var(--text-secondary)]')}>{point.scaleRuns}</td>
+              <div className={tableShellClass}>
+                <div className="max-h-56 overflow-auto">
+                  <table className="w-full">
+                    <thead className={cn(tableHeadRowClass, tableHeadStickyClass)}>
+                      <tr>
+                        <th className={cn(tableHeaderCellClass, 'text-[var(--text-secondary)]')}>Date</th>
+                        <th className={cn(tableHeaderCellClass, 'text-right')}>Runs</th>
+                        <th className={cn(tableHeaderCellClass, 'text-right')}>Failure</th>
+                        <th className={cn(tableHeaderCellClass, 'text-right')}>Scale</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {simulationMetrics.trend.map((point) => (
+                        <tr key={point.date} className={tableBodyRowClass}>
+                          <td className={cn(tableCellClass, 'font-semibold text-[var(--text-primary)]')}>{point.date}</td>
+                          <td className={cn(tableCellClass, 'text-right font-mono font-semibold text-[var(--text-primary)]')}>{point.runs}</td>
+                          <td className={cn(tableCellClass, 'text-right font-mono text-[var(--text-secondary)]')}>{point.failureRuns}</td>
+                          <td className={cn(tableCellClass, 'text-right font-mono text-[var(--text-secondary)]')}>{point.scaleRuns}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
@@ -461,7 +467,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-blue-500/20"
               iconClassName="text-blue-400"
               title="Traffic Trends"
-              tooltip="Shows how request traffic goes up and down over time."
+              tooltip="Shows how request traffic rises and falls over time. Spikes may indicate peak usage windows or sudden demand changes."
             >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
@@ -480,7 +486,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-rose-500/20"
               iconClassName="text-rose-400"
               title="Failure Rate Trends"
-              tooltip="Shows how the failure percentage changes over time."
+              tooltip="Shows how the request failure percentage changes over time. Rising trends may indicate incidents or degradations."
             >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
@@ -499,7 +505,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-amber-500/20"
               iconClassName="text-amber-400"
               title="Response Speed (Latency)"
-              tooltip="Shows how response speed changes over time. Lower is better."
+              tooltip="Shows response speed changes over time across latency bands. Lower values generally mean better user experience."
             >
               <LatencyMultiLineChart
                 data={data.datapoints.map((d) => ({
@@ -517,7 +523,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-emerald-500/20"
               iconClassName="text-emerald-400"
               title="Uptime Stability"
-              tooltip="Shows how consistently the service stays online and reachable over time."
+              tooltip="Shows how consistently services stay online and reachable over time. Drops can signal outages or reliability issues."
             >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({

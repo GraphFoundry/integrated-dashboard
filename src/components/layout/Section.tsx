@@ -34,8 +34,14 @@ export default function Section({
                       <Icon className="h-4 w-4 text-[var(--color-emerald-300)]" />
                     </div>
                   )}
-                  <h2 className="text-xl font-semibold text-[var(--text-primary)]">{title}</h2>
-                  {description ? <InfoHint text={description} /> : null}
+                  <h2 className="text-xl font-semibold text-[var(--text-primary)]">
+                    {title}
+                    {description ? (
+                      <span className="ml-1 inline-flex align-middle">
+                        <InfoHint text={description} />
+                      </span>
+                    ) : null}
+                  </h2>
                 </div>
               )}
               {description && (

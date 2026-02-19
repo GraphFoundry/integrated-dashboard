@@ -191,7 +191,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Request Rate (RPS)' : 'Traffic'}
-          tooltip="How busy this service is right now. Higher traffic means more user or system requests are hitting it."
+          tooltip="How busy this service is right now. Higher traffic means more user or system requests are hitting it, which can increase pressure on resources."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
@@ -202,7 +202,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Error Rate (%)' : 'Failed Requests'}
-          tooltip="How many requests are failing out of all requests. Lower is better for reliability."
+          tooltip="How many requests are failing out of all requests. Lower is better for reliability because fewer users are seeing broken responses."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
@@ -213,7 +213,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'P95 Latency (ms)' : 'Slow Responses'}
-          tooltip="How slow responses get for users during heavier moments. Lower values mean a faster experience."
+          tooltip="How slow responses get for users during heavier moments. Lower values mean a faster experience, especially during traffic spikes."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
@@ -224,7 +224,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Availability (%)' : 'Uptime'}
-          tooltip="How often this service stays online and reachable. Closer to 100% means stronger reliability."
+          tooltip="How often this service stays online and reachable. Closer to 100% means stronger reliability and fewer user-facing outages."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced

@@ -297,7 +297,7 @@ export default function AlertsPage() {
             title="Open Incidents"
             value={overview.open_incidents}
             subtitle={`${overview.total_incidents} total incidents`}
-            tooltip="Incidents that are still open and not solved yet. These still need team attention."
+            tooltip="Incidents that are still open and not solved yet. These items still require review, investigation, or mitigation from the team."
           />
 
           <OverviewStatCard
@@ -318,7 +318,7 @@ export default function AlertsPage() {
             title="Critical Alerts"
             value={overview.critical_count}
             subtitle={`${overview.high_count} high severity`}
-            tooltip="Most urgent alerts with the highest risk. These should be reviewed and handled first."
+            tooltip="Most urgent alerts with the highest risk. These should be checked first because they can impact users or business operations quickly."
           />
 
           <OverviewStatCard
@@ -338,7 +338,7 @@ export default function AlertsPage() {
             title="Auto Actions"
             value={overview.auto_actions_count}
             subtitle={`${overview.manual_actions_count} manual reviews`}
-            tooltip="Cases where the platform already took an automatic step, so manual work was reduced."
+            tooltip="Cases where the platform already took an automatic step. This reduces manual workload and can shorten response time."
           />
 
           <OverviewStatCard
@@ -352,7 +352,7 @@ export default function AlertsPage() {
             title="Services Affected"
             value={overview.services_affected}
             subtitle="Active monitoring"
-            tooltip="Number of services currently impacted by active incidents or alerts."
+            tooltip="Number of services currently impacted by active incidents or alerts. A higher count usually means broader system impact."
           />
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router'
 import { Download, Filter, History as HistoryIcon, RefreshCw, Share2, SplitSquareHorizontal } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -24,7 +24,7 @@ import {
   tableHeaderCellClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
-import { Select } from '@/components/ui'
+import { Checkbox, Select } from '@/components/ui'
 import { compareDecisions, exportDecision, getDecisionHistory } from '@/lib/api'
 import { formatShortDate } from '@/lib/format'
 import type { DecisionCompareResponse, DecisionRecord } from '@/lib/types'
@@ -125,6 +125,14 @@ export default function History() {
       }
       return [...prev, id]
     })
+  }
+
+  const handleRowClick = (event: MouseEvent<HTMLTableRowElement>, id: number) => {
+    const target = event.target as HTMLElement
+    if (target.closest('button, a, input, summary, details, label, [role="checkbox"]')) {
+      return
+    }
+    toggleSelection(id)
   }
 
   const runCompare = async () => {
@@ -289,13 +297,17 @@ export default function History() {
                 </thead>
                 <tbody>
                   {data.decisions.map((record) => (
-                    <tr key={record.id} className={cn(tableBodyRowClass, 'transition-colors')}>
+                    <tr
+                      key={record.id}
+                      className={cn(tableBodyRowClass, 'cursor-pointer transition-colors')}
+                      onClick={(event) => handleRowClick(event, record.id)}
+                    >
                       <td className={tableCellClass}>
-                        <input
-                          type="checkbox"
+                        <Checkbox
+                          aria-label={`Select decision run ${record.id}`}
                           checked={selectedIds.includes(record.id)}
                           onChange={() => toggleSelection(record.id)}
-                          className="h-4 w-4"
+                          className="inline-flex"
                         />
                       </td>
                       <td className={cn(tableCellClass, 'font-medium text-[var(--text-primary)]')}>

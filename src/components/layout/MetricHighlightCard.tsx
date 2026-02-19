@@ -75,12 +75,12 @@ export default function MetricHighlightCard({
       </div>
       <div className="relative z-10 flex h-full flex-col justify-between">
         <div>
-          <div className="mb-1 flex items-start gap-1.5">
-            <h3 className="min-w-0 break-words text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-              {label}
-            </h3>
-            <InfoHint text={hintText} />
-          </div>
+          <h3 className="mb-1 min-w-0 break-words text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+            {label}
+            <span className="ml-1 inline-flex align-middle">
+              <InfoHint text={hintText} />
+            </span>
+          </h3>
           <p className="mb-4 text-xs text-[var(--text-secondary)]">{description}</p>
         </div>
         <div>

@@ -25,7 +25,14 @@ import {
 import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
-import { getResilientServices, getSeededServices, getSimulationOutcomesMetrics, getTelemetryMetrics, getServices } from '@/lib/api'
+import {
+  getDependencyGraphSnapshot,
+  getResilientServices,
+  getSeededServices,
+  getSimulationOutcomesMetrics,
+  getTelemetryMetrics,
+  getServices,
+} from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { calculateServiceRisk } from '@/lib/risk'
 import type { DiscoveredService, SimulationMetricsResponse, TelemetryDatapoint, TelemetryMetricsResponse } from '@/lib/types'
@@ -116,7 +123,7 @@ function ChartPanel({
 
 export default function Metrics() {
   const navigate = useNavigate()
-  const [serviceName, setServiceName] = useState('')
+  const [selectedServiceId, setSelectedServiceId] = useState('')
   const [timeRange, setTimeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [simulationMetrics, setSimulationMetrics] = useState<SimulationMetricsResponse | null>(null)
@@ -146,10 +153,13 @@ export default function Metrics() {
     try {
       const now = new Date()
       const from = new Date(now.getTime() - getTimeRangeMs(timeRange))
+      const serviceNameForQuery = selectedServiceId
+        ? selectedServiceId.split(':').slice(1).join(':') || selectedServiceId
+        : ''
 
       const [telemetryResult, simulationResult] = await Promise.all([
         getTelemetryMetrics({
-          service: serviceName,
+          service: serviceNameForQuery,
           from: from.toISOString(),
           to: now.toISOString(),
           step: 60,
@@ -169,14 +179,33 @@ export default function Metrics() {
     } finally {
       if (!background) setLoading(false)
     }
-  }, [getTimeRangeMs, serviceName, timeRange])
+  }, [getTimeRangeMs, selectedServiceId, timeRange])
 
   useEffect(() => {
     const fetchServices = async () => {
       try {
-        const response = await getServices()
-        setServices(getResilientServices(response.services, { includeSeeded: false }))
-        if (response.stale) {
+        const [serviceResponse, graphSnapshot] = await Promise.all([
+          getServices().catch(() => null),
+          getDependencyGraphSnapshot().catch(() => null),
+        ])
+
+        const graphServices: DiscoveredService[] = (graphSnapshot?.nodes ?? [])
+          .filter((node) => Boolean(node.name))
+          .map((node) => ({
+            serviceId: `${node.namespace || 'default'}:${node.name}`,
+            name: node.name,
+            namespace: node.namespace || 'default',
+            podCount: typeof node.podCount === 'number' ? node.podCount : undefined,
+            availability: typeof node.availability === 'number' ? node.availability : undefined,
+          }))
+
+        const mergedServices = getResilientServices(
+          [...(serviceResponse?.services ?? []), ...graphServices],
+          { includeSeeded: false }
+        )
+        setServices(mergedServices)
+
+        if (serviceResponse?.stale || graphSnapshot?.metadata?.stale) {
           setServicesNotice('Service list is stale. Showing latest available snapshot.')
         } else {
           setServicesNotice(null)
@@ -282,10 +311,10 @@ export default function Metrics() {
       errorRate,
       p95,
       availability,
-      isGlobalScope: serviceName === '',
+      isGlobalScope: selectedServiceId === '',
       servicesInScope: latestPerService.length,
     }
-  }, [latestPerService, serviceName])
+  }, [latestPerService, selectedServiceId])
 
   const systemStatus = useMemo(() => {
     if (latestPerService.length === 0) return []
@@ -372,8 +401,8 @@ export default function Metrics() {
             </label>
             <Select
               id="service-select"
-              value={serviceName}
-              onChange={(e) => setServiceName(e.target.value)}
+              value={selectedServiceId}
+              onChange={(e) => setSelectedServiceId(e.target.value)}
               className={controlInputDarkClass}
               suffixIcon={<Settings className="h-4 w-4" />}
             >
@@ -381,7 +410,7 @@ export default function Metrics() {
               {focusOptionGroups.liveOptions.length > 0 && (
                 <optgroup label="Live services">
                   {focusOptionGroups.liveOptions.map((service) => (
-                    <option key={`${service.namespace}/${service.name}`} value={service.name}>
+                    <option key={`${service.namespace}/${service.name}`} value={service.serviceId}>
                       {service.name} ({service.namespace})
                     </option>
                   ))}
@@ -390,7 +419,7 @@ export default function Metrics() {
               {focusOptionGroups.demoSeededOptions.length > 0 && (
                 <optgroup label="Demo dataset (seeded)">
                   {focusOptionGroups.demoSeededOptions.map((service) => (
-                    <option key={`demo-${service.namespace}/${service.name}`} value={service.name}>
+                    <option key={`demo-${service.namespace}/${service.name}`} value={service.serviceId}>
                       {service.name} ({service.namespace})
                     </option>
                   ))}

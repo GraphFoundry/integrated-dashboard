@@ -25,7 +25,7 @@ import {
 import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
-import { getResilientServices, getSimulationOutcomesMetrics, getTelemetryMetrics, getServices } from '@/lib/api'
+import { getResilientServices, getSeededServices, getSimulationOutcomesMetrics, getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { calculateServiceRisk } from '@/lib/risk'
 import type { DiscoveredService, SimulationMetricsResponse, TelemetryDatapoint, TelemetryMetricsResponse } from '@/lib/types'
@@ -61,6 +61,20 @@ const METRIC_LABELS = {
     color: 'text-emerald-400',
     unit: '%'
   }
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function toTimestampMs(value: string): number {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : Number.NEGATIVE_INFINITY
+}
+
+function average(values: number[]): number | null {
+  if (values.length === 0) return null
+  return values.reduce((sum, v) => sum + v, 0) / values.length
 }
 
 interface ChartPanelProps {
@@ -161,15 +175,15 @@ export default function Metrics() {
     const fetchServices = async () => {
       try {
         const response = await getServices()
-        setServices(getResilientServices(response.services))
+        setServices(getResilientServices(response.services, { includeSeeded: false }))
         if (response.stale) {
           setServicesNotice('Service list is stale. Showing latest available snapshot.')
         } else {
           setServicesNotice(null)
         }
       } catch {
-        setServices(getResilientServices([]))
-        setServicesNotice('Live service list unavailable. Showing cached/demo services.')
+        setServices(getResilientServices([], { includeSeeded: false }))
+        setServicesNotice('Live service list unavailable. Live options are cached; demo options are listed separately.')
       }
     }
     fetchServices()
@@ -184,56 +198,142 @@ export default function Metrics() {
     fetchData(true)
   }, [lastUpdated, fetchData])
 
-  // Calculate summary stats from current datapoints
-  const summaryStats = data?.datapoints.length
-    ? (() => {
-      const latest = data.datapoints[data.datapoints.length - 1]
-      if (!latest) return null
+  // Latest datapoint per service in the selected window.
+  const latestPerService = useMemo((): TelemetryDatapoint[] => {
+    const datapoints = data?.datapoints ?? []
+    if (datapoints.length === 0) return []
 
-      return {
-        requestRate: latest.requestRate,
-        // Invert error rate to show "Health" (Success Rate)
-        healthScore: 100 - latest.errorRate,
-        errorRate: latest.errorRate,
-        p95: latest.p95,
-        availability: latest.availability ?? (100 - (latest.errorRate || 0)),
+    const byService = new Map<string, TelemetryDatapoint>()
+    for (const point of datapoints) {
+      const key = `${point.namespace}:${point.service}`
+      const previous = byService.get(key)
+      if (!previous || toTimestampMs(point.timestamp) >= toTimestampMs(previous.timestamp)) {
+        byService.set(key, point)
       }
-    })()
-    : null
+    }
 
-  // Group datapoints by service for "System Status" snapshot
-  const systemStatus = data?.datapoints.length
-    ? (() => {
-      const byService = new Map<string, TelemetryDatapoint>()
-      data.datapoints.forEach((point) => {
-        const key = `${point.namespace}:${point.service}`
-        if (!byService.has(key)) {
-          byService.set(key, point)
+    return Array.from(byService.values())
+  }, [data?.datapoints])
+
+  // Summary cards: global mode aggregates latest per service; service mode reflects selected scope.
+  const summaryStats = useMemo(() => {
+    if (latestPerService.length === 0) return null
+
+    const requestRates = latestPerService
+      .map((point) => toFiniteNumber(point.requestRate))
+      .filter((value): value is number => value !== null)
+    const requestRate = requestRates.length
+      ? requestRates.reduce((sum, value) => sum + value, 0)
+      : null
+
+    const weightedErrorPairs = latestPerService
+      .map((point) => {
+        const rate = toFiniteNumber(point.requestRate)
+        const error = toFiniteNumber(point.errorRate)
+        if (rate === null || error === null || rate <= 0) return null
+        return { rate, error }
+      })
+      .filter((pair): pair is { rate: number; error: number } => pair !== null)
+
+    const weightedRateTotal = weightedErrorPairs.reduce((sum, pair) => sum + pair.rate, 0)
+    const weightedErrorSum = weightedErrorPairs.reduce((sum, pair) => sum + pair.rate * pair.error, 0)
+    const fallbackErrorAvg = average(
+      latestPerService
+        .map((point) => toFiniteNumber(point.errorRate))
+        .filter((value): value is number => value !== null)
+    )
+    const errorRate = weightedRateTotal > 0
+      ? weightedErrorSum / weightedRateTotal
+      : fallbackErrorAvg
+
+    const p95Values = latestPerService
+      .map((point) => toFiniteNumber(point.p95))
+      .filter((value): value is number => value !== null)
+    const p95 = p95Values.length ? Math.max(...p95Values) : null
+
+    const availabilityValues = latestPerService
+      .map((point) => toFiniteNumber((point as { availability?: unknown }).availability))
+      .filter((value): value is number => value !== null)
+    const availability = average(availabilityValues)
+
+    return {
+      requestRate,
+      healthScore: errorRate === null ? null : 100 - errorRate,
+      errorRate,
+      p95,
+      availability,
+      isGlobalScope: serviceName === '',
+      servicesInScope: latestPerService.length,
+    }
+  }, [latestPerService, serviceName])
+
+  const systemStatus = useMemo(() => {
+    if (latestPerService.length === 0) return []
+
+    return latestPerService
+      .map((point) => {
+        const availability = toFiniteNumber((point as { availability?: unknown }).availability)
+        return {
+          ...point,
+          risk: calculateServiceRisk(point.service, point.namespace, {
+            ...point,
+            availability: availability ?? Number.NaN,
+          }),
         }
       })
-      return Array.from(byService.values())
-        .map((point) => ({
-          ...point,
-          risk: calculateServiceRisk(point.service, point.namespace, point),
-        }))
-        .sort((a, b) => b.errorRate - a.errorRate) // High error rate first
-        .slice(0, 10)
-    })()
-    : []
+      .sort((a, b) => b.errorRate - a.errorRate)
+      .slice(0, 10)
+  }, [latestPerService])
 
-  const getDisplayUptime = (point: TelemetryDatapoint): number => {
-    const uptime = point.availability ?? (100 - (point.errorRate || 0))
-    return uptime <= 0 ? 100 : uptime
-  }
+  const getDisplayUptime = useCallback((point: TelemetryDatapoint): number | null => {
+    return toFiniteNumber((point as { availability?: unknown }).availability)
+  }, [])
 
-  const focusOptions = useMemo((): DiscoveredService[] => {
+  const focusOptionGroups = useMemo((): {
+    liveOptions: DiscoveredService[]
+    demoSeededOptions: DiscoveredService[]
+  } => {
     const telemetryServices: DiscoveredService[] = (data?.datapoints ?? []).map((point) => ({
       serviceId: `${point.namespace}:${point.service}`,
       name: point.service,
       namespace: point.namespace,
     }))
-    return getResilientServices([...services, ...telemetryServices])
+    const liveOptions = getResilientServices([...services, ...telemetryServices], { includeSeeded: false })
+    const liveServiceIds = new Set(liveOptions.map((service) => service.serviceId))
+    const demoSeededOptions = getSeededServices().filter((service) => !liveServiceIds.has(service.serviceId))
+    return { liveOptions, demoSeededOptions }
   }, [data?.datapoints, services])
+
+  const latencySeries = useMemo(
+    () =>
+      (data?.datapoints ?? []).map((d) => ({
+        timestamp: d.timestamp,
+        p50: toFiniteNumber((d as { p50?: unknown }).p50) ?? undefined,
+        p95: toFiniteNumber(d.p95) ?? undefined,
+        p99: toFiniteNumber((d as { p99?: unknown }).p99) ?? undefined,
+      })),
+    [data?.datapoints]
+  )
+
+  const hasP50Data = useMemo(
+    () => latencySeries.some((point) => typeof point.p50 === 'number'),
+    [latencySeries]
+  )
+  const hasP99Data = useMemo(
+    () => latencySeries.some((point) => typeof point.p99 === 'number'),
+    [latencySeries]
+  )
+
+  const availabilitySeries = useMemo(
+    () =>
+      (data?.datapoints ?? [])
+        .map((point) => ({
+          timestamp: point.timestamp,
+          value: toFiniteNumber((point as { availability?: unknown }).availability),
+        }))
+        .filter((point): point is { timestamp: string; value: number } => point.value !== null),
+    [data?.datapoints]
+  )
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">
@@ -258,11 +358,24 @@ export default function Metrics() {
               suffixIcon={<Settings className="h-4 w-4" />}
             >
               <option value="">Entire System (Global)</option>
-              {focusOptions.map((service) => (
-                <option key={`${service.namespace}/${service.name}`} value={service.name}>
-                  {service.name} ({service.namespace})
-                </option>
-              ))}
+              {focusOptionGroups.liveOptions.length > 0 && (
+                <optgroup label="Live services">
+                  {focusOptionGroups.liveOptions.map((service) => (
+                    <option key={`${service.namespace}/${service.name}`} value={service.name}>
+                      {service.name} ({service.namespace})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {focusOptionGroups.demoSeededOptions.length > 0 && (
+                <optgroup label="Demo dataset (seeded)">
+                  {focusOptionGroups.demoSeededOptions.map((service) => (
+                    <option key={`demo-${service.namespace}/${service.name}`} value={service.name}>
+                      {service.name} ({service.namespace})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </Select>
           </div>
           <div className="flex-1">
@@ -296,6 +409,11 @@ export default function Metrics() {
         {servicesNotice && (
           <p className="mt-2 text-xs text-[var(--text-muted)]">{servicesNotice}</p>
         )}
+        {focusOptionGroups.demoSeededOptions.length > 0 && (
+          <p className="mt-1 text-xs text-[var(--text-muted)]">
+            Seeded `default:*` services are isolated under the demo section and excluded from live scope.
+          </p>
+        )}
       </div>
 
       {/* Vital Signs Cards */}
@@ -308,7 +426,14 @@ export default function Metrics() {
             value={formatRps(summaryStats.requestRate)}
             valueClassName="text-[var(--text-primary)]"
             tone="blue"
-            tooltip="How many requests are reaching the system each second right now. Higher values mean heavier traffic and more load on services."
+            note={
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                {summaryStats.isGlobalScope
+                  ? `Aggregate: SUM of latest request rate across ${summaryStats.servicesInScope} services`
+                  : 'Scope: selected service(s) latest datapoint'}
+              </p>
+            }
+            tooltip="How many requests are reaching the system each second. Global mode uses SUM across latest per-service datapoints."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.errorRate.label}
@@ -316,21 +441,27 @@ export default function Metrics() {
             icon={METRIC_LABELS.errorRate.icon}
             value={formatPercent(summaryStats.healthScore)}
             valueClassName={
-              summaryStats.healthScore > 99
+              summaryStats.healthScore === null
+                ? 'text-[var(--text-muted)]'
+                : summaryStats.healthScore > 99
                 ? 'text-emerald-700'
                 : summaryStats.healthScore > 95
                   ? 'text-amber-700'
                   : 'text-rose-700'
             }
             note={
-              summaryStats.healthScore < 100 ? (
+              summaryStats.healthScore === null ? (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  N/A: error-rate telemetry unavailable in this window
+                </p>
+              ) : summaryStats.healthScore < 100 ? (
                 <p className="mt-1 text-xs text-rose-700">
                   {formatPercent(summaryStats.errorRate)} requests failing
                 </p>
               ) : undefined
             }
             tone="emerald"
-            tooltip="Overall request success health score. Higher means more requests complete correctly and fewer users see failures."
+            tooltip="Overall success score. Global mode uses request-rate-weighted average error rate across latest per-service datapoints."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.p95.label}
@@ -338,14 +469,23 @@ export default function Metrics() {
             icon={METRIC_LABELS.p95.icon}
             value={formatMs(summaryStats.p95)}
             valueClassName={
-              summaryStats.p95 < 500
+              summaryStats.p95 === null
+                ? 'text-[var(--text-muted)]'
+                : summaryStats.p95 < 500
                 ? 'text-emerald-700'
                 : summaryStats.p95 < 1000
                   ? 'text-amber-700'
                   : 'text-rose-700'
             }
+            note={
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                {summaryStats.isGlobalScope
+                  ? 'Aggregate: MAX of latest P95 values across in-scope services'
+                  : 'Scope: selected service(s) latest datapoint'}
+              </p>
+            }
             tone="amber"
-            tooltip="How slow responses become during heavier periods. Lower numbers usually mean users feel faster performance."
+            tooltip="How slow responses become during heavier periods. Global mode uses MAX latest P95 to surface the slowest service."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.availability.label}
@@ -353,14 +493,29 @@ export default function Metrics() {
             icon={METRIC_LABELS.availability.icon}
             value={formatPercent(summaryStats.availability)}
             valueClassName={
-              summaryStats.availability > 99.9
+              summaryStats.availability === null
+                ? 'text-[var(--text-muted)]'
+                : summaryStats.availability > 99.9
                 ? 'text-emerald-700'
                 : summaryStats.availability > 99
                   ? 'text-blue-700'
                   : 'text-rose-700'
             }
+            note={
+              summaryStats.availability === null ? (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  N/A: availability telemetry is not available for this window
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  {summaryStats.isGlobalScope
+                    ? 'Aggregate: AVG of latest availability across services with availability data'
+                    : 'Scope: selected service(s) latest datapoint'}
+                </p>
+              )
+            }
             tone="purple"
-            tooltip="How often services stay online and reachable. Values close to 100% indicate stronger stability."
+            tooltip="How often services stay online and reachable. Renders N/A when availability is missing; no fallback values are fabricated."
           />
         </div>
       )}
@@ -505,15 +660,18 @@ export default function Metrics() {
               iconWrapperClassName="bg-amber-500/20"
               iconClassName="text-amber-400"
               title="Response Speed (Latency)"
-              tooltip="Shows response speed changes over time across latency bands. Lower values generally mean better user experience."
+              tooltip="Shows latency trends by percentile. P50/P99 render as N/A when telemetry does not provide those fields."
             >
+              {(!hasP50Data || !hasP99Data) && (
+                <p className="mb-3 text-xs text-[var(--text-muted)]">
+                  P50: {hasP50Data ? 'available' : 'N/A'} | P99: {hasP99Data ? 'available' : 'N/A'}
+                  <span className="ml-1 inline-flex align-middle">
+                    <InfoHint text="Telemetry currently persists P95 only for this dataset. Missing percentile fields are shown as N/A instead of 0." />
+                  </span>
+                </p>
+              )}
               <LatencyMultiLineChart
-                data={data.datapoints.map((d) => ({
-                  timestamp: d.timestamp,
-                  p50: d.p50,
-                  p95: d.p95,
-                  p99: d.p99,
-                }))}
+                data={latencySeries}
               />
             </ChartPanel>
 
@@ -523,17 +681,23 @@ export default function Metrics() {
               iconWrapperClassName="bg-emerald-500/20"
               iconClassName="text-emerald-400"
               title="Uptime Stability"
-              tooltip="Shows how consistently services stay online and reachable over time. Drops can signal outages or reliability issues."
+              tooltip="Shows how consistently services stay online and reachable over time. Renders N/A when availability telemetry is missing."
             >
-              <TimeSeriesLineChart
-                data={data.datapoints.map((d) => ({
-                  timestamp: d.timestamp,
-                  value: d.availability ?? (100 - (d.errorRate || 0)),
-                }))}
-                strokeColor="#10b981"
-                fillColor="#10b981"
-                valueFormatter={(v) => formatPercent(v)}
-              />
+              {availabilitySeries.length > 0 ? (
+                <TimeSeriesLineChart
+                  data={availabilitySeries}
+                  strokeColor="#10b981"
+                  fillColor="#10b981"
+                  valueFormatter={(v) => formatPercent(v)}
+                />
+              ) : (
+                <p className="text-sm text-[var(--text-muted)]">
+                  N/A
+                  <span className="ml-1 inline-flex align-middle">
+                    <InfoHint text="Availability is not present in telemetry for the selected scope/time window." />
+                  </span>
+                </p>
+              )}
             </ChartPanel>
           </div>
         </Section>
@@ -612,12 +776,24 @@ export default function Metrics() {
                       <span
                         className={(() => {
                           const avail = getDisplayUptime(point)
+                          if (avail === null) return 'text-[var(--text-muted)]'
                           if (avail >= 99) return 'text-emerald-700'
                           if (avail >= 95) return 'text-amber-700'
                           return 'text-rose-700'
                         })()}
                       >
-                        {formatPercent(getDisplayUptime(point))}
+                        {(() => {
+                          const avail = getDisplayUptime(point)
+                          if (avail === null) {
+                            return (
+                              <span className="inline-flex items-center gap-1">
+                                N/A
+                                <InfoHint text="Availability is not available in telemetry for this service/time window." />
+                              </span>
+                            )
+                          }
+                          return formatPercent(avail)
+                        })()}
                       </span>
                     </td>
                     <td className={tableCellClass}>

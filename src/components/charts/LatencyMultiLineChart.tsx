@@ -11,9 +11,9 @@ import {
 
 interface DataPoint {
   timestamp: string
-  p50?: number
-  p95?: number
-  p99?: number
+  p50?: number | null
+  p95?: number | null
+  p99?: number | null
 }
 
 interface LatencyMultiLineChartProps {
@@ -41,7 +41,7 @@ export default function LatencyMultiLineChart({
     payload,
   }: {
     active?: boolean
-    payload?: Array<{ name: string; value: number; payload: DataPoint; color?: string }>
+    payload?: Array<{ name: string; value: number | null; payload: DataPoint; color?: string }>
   }) => {
     if (active && payload && payload.length) {
       return (
@@ -51,7 +51,7 @@ export default function LatencyMultiLineChart({
           </p>
           {payload.map((entry) => (
             <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
-              {entry.name}: {formatMs(entry.value)}
+              {entry.name}: {typeof entry.value === 'number' && Number.isFinite(entry.value) ? formatMs(entry.value) : 'N/A'}
             </p>
           ))}
         </div>
@@ -79,7 +79,7 @@ export default function LatencyMultiLineChart({
         />
         <Tooltip content={<CustomTooltip />} />
         <Legend wrapperStyle={{ fontSize: '12px', color: 'var(--chart-axis-label)' }} />
-        {data.some((d) => d.p50 !== undefined) && (
+        {data.some((d) => typeof d.p50 === 'number' && Number.isFinite(d.p50)) && (
           <Line
             type="monotone"
             dataKey="p50"
@@ -90,7 +90,7 @@ export default function LatencyMultiLineChart({
             activeDot={{ r: 4 }}
           />
         )}
-        {data.some((d) => d.p95 !== undefined) && (
+        {data.some((d) => typeof d.p95 === 'number' && Number.isFinite(d.p95)) && (
           <Line
             type="monotone"
             dataKey="p95"
@@ -101,7 +101,7 @@ export default function LatencyMultiLineChart({
             activeDot={{ r: 4 }}
           />
         )}
-        {data.some((d) => d.p99 !== undefined) && (
+        {data.some((d) => typeof d.p99 === 'number' && Number.isFinite(d.p99)) && (
           <Line
             type="monotone"
             dataKey="p99"

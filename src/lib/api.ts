@@ -108,8 +108,20 @@ export function dedupeServices(services: DiscoveredService[]): DiscoveredService
   return Array.from(byId.values()).sort((a, b) => a.serviceId.localeCompare(b.serviceId))
 }
 
-export function getResilientServices(primary: DiscoveredService[] = []): DiscoveredService[] {
-  return dedupeServices([...primary, ...getCachedServices(), ...getSeededServices()])
+interface ResilientServiceOptions {
+  includeSeeded?: boolean
+}
+
+export function getResilientServices(
+  primary: DiscoveredService[] = [],
+  options: ResilientServiceOptions = {}
+): DiscoveredService[] {
+  const includeSeeded = options.includeSeeded ?? true
+  return dedupeServices([
+    ...primary,
+    ...getCachedServices(),
+    ...(includeSeeded ? getSeededServices() : []),
+  ])
 }
 
 function buildSimulationQuery(options?: SimulationRunOptions): string {

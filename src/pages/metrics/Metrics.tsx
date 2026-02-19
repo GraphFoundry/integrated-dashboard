@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router'
-import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck, BarChart3 } from 'lucide-react'
+import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck, BarChart3, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import MetricHighlightCard from '@/components/layout/MetricHighlightCard'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
+import InfoHint from '@/components/common/InfoHint'
 import {
   cn,
   controlInputDarkClass,
@@ -24,10 +25,10 @@ import {
 import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
-import { getTelemetryMetrics, getServices } from '@/lib/api'
+import { getResilientServices, getSimulationOutcomesMetrics, getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { calculateServiceRisk } from '@/lib/risk'
-import type { TelemetryDatapoint, TelemetryMetricsResponse } from '@/lib/types'
+import type { DiscoveredService, SimulationMetricsResponse, TelemetryDatapoint, TelemetryMetricsResponse } from '@/lib/types'
 import { useGraphStream } from '@/lib/useGraphStream'
 
 // High-level "Kid-Friendly" / Executive labels
@@ -67,6 +68,7 @@ interface ChartPanelProps {
   readonly iconWrapperClassName: string
   readonly iconClassName: string
   readonly title: string
+  readonly tooltip?: string
   readonly children: React.ReactNode
 }
 
@@ -75,6 +77,7 @@ function ChartPanel({
   iconWrapperClassName,
   iconClassName,
   title,
+  tooltip,
   children,
 }: ChartPanelProps) {
   return (
@@ -83,7 +86,10 @@ function ChartPanel({
         <div className={`rounded-lg p-2 ${iconWrapperClassName}`}>
           <Icon className={`h-4 w-4 ${iconClassName}`} />
         </div>
-        <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
+        <div className="inline-flex items-center gap-1.5">
+          <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
+          {tooltip ? <InfoHint text={tooltip} /> : null}
+        </div>
       </div>
       {children}
     </div>
@@ -95,8 +101,10 @@ export default function Metrics() {
   const [serviceName, setServiceName] = useState('')
   const [timeRange, setTimeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
+  const [simulationMetrics, setSimulationMetrics] = useState<SimulationMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [services, setServices] = useState<Array<{ name: string; namespace: string }>>([])
+  const [services, setServices] = useState<DiscoveredService[]>([])
+  const [servicesNotice, setServicesNotice] = useState<string | null>(null)
   const { lastUpdated } = useGraphStream()
 
   const getTimeRangeMs = useCallback((range: string): number => {
@@ -121,14 +129,20 @@ export default function Metrics() {
       const now = new Date()
       const from = new Date(now.getTime() - getTimeRangeMs(timeRange))
 
-      const result = await getTelemetryMetrics({
-        service: serviceName,
-        from: from.toISOString(),
-        to: now.toISOString(),
-        step: 60,
-      })
+      const [telemetryResult, simulationResult] = await Promise.all([
+        getTelemetryMetrics({
+          service: serviceName,
+          from: from.toISOString(),
+          to: now.toISOString(),
+          step: 60,
+        }),
+        getSimulationOutcomesMetrics('7d').catch(() => null),
+      ])
 
-      setData(result)
+      setData(telemetryResult)
+      if (simulationResult) {
+        setSimulationMetrics(simulationResult)
+      }
     } catch (err) {
       console.error('Fetch error:', err)
       if (!background) {
@@ -143,9 +157,15 @@ export default function Metrics() {
     const fetchServices = async () => {
       try {
         const response = await getServices()
-        setServices(response.services)
-      } catch (err) {
-        console.error('Failed to fetch services:', err)
+        setServices(getResilientServices(response.services))
+        if (response.stale) {
+          setServicesNotice('Service list is stale. Showing latest available snapshot.')
+        } else {
+          setServicesNotice(null)
+        }
+      } catch {
+        setServices(getResilientServices([]))
+        setServicesNotice('Live service list unavailable. Showing cached/demo services.')
       }
     }
     fetchServices()
@@ -202,6 +222,15 @@ export default function Metrics() {
     return uptime <= 0 ? 100 : uptime
   }
 
+  const focusOptions = useMemo((): DiscoveredService[] => {
+    const telemetryServices: DiscoveredService[] = (data?.datapoints ?? []).map((point) => ({
+      serviceId: `${point.namespace}:${point.service}`,
+      name: point.service,
+      namespace: point.namespace,
+    }))
+    return getResilientServices([...services, ...telemetryServices])
+  }, [data?.datapoints, services])
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       <PageHeader
@@ -217,46 +246,38 @@ export default function Metrics() {
             <label htmlFor="service-select" className={controlLabelCompactClass}>
               Focus Area (Service)
             </label>
-            <div className="relative">
-              <Select
-                id="service-select"
-                value={serviceName}
-                onChange={(e) => setServiceName(e.target.value)}
-                className={cn(controlInputDarkClass, 'appearance-none pr-11')}
-              >
-                <option value="">Entire System (Global)</option>
-                {services.map((service) => (
-                  <option key={`${service.namespace}/${service.name}`} value={service.name}>
-                    {service.name}
-                  </option>
-                ))}
-              </Select>
-              <div className="pointer-events-none absolute right-4 top-3.5 text-[var(--text-muted)]">
-                <Settings className="w-4 h-4" />
-              </div>
-            </div>
+            <Select
+              id="service-select"
+              value={serviceName}
+              onChange={(e) => setServiceName(e.target.value)}
+              className={controlInputDarkClass}
+              suffixIcon={<Settings className="h-4 w-4" />}
+            >
+              <option value="">Entire System (Global)</option>
+              {focusOptions.map((service) => (
+                <option key={`${service.namespace}/${service.name}`} value={service.name}>
+                  {service.name} ({service.namespace})
+                </option>
+              ))}
+            </Select>
           </div>
           <div className="flex-1">
             <label htmlFor="time-range-select" className={controlLabelCompactClass}>
               Time Horizon
             </label>
-            <div className="relative">
-              <Select
-                id="time-range-select"
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                className={cn(controlInputDarkClass, 'appearance-none pr-11')}
-              >
-                <option value="5m">Last 5 minutes (Real-time)</option>
-                <option value="15m">Last 15 minutes</option>
-                <option value="1h">Last 1 hour</option>
-                <option value="6h">Last 6 hours</option>
-                <option value="24h">Last 24 hours</option>
-              </Select>
-              <div className="pointer-events-none absolute right-4 top-3.5 text-[var(--text-muted)]">
-                <Clock className="w-4 h-4" />
-              </div>
-            </div>
+            <Select
+              id="time-range-select"
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className={controlInputDarkClass}
+              suffixIcon={<Clock className="h-4 w-4" />}
+            >
+              <option value="5m">Last 5 minutes (Real-time)</option>
+              <option value="15m">Last 15 minutes</option>
+              <option value="1h">Last 1 hour</option>
+              <option value="6h">Last 6 hours</option>
+              <option value="24h">Last 24 hours</option>
+            </Select>
           </div>
           <button type="button"
             onClick={() => fetchData(false)}
@@ -268,6 +289,9 @@ export default function Metrics() {
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
+        {servicesNotice && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">{servicesNotice}</p>
+        )}
       </div>
 
       {/* Vital Signs Cards */}
@@ -280,6 +304,7 @@ export default function Metrics() {
             value={formatRps(summaryStats.requestRate)}
             valueClassName="text-[var(--text-primary)]"
             tone="blue"
+            tooltip="How many requests are coming in each second right now. Higher means busier traffic."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.errorRate.label}
@@ -288,19 +313,20 @@ export default function Metrics() {
             value={formatPercent(summaryStats.healthScore)}
             valueClassName={
               summaryStats.healthScore > 99
-                ? 'text-emerald-300'
+                ? 'text-emerald-700'
                 : summaryStats.healthScore > 95
-                  ? 'text-amber-300'
-                  : 'text-rose-300'
+                  ? 'text-amber-700'
+                  : 'text-rose-700'
             }
             note={
               summaryStats.healthScore < 100 ? (
-                <p className="mt-1 text-xs text-rose-400">
+                <p className="mt-1 text-xs text-rose-700">
                   {formatPercent(summaryStats.errorRate)} requests failing
                 </p>
               ) : undefined
             }
             tone="emerald"
+            tooltip="Overall request success health. Higher means more requests are finishing without errors."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.p95.label}
@@ -309,12 +335,13 @@ export default function Metrics() {
             value={formatMs(summaryStats.p95)}
             valueClassName={
               summaryStats.p95 < 500
-                ? 'text-emerald-300'
+                ? 'text-emerald-700'
                 : summaryStats.p95 < 1000
-                  ? 'text-amber-300'
-                  : 'text-rose-300'
+                  ? 'text-amber-700'
+                  : 'text-rose-700'
             }
             tone="amber"
+            tooltip="How slow requests become during busy moments. Lower values mean faster user experience."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.availability.label}
@@ -323,14 +350,105 @@ export default function Metrics() {
             value={formatPercent(summaryStats.availability)}
             valueClassName={
               summaryStats.availability > 99.9
-                ? 'text-emerald-300'
+                ? 'text-emerald-700'
                 : summaryStats.availability > 99
-                  ? 'text-blue-300'
-                  : 'text-rose-300'
+                  ? 'text-blue-700'
+                  : 'text-rose-700'
             }
             tone="purple"
+            tooltip="How often this service stays online and reachable for users."
           />
         </div>
+      )}
+
+      {/* Component 4 Outcomes */}
+      {simulationMetrics && (
+        <Section
+          title="Simulation Outcomes"
+          description="Summary of recent simulation runs, shown separately from live telemetry"
+          icon={BarChart3}
+        >
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-6">
+            <MetricHighlightCard
+              label="Runs (7d)"
+              description="Total simulation runs"
+              icon={BarChart3}
+              value={simulationMetrics.runs}
+              tone="blue"
+              tooltip="Total number of simulation runs completed in the last 7 days."
+            />
+            <MetricHighlightCard
+              label="Failure Runs"
+              description="Failure impact simulations"
+              icon={AlertCircle}
+              value={simulationMetrics.failureRuns}
+              tone="amber"
+              tooltip="Number of failure scenarios that were tested in the selected period."
+            />
+            <MetricHighlightCard
+              label="Scale Runs"
+              description="Scaling speed simulations"
+              icon={Zap}
+              value={simulationMetrics.scaleRuns}
+              tone="emerald"
+              tooltip="Number of scaling scenarios that were tested in the selected period."
+            />
+            <MetricHighlightCard
+              label="Avg Affected"
+              description="Average impacted services"
+              icon={Activity}
+              value={simulationMetrics.avgAffectedServices.toFixed(2)}
+              tone="blue"
+              tooltip="Average count of services impacted in each simulation run."
+            />
+            <MetricHighlightCard
+              label="Avg Latency Δ"
+              description="Average delta from scaling runs"
+              icon={Clock}
+              value={`${simulationMetrics.avgLatencyDeltaMs >= 0 ? '+' : ''}${simulationMetrics.avgLatencyDeltaMs.toFixed(2)} ms`}
+              tone={simulationMetrics.avgLatencyDeltaMs <= 0 ? 'emerald' : 'amber'}
+              tooltip="Average response-time change after scaling actions. Negative is faster, positive is slower."
+            />
+            <MetricHighlightCard
+              label="Low Confidence"
+              description="Runs with stale/uncertain inputs"
+              icon={ShieldCheck}
+              value={simulationMetrics.lowConfidenceRuns}
+              tone={simulationMetrics.lowConfidenceRuns > 0 ? 'amber' : 'emerald'}
+              tooltip="Runs where input data quality was weak or stale, so treat outcomes as guidance, not certainty."
+            />
+          </div>
+
+          <div className="mt-4 rounded-lg border border-[var(--border-strong)] bg-[var(--surface-solid)] p-4 shadow-[0_8px_20px_rgba(15,23,42,0.08)]">
+            <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Run Trend</h3>
+            {simulationMetrics.trend.length === 0 ? (
+              <p className="text-sm text-[var(--text-muted)]">No simulation runs in the selected window.</p>
+            ) : (
+              <div className="max-h-56 overflow-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={cn(tableHeadRowClass, 'bg-[var(--surface-soft)]')}>
+                      <th className={cn(tableHeaderCellClass, 'text-[var(--text-secondary)]')}>Date</th>
+                      <th className={cn(tableHeaderCellClass, 'text-right')}>Runs</th>
+                      <th className={cn(tableHeaderCellClass, 'text-right')}>Failure</th>
+                      <th className={cn(tableHeaderCellClass, 'text-right')}>Scale</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {simulationMetrics.trend.map((point) => (
+                      <tr key={point.date} className={cn(tableBodyRowClass, 'odd:bg-[var(--surface-soft)] even:bg-[var(--surface-subtle)]')}>
+                        <td className={cn(tableCellClass, 'font-semibold text-[var(--text-primary)]')}>{point.date}</td>
+                        <td className={cn(tableCellClass, 'text-right font-mono font-semibold text-[var(--text-primary)]')}>{point.runs}</td>
+                        <td className={cn(tableCellClass, 'text-right font-mono text-[var(--text-secondary)]')}>{point.failureRuns}</td>
+                        <td className={cn(tableCellClass, 'text-right font-mono text-[var(--text-secondary)]')}>{point.scaleRuns}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Section>
       )}
 
       {/* Deep Dive Charts */}
@@ -343,6 +461,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-blue-500/20"
               iconClassName="text-blue-400"
               title="Traffic Trends"
+              tooltip="Shows how request traffic goes up and down over time."
             >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
@@ -361,6 +480,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-rose-500/20"
               iconClassName="text-rose-400"
               title="Failure Rate Trends"
+              tooltip="Shows how the failure percentage changes over time."
             >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
@@ -379,6 +499,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-amber-500/20"
               iconClassName="text-amber-400"
               title="Response Speed (Latency)"
+              tooltip="Shows how response speed changes over time. Lower is better."
             >
               <LatencyMultiLineChart
                 data={data.datapoints.map((d) => ({
@@ -396,6 +517,7 @@ export default function Metrics() {
               iconWrapperClassName="bg-emerald-500/20"
               iconClassName="text-emerald-400"
               title="Uptime Stability"
+              tooltip="Shows how consistently the service stays online and reachable over time."
             >
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
@@ -433,7 +555,7 @@ export default function Metrics() {
                     Success Rate
                   </th>
                   <th className={cn(tableHeaderCellClass, 'text-right')}>
-                    Speed (P95)
+                    Slow-end response time
                   </th>
                   <th className={cn(tableHeaderCellClass, 'text-right')}>
                     Uptime
@@ -461,10 +583,10 @@ export default function Metrics() {
                     <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span
                         className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${point.errorRate <= 1
-                          ? 'bg-emerald-500/10 text-emerald-400'
+                          ? 'bg-emerald-500/12 text-emerald-700'
                           : point.errorRate <= 5
-                            ? 'bg-amber-500/10 text-amber-400'
-                            : 'bg-rose-500/10 text-rose-400'
+                            ? 'bg-amber-500/12 text-amber-700'
+                            : 'bg-rose-500/12 text-rose-700'
                           }`}
                       >
                         {formatPercent(100 - point.errorRate)}
@@ -474,7 +596,7 @@ export default function Metrics() {
                       <span
                         className={
                           point.p95 < 500 ? 'text-[var(--text-primary)]' :
-                            point.p95 < 1000 ? 'text-amber-400' : 'text-rose-400'
+                            point.p95 < 1000 ? 'text-amber-700' : 'text-rose-700'
                         }
                       >
                         {formatMs(point.p95)}
@@ -484,9 +606,9 @@ export default function Metrics() {
                       <span
                         className={(() => {
                           const avail = getDisplayUptime(point)
-                          if (avail >= 99) return 'text-emerald-400'
-                          if (avail >= 95) return 'text-amber-400'
-                          return 'text-rose-400'
+                          if (avail >= 99) return 'text-emerald-700'
+                          if (avail >= 95) return 'text-amber-700'
+                          return 'text-rose-700'
                         })()}
                       >
                         {formatPercent(getDisplayUptime(point))}

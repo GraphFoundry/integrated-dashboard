@@ -1,13 +1,13 @@
 import { ChevronDown } from 'lucide-react'
-import React, { forwardRef } from 'react'
+import React, { forwardRef, useEffect, useMemo, useState } from 'react'
 import type { Key } from 'react-aria-components'
 import {
+  ComboBox as AriaComboBox,
+  Input as AriaInput,
   Button,
   ListBox,
   ListBoxItem,
   Popover,
-  Select as AriaSelect,
-  SelectValue,
 } from 'react-aria-components'
 import { cn, controlInputMutedClass } from '@/components/common/uiClassTokens'
 import type { NativeSelectChangeEvent, SelectAdapterProps } from './types'
@@ -97,24 +97,66 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
   const ariaDescribedBy = restProps['aria-describedby']
   const ariaInvalid = restProps['aria-invalid']
   const autoFocus = restProps.autoFocus
+  const fallbackAriaLabel =
+    ariaLabel ??
+    (ariaLabelledBy ? undefined : name?.trim() || (id ? `${id} select` : 'Select option'))
   const options = parseOptions(children)
   const selectedValue = value == null ? '' : String(value)
   const selectedOption = options.find((option) => option.value === selectedValue)
   const selectedKey = selectedOption?.key
+  const [query, setQuery] = useState(selectedOption?.textValue ?? '')
+
+  useEffect(() => {
+    setQuery(selectedOption?.textValue ?? '')
+  }, [selectedOption?.textValue])
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase()
+    const selectedLabel = selectedOption?.textValue.trim().toLowerCase() ?? ''
+    if (selectedLabel && normalizedQuery === selectedLabel) return options
+    if (!normalizedQuery) return options
+    return options.filter((option) => {
+      const label = option.textValue.toLowerCase()
+      const rawValue = option.value.toLowerCase()
+      return label.includes(normalizedQuery) || rawValue.includes(normalizedQuery)
+    })
+  }, [options, query])
+
+  const emitChange = (nextValue: string) => {
+    if (!onChange) return
+    onChange(createSyntheticSelectEvent(nextValue, name, id))
+  }
 
   const handleSelectionChange = (nextKey: Key | null) => {
-    if (!onChange) {
+    if (nextKey == null) {
       return
     }
+
     const option = options.find((item) => item.key === String(nextKey))
     const nextValue = option?.value ?? ''
-    onChange(createSyntheticSelectEvent(nextValue, name, id))
+    setQuery(option?.textValue ?? '')
+    emitChange(nextValue)
+  }
+
+  const handleInputChange = (nextQuery: string) => {
+    setQuery(nextQuery)
+    if (!nextQuery.trim() && selectedValue) {
+      const emptyOption = options.find((option) => option.value === '')
+      if (emptyOption) {
+        emitChange('')
+      }
+    }
+  }
+
+  const handleInputBlur = () => {
+    setQuery(selectedOption?.textValue ?? '')
   }
 
   return (
     <>
       <select
         ref={ref}
+        id={id}
         aria-hidden="true"
         className="sr-only"
         disabled={disabled}
@@ -131,41 +173,40 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           </option>
         ))}
       </select>
-      <AriaSelect
+      <AriaComboBox
         className="block w-full"
+        allowsCustomValue={false}
+        aria-describedby={ariaDescribedBy}
+        aria-label={fallbackAriaLabel}
+        aria-labelledby={ariaLabelledBy}
         isDisabled={disabled}
         isInvalid={Boolean(ariaInvalid)}
         isRequired={required}
+        inputValue={query}
+        menuTrigger="focus"
         selectedKey={selectedKey}
+        onInputChange={handleInputChange}
         onSelectionChange={handleSelectionChange}
       >
-        <Button
-          id={id}
-          aria-describedby={ariaDescribedBy}
-          aria-invalid={ariaInvalid}
-          aria-label={ariaLabel}
-          aria-labelledby={ariaLabelledBy}
-          autoFocus={autoFocus}
-          className={cn(
-            controlInputMutedClass,
-            'relative w-full appearance-none pr-11 text-left',
-            'flex items-center justify-between gap-2',
-            className
-          )}
-        >
-          <span className="min-w-0 flex-1 truncate">
-            <SelectValue />
-          </span>
-          <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
-          {suffixIcon ? (
-            <span
-              aria-hidden
-              className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-[var(--color-emerald-300)]"
-            >
-              {suffixIcon}
-            </span>
-          ) : null}
-        </Button>
+        <div className="relative w-full">
+          <AriaInput
+            id={id}
+            aria-invalid={ariaInvalid}
+            aria-label={fallbackAriaLabel}
+            aria-labelledby={ariaLabelledBy}
+            autoFocus={autoFocus}
+            className={cn(controlInputMutedClass, 'w-full cursor-pointer pr-12', className)}
+            name={name}
+            onBlur={handleInputBlur}
+          />
+          <Button
+            aria-label="Toggle options"
+            className="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-[var(--text-muted)]"
+          >
+            {suffixIcon ? <span className="text-[var(--text-secondary)]">{suffixIcon}</span> : null}
+            <ChevronDown className="h-4 w-4 shrink-0" />
+          </Button>
+        </div>
         <Popover
           className={cn(
             'surface-panel z-50 max-h-72 w-[var(--trigger-width)] min-w-[var(--trigger-width)] overflow-auto rounded-[var(--radius-sm)] border border-[var(--border)] p-1',
@@ -173,7 +214,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           )}
         >
           <ListBox className="w-full outline-none">
-            {options.map((option) => (
+            {filteredOptions.map((option) => (
               <ListBoxItem
                 key={option.key}
                 id={option.key}
@@ -181,18 +222,21 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
                 textValue={option.textValue}
                 className={({ isFocused, isSelected }) =>
                   cn(
-                    'cursor-pointer rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] outline-none',
+                    'cursor-pointer rounded-md border border-transparent px-3 py-2 text-sm text-[var(--text-secondary)] outline-none',
                     isFocused && 'bg-[var(--surface-soft)] text-[var(--text-primary)]',
-                    isSelected && 'bg-emerald-500/20 text-[var(--color-emerald-300)]'
+                    isSelected && 'border-[var(--ring)] bg-[var(--surface-soft)] text-[var(--text-primary)]'
                   )
                 }
               >
                 {option.label}
               </ListBoxItem>
             ))}
+            {filteredOptions.length === 0 && (
+              <div className="px-3 py-2 text-sm text-[var(--text-muted)]">No matches</div>
+            )}
           </ListBox>
         </Popover>
-      </AriaSelect>
+      </AriaComboBox>
     </>
   )
 })

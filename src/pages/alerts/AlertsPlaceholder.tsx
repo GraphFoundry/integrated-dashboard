@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { bffApi, Incident, Overview, connectToAlertStream, WSMessage } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
+import InfoHint from '@/components/common/InfoHint'
 import EmptyState from '@/components/layout/EmptyState'
 import {
   cn,
@@ -53,6 +54,7 @@ interface OverviewStatCardProps {
   readonly title: string
   readonly value: React.ReactNode
   readonly subtitle: React.ReactNode
+  readonly tooltip?: string
 }
 
 function OverviewStatCard({
@@ -67,7 +69,10 @@ function OverviewStatCard({
   title,
   value,
   subtitle,
+  tooltip,
 }: OverviewStatCardProps) {
+  const hintText = tooltip ?? `${title}: ${subtitle}`
+
   return (
     <div
       className={`surface-glass interactive-soft group relative overflow-hidden rounded-[var(--radius-md)] border p-6 ${borderClass} ${hoverBorderClass} ${hoverShadowClass}`}
@@ -77,7 +82,12 @@ function OverviewStatCard({
         {topRight}
       </div>
       <div className="space-y-1">
-        <p className="text-sm font-medium text-[var(--text-secondary)]">{title}</p>
+        <p className="max-w-full break-words text-sm font-medium leading-snug text-[var(--text-secondary)]">
+          {title}
+          <span className="ml-1 inline-flex align-middle">
+            <InfoHint text={hintText} />
+          </span>
+        </p>
         <p className="text-4xl font-bold text-[var(--text-primary)]">{value}</p>
         <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
       </div>
@@ -287,6 +297,7 @@ export default function AlertsPage() {
             title="Open Incidents"
             value={overview.open_incidents}
             subtitle={`${overview.total_incidents} total incidents`}
+            tooltip="Incidents that are still open and not solved yet. These still need team attention."
           />
 
           <OverviewStatCard
@@ -307,6 +318,7 @@ export default function AlertsPage() {
             title="Critical Alerts"
             value={overview.critical_count}
             subtitle={`${overview.high_count} high severity`}
+            tooltip="Most urgent alerts with the highest risk. These should be reviewed and handled first."
           />
 
           <OverviewStatCard
@@ -326,6 +338,7 @@ export default function AlertsPage() {
             title="Auto Actions"
             value={overview.auto_actions_count}
             subtitle={`${overview.manual_actions_count} manual reviews`}
+            tooltip="Cases where the platform already took an automatic step, so manual work was reduced."
           />
 
           <OverviewStatCard
@@ -339,6 +352,7 @@ export default function AlertsPage() {
             title="Services Affected"
             value={overview.services_affected}
             subtitle="Active monitoring"
+            tooltip="Number of services currently impacted by active incidents or alerts."
           />
         </div>
       )}

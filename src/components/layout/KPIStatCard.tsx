@@ -1,5 +1,6 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
+import InfoHint from '@/components/common/InfoHint'
 
 export type TrendDirection = 'up' | 'down' | 'stable'
 
@@ -27,8 +28,8 @@ const trendIcons = {
 }
 
 const trendColors = {
-  up: 'text-emerald-300',
-  down: 'text-rose-300',
+  up: 'text-emerald-700',
+  down: 'text-rose-700',
   stable: 'text-[var(--text-muted)]',
 }
 
@@ -42,10 +43,10 @@ export default function KPIStatCard({
   tooltip,
 }: Readonly<KPIStatCardProps>) {
   const TrendIcon = trend ? trendIcons[trend] : null
+  const hintText = tooltip ?? `Simple explanation of what "${label}" means on this card.`
 
   return (
     <div
-      title={tooltip}
       className={cn(
         glassSurfaceClass,
         'interactive-soft rounded-[var(--radius-md)] p-4 hover:-translate-y-0.5 hover:border-[var(--color-emerald-300)]/60',
@@ -53,8 +54,9 @@ export default function KPIStatCard({
         className
       )}
     >
-      <div className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-        {label}
+      <div className="mb-1 flex items-start gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+        <span className="min-w-0 break-words leading-tight">{label}</span>
+        <InfoHint text={hintText} />
       </div>
       <div className="flex items-baseline gap-2">
         <div className="text-2xl font-bold text-[var(--text-primary)]">{value}</div>

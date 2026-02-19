@@ -63,7 +63,7 @@ export const successButtonClass = cn(
 export const subtleIconButtonClass = cn(iconActionButtonClass, 'h-11 w-11 p-2.5')
 
 export const linkActionButtonClass =
-  'neon-focus-ring interactive-soft rounded-md px-2 py-1 text-sm font-semibold text-[var(--color-emerald-300)] hover:text-emerald-200'
+  'neon-focus-ring interactive-soft rounded-md px-2 py-1 text-sm font-semibold text-[var(--text-primary)] hover:text-[var(--text-primary)]'
 
 export const tableShellClass = cn(
   glassSurfaceClass,
@@ -85,7 +85,7 @@ export const tableHeadStickyClass = 'sticky top-0 z-10 backdrop-blur-md'
 
 export const tableActionLinkClass = cn(
   linkActionButtonClass,
-  'border border-[var(--ring)] bg-emerald-400/12 text-[var(--color-emerald-300)] hover:bg-emerald-400/20'
+  'border border-[var(--ring)] bg-emerald-500/12 text-[var(--text-primary)] hover:bg-emerald-500/20'
 )
 
 export const shellSidebarClass = cn(

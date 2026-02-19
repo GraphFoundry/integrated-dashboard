@@ -1,5 +1,6 @@
 import { LucideIcon } from 'lucide-react'
 import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
+import InfoHint from '@/components/common/InfoHint'
 
 interface SectionProps {
   title?: string
@@ -7,6 +8,7 @@ interface SectionProps {
   actions?: React.ReactNode
   children: React.ReactNode
   className?: string
+  contentClassName?: string
   icon?: LucideIcon
 }
 
@@ -16,6 +18,7 @@ export default function Section({
   actions,
   children,
   className = '',
+  contentClassName = '',
   icon: Icon,
 }: Readonly<SectionProps>) {
   return (
@@ -32,6 +35,7 @@ export default function Section({
                     </div>
                   )}
                   <h2 className="text-xl font-semibold text-[var(--text-primary)]">{title}</h2>
+                  {description ? <InfoHint text={description} /> : null}
                 </div>
               )}
               {description && (
@@ -42,7 +46,7 @@ export default function Section({
           </div>
         </header>
       )}
-      <div className="p-6">{children}</div>
+      <div className={cn('p-6', contentClassName)}>{children}</div>
     </section>
   )
 }

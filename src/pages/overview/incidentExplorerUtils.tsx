@@ -1,4 +1,4 @@
-import { Info } from 'lucide-react'
+import InfoHint from '@/components/common/InfoHint'
 
 interface MetricTooltipProps {
   readonly label: string
@@ -9,16 +9,9 @@ interface MetricTooltipProps {
 export function MetricTooltip({ label, tooltip, children }: MetricTooltipProps) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
+      <div className="inline-flex w-fit items-center gap-1.5 text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
         <span>{label}</span>
-        <div className="group relative inline-block">
-          <Info className="w-3 h-3 text-[var(--text-dim)] hover:text-[var(--text-muted)] cursor-help" />
-          <div className="absolute left-0 bottom-full mb-2 hidden group-hover:block w-64 z-50">
-            <div className="bg-[var(--surface-solid)] text-[var(--text-primary)] text-xs rounded-lg p-2 shadow-xl border border-[var(--border)]">
-              {tooltip}
-            </div>
-          </div>
-        </div>
+        <InfoHint text={tooltip} />
       </div>
       {children}
     </div>

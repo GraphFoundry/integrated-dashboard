@@ -321,11 +321,18 @@ app.post('/webhook/graph-update', (req: Request, res: Response) => {
 // GET /api/graph/latest - Get the latest cached graph data (REST fallback)
 app.get('/api/graph/latest', (req: Request, res: Response) => {
   if (!latestGraphData) {
-    return res.status(404).json({ error: 'No graph data available yet' })
+    // Keep startup polling quiet: return an empty payload until first webhook arrives.
+    return res.status(200).json({
+      data: null,
+      receivedAt: graphDataReceivedAt,
+      hasData: false,
+      message: 'No graph data available yet',
+    })
   }
-  res.json({
+  res.status(200).json({
     data: latestGraphData,
     receivedAt: graphDataReceivedAt,
+    hasData: true,
   })
 })
 

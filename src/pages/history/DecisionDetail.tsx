@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
-import { getDecisionHistory } from '@/lib/api'
+import { getDecisionById } from '@/lib/api'
 import { formatDate, formatRps, formatMs } from '@/lib/format'
 import type { DecisionRecord, Recommendation, PipelineTrace } from '@/lib/types'
 
@@ -29,9 +29,9 @@ const getScenarioSummary = (item: DecisionRecord): string => {
 const getConfidenceBadge = (confidence?: string) => {
   if (!confidence) return null
   const colors: Record<string, string> = {
-    high: 'bg-green-900/30 text-green-300 border-green-700',
-    medium: 'bg-yellow-900/30 text-yellow-300 border-yellow-700',
-    low: 'bg-red-900/30 text-red-300 border-red-700',
+    high: 'bg-emerald-500/12 text-emerald-700 border-emerald-500/45',
+    medium: 'bg-amber-500/12 text-amber-700 border-amber-500/45',
+    low: 'bg-rose-500/12 text-rose-700 border-rose-500/45',
   }
   return (
     <span
@@ -55,13 +55,13 @@ export default function DecisionDetail() {
 
       try {
         setLoading(true)
-        const response = await getDecisionHistory({ limit: 1000, offset: 0 })
-        const found = response.decisions.find((item) => item.id.toString() === id)
-        if (found) {
-          setDecision(found)
-        } else {
+        const parsedId = Number(id)
+        if (!Number.isFinite(parsedId)) {
           setError('Decision not found')
+          return
         }
+        const found = await getDecisionById(parsedId)
+        setDecision(found)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load decision')
       } finally {
@@ -150,13 +150,13 @@ export default function DecisionDetail() {
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <PageHeader
-          title="Decision Details"
+          title="Decision Story"
           description={formatDate(new Date(decision.timestamp))}
         />
       </div>
 
       {/* Summary */}
-      <Section title="Summary">
+      <Section title="What was simulated">
         <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
           <p className="text-lg text-[var(--text-primary)] leading-relaxed">{summary}</p>
           {confidence && (
@@ -165,13 +165,16 @@ export default function DecisionDetail() {
               {getConfidenceBadge(confidence)}
             </div>
           )}
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            This run is read-only and based on available graph evidence at that time.
+          </p>
         </div>
       </Section>
 
       {/* Configuration Audit (Inputs) */}
       <Section
-        title="Configuration Audit"
-        description="System state inputs used for this simulation"
+        title="Simulation inputs"
+        description="Key inputs used to produce this outcome"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
@@ -245,12 +248,12 @@ export default function DecisionDetail() {
 
       {/* Affected Services */}
       {decision.type === 'failure' && (
-        <Section title="Impact Analysis">
+        <Section title="What changed">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Upstream Callers */}
             <div>
               <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
-                Upstream Callers ({affectedCallers.length})
+                Upstream callers impacted ({affectedCallers.length})
               </h3>
               {affectedCallers.length === 0 ? (
                 <div className="p-8 text-center bg-[var(--surface-solid)] rounded border border-[var(--border)] border-dashed">
@@ -269,8 +272,8 @@ export default function DecisionDetail() {
                         <div className="font-medium text-[var(--text-primary)]">{c.name as string}</div>
                         <div className="text-xs text-[var(--text-muted)]">{c.namespace as string}</div>
                         {c.lostTrafficRps !== undefined && (
-                          <div className="text-sm text-yellow-300 mt-1">
-                            Lost: {formatRps(c.lostTrafficRps as number)} RPS
+                          <div className="text-sm text-[var(--text-primary)] mt-1">
+                            Lost traffic: {formatRps(c.lostTrafficRps as number)} req/s
                           </div>
                         )}
                       </div>
@@ -283,7 +286,7 @@ export default function DecisionDetail() {
             {/* Downstream Dependencies */}
             <div>
               <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
-                Downstream Impacted ({affectedDownstream.length})
+                Downstream services impacted ({affectedDownstream.length})
               </h3>
               {affectedDownstream.length === 0 ? (
                 <div className="p-8 text-center bg-[var(--surface-solid)] rounded border border-[var(--border)] border-dashed">
@@ -302,8 +305,8 @@ export default function DecisionDetail() {
                         <div className="font-medium text-[var(--text-primary)]">{d.name as string}</div>
                         <div className="text-xs text-[var(--text-muted)]">{d.namespace as string}</div>
                         {d.lostTrafficRps !== undefined && (
-                          <div className="text-sm text-red-300 mt-1">
-                            Lost: {formatRps(d.lostTrafficRps as number)} RPS
+                          <div className="text-sm text-[var(--text-primary)] mt-1">
+                            Lost traffic: {formatRps(d.lostTrafficRps as number)} req/s
                           </div>
                         )}
                       </div>
@@ -318,24 +321,24 @@ export default function DecisionDetail() {
 
       {/* Latency Impact (Scaling) */}
       {(decision.type === 'scale' || decision.type === 'scaling') && latencyEstimate && (
-        <Section title="Latency Impact">
+        <Section title="What changed">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
-              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Baseline</div>
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Current slow-end response time</div>
               <div className="text-[var(--text-primary)] text-xl font-semibold">
                 {formatMs((latencyEstimate.baselineMs as number) ?? 0)}
               </div>
             </div>
             <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
-              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Projected</div>
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Projected slow-end response time</div>
               <div className="text-[var(--text-primary)] text-xl font-semibold">
                 {formatMs((latencyEstimate.projectedMs as number) ?? 0)}
               </div>
             </div>
             <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
-              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Delta</div>
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Expected change</div>
               <div
-                className={`text-xl font-semibold ${((latencyEstimate.deltaMs as number) ?? 0) < 0 ? 'text-green-400' : 'text-red-400'}`}
+                className={`text-xl font-semibold ${((latencyEstimate.deltaMs as number) ?? 0) < 0 ? 'text-emerald-700' : 'text-rose-700'}`}
               >
                 {((latencyEstimate.deltaMs as number) ?? 0) < 0 ? '' : '+'}
                 {formatMs((latencyEstimate.deltaMs as number) ?? 0)}
@@ -348,15 +351,15 @@ export default function DecisionDetail() {
       {/* Recommendations */}
       {recommendations.length > 0 && (
         <Section
-          title="Recommendations"
-          description="AI-generated action items based on simulation results"
+          title="What to do next"
+          description="Suggested next actions based on this simulation"
         >
           <div className="space-y-3">
             {recommendations.map((rec, idx) => {
               const priorityClass = (() => {
-                if (rec.priority === 'high') return 'bg-red-900/30 text-red-300'
-                if (rec.priority === 'medium') return 'bg-yellow-900/30 text-yellow-300'
-                return 'bg-blue-900/30 text-blue-300'
+                if (rec.priority === 'high') return 'bg-rose-500/15 text-rose-700'
+                if (rec.priority === 'medium') return 'bg-amber-500/15 text-amber-700'
+                return 'bg-blue-500/15 text-blue-700'
               })()
 
               return (
@@ -385,7 +388,7 @@ export default function DecisionDetail() {
           onClick={() => setShowRawJson(!showRawJson)}
           className="w-full flex items-center justify-between p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors"
         >
-          <span className="text-sm font-medium text-[var(--text-secondary)]">Raw Record (Debug)</span>
+          <span className="text-sm font-medium text-[var(--text-secondary)]">Advanced technical record</span>
           <span className="text-[var(--text-dim)]">{showRawJson ? '▼' : '▶'}</span>
         </button>
 

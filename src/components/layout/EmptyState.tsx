@@ -7,6 +7,7 @@ interface EmptyStateProps {
   message: string
   description?: string
   action?: React.ReactNode
+  className?: string
 }
 
 export default function EmptyState({
@@ -15,10 +16,11 @@ export default function EmptyState({
   message,
   description,
   action,
+  className,
 }: Readonly<EmptyStateProps>) {
   return (
     <div
-      className={cn(glassPanelClass, 'rounded-[var(--radius-md)] p-10 text-center md:p-12')}
+      className={cn(glassPanelClass, 'rounded-[var(--radius-md)] p-10 text-center md:p-12', className)}
       role="status"
       aria-live="polite"
     >

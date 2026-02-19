@@ -1,4 +1,5 @@
 import { cn, metricHighlightCardClass } from '@/components/common/uiClassTokens'
+import InfoHint from '@/components/common/InfoHint'
 
 type MetricTone = 'default' | 'indigo' | 'blue' | 'rose' | 'amber' | 'emerald' | 'purple'
 
@@ -11,6 +12,7 @@ interface MetricHighlightCardProps {
   readonly note?: React.ReactNode
   readonly tone?: MetricTone
   readonly className?: string
+  readonly tooltip?: string
 }
 
 const TONE_STYLES: Record<MetricTone, { border: string; icon: string; glow: string }> = {
@@ -60,8 +62,10 @@ export default function MetricHighlightCard({
   note,
   tone = 'default',
   className,
+  tooltip,
 }: Readonly<MetricHighlightCardProps>) {
   const styles = TONE_STYLES[tone]
+  const hintText = tooltip ?? description
 
   return (
     <div className={cn(metricHighlightCardClass, styles.border, className)}>
@@ -71,9 +75,12 @@ export default function MetricHighlightCard({
       </div>
       <div className="relative z-10 flex h-full flex-col justify-between">
         <div>
-          <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
-            {label}
-          </h3>
+          <div className="mb-1 flex items-start gap-1.5">
+            <h3 className="min-w-0 break-words text-xs font-semibold uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              {label}
+            </h3>
+            <InfoHint text={hintText} />
+          </div>
           <p className="mb-4 text-xs text-[var(--text-secondary)]">{description}</p>
         </div>
         <div>

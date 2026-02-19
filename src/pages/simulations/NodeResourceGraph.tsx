@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { GraphCanvas, GraphNode as ReagraphNode } from 'reagraph'
+import { GraphCanvas, GraphNode as ReagraphNode, type GraphCanvasRef } from 'reagraph'
 import {
   ChevronRight,
   ArrowLeft,
@@ -12,6 +12,9 @@ import {
   HardDrive,
   TrendingUp,
   Clock,
+  Plus,
+  Minus,
+  LocateFixed,
 
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
@@ -147,10 +150,12 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   const [currentServiceName, setCurrentServiceName] = useState<string | null>(null)
   const [hoveredNode, setHoveredNode] = useState<ReagraphNode | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
+  const [isNodeHovered, setIsNodeHovered] = useState(false)
   const [selections, setSelections] = useState<string[]>([])
   const [serviceDependencyEdges, setServiceDependencyEdges] = useState<
     { source: string; target: string }[]
   >([])
+  const graphRef = useRef<GraphCanvasRef | null>(null)
   const graphTheme = useMemo(() => createGraphTheme(resolvedTheme), [resolvedTheme])
 
   const hasInitialDrillDown = useRef(false)
@@ -514,13 +519,43 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       <div className="flex-1 relative">
         {hasData ? (
           <div
-            className="absolute inset-0"
+            className={`absolute inset-0 ${isNodeHovered ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
             onMouseMove={(e) => {
               setMousePosition({ x: e.clientX, y: e.clientY })
             }}
             role="presentation"
           >
+            <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => graphRef.current?.zoomOut?.()}
+                className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+                aria-label="Zoom out graph"
+                title="Zoom out"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => graphRef.current?.zoomIn?.()}
+                className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+                aria-label="Zoom in graph"
+                title="Zoom in"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => graphRef.current?.fitNodesInView?.()}
+                className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+                aria-label="Fit graph to view"
+                title="Fit graph"
+              >
+                <LocateFixed className="h-4 w-4" />
+              </button>
+            </div>
             <GraphCanvas
+              ref={graphRef}
               nodes={graphData.nodes}
               edges={graphData.edges}
               selections={selections}
@@ -530,14 +565,17 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
               onNodeClick={(node) => handleNodeClick(node)}
               onNodePointerOver={(node) => {
                 setHoveredNode(node)
+                setIsNodeHovered(true)
                 setSelections([node.id])
               }}
               onNodePointerOut={() => {
                 setHoveredNode(null)
+                setIsNodeHovered(false)
                 setSelections([])
               }}
               onCanvasClick={() => {
                 setSelections([])
+                setIsNodeHovered(false)
               }}
               minZoom={0.1}
               maxZoom={5}

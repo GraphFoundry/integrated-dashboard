@@ -1,11 +1,11 @@
 import { NavLink } from 'react-router'
-import { LayoutDashboard, LineChart, Beaker, History, AlertCircle, GitBranch } from 'lucide-react'
+import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch } from 'lucide-react'
 import { cn, shellSidebarClass } from '@/components/common/uiClassTokens'
 
 const navItems = [
   { path: '/overview', label: 'Overview', icon: LayoutDashboard },
   { path: '/metrics', label: 'Metrics', icon: LineChart },
-  { path: '/simulations', label: 'Simulations', icon: Beaker },
+  { path: '/simulations', label: 'Simulations', icon: Sparkles },
   { path: '/alerts', label: 'Alerts', icon: AlertCircle },
   { path: '/history', label: 'History', icon: History },
   { path: '/decisions/scheduler', label: 'Scheduler', icon: GitBranch },

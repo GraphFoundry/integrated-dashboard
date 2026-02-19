@@ -13,7 +13,7 @@ import { ThemeContext } from './ThemeContext'
 
 function getInitialTheme(): ThemeMode {
   if (typeof document === 'undefined') {
-    return 'system'
+    return 'light'
   }
 
   const documentTheme = parseThemeMode(document.documentElement.getAttribute('data-theme'))
@@ -21,7 +21,7 @@ function getInitialTheme(): ThemeMode {
     return documentTheme
   }
 
-  return readStoredTheme() ?? 'system'
+  return readStoredTheme() ?? 'light'
 }
 
 function getInitialResolvedTheme(): ResolvedTheme {

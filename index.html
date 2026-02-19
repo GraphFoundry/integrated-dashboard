@@ -10,13 +10,13 @@
       const STORAGE_KEY = 'theme'
       const root = document.documentElement
       const isThemeMode = (value) => value === 'light' || value === 'dark' || value === 'system'
-      let theme = 'system'
+      let theme = 'light'
 
       try {
         const storedTheme = window.localStorage.getItem(STORAGE_KEY)
-        theme = isThemeMode(storedTheme) ? storedTheme : 'system'
+        theme = isThemeMode(storedTheme) ? storedTheme : 'light'
       } catch {
-        theme = 'system'
+        theme = 'light'
       }
 
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches

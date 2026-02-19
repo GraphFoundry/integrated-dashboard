@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { FlaskConical, CalendarClock, X } from 'lucide-react'
+import { FlaskConical, CalendarClock, Gauge, Layers, X } from 'lucide-react'
 import type { Scenario, ScenarioType, DiscoveredService, TimeWindow } from '@/lib/types'
-import { getServices } from '@/lib/api'
+import { getResilientServices, getServices } from '@/lib/api'
+import InfoHint from '@/components/common/InfoHint'
 import {
   cn,
   controlInputMutedClass,
@@ -17,6 +18,8 @@ const EXAMPLE_SERVICES = [
   'default:checkoutservice',
   'default:frontend',
   'default:cartservice',
+  'default:recommendationservice',
+  'default:paymentservice',
 ]
 
 // Validate serviceId format for Live mode: must be "namespace:name"
@@ -29,12 +32,34 @@ function isValidLiveServiceId(serviceId: string): boolean {
   return namespace.length > 0 && name.length > 0
 }
 
+function normalizeLiveServiceInput(rawValue: string): string {
+  const trimmed = rawValue.trim()
+  if (!trimmed) return ''
+
+  if (trimmed.includes(':')) {
+    return trimmed
+  }
+
+  const labelledMatch = trimmed.match(/^([a-z0-9-]+)\s*\(([^)]+)\)(?:\s*-\s*.*)?$/i)
+  if (labelledMatch) {
+    const [, serviceName, namespace] = labelledMatch
+    if (serviceName && namespace) {
+      return `${namespace}:${serviceName}`
+    }
+  }
+
+  return trimmed
+}
+
 interface ScenarioFormProps {
   readonly onRun: (scenario: Scenario) => void
   readonly loading: boolean
   readonly mode: 'mock' | 'live'
   readonly scenarioType: ScenarioType
   readonly onScenarioTypeChange: (type: ScenarioType) => void
+  readonly allowExperimentalAdd?: boolean
+  readonly onServiceSelectionChange?: (serviceId: string) => void
+  readonly onDepthChange?: (depth: number) => void
 }
 
 const compactControlClass =
@@ -46,13 +71,17 @@ export default function ScenarioForm({
   mode,
   scenarioType,
   onScenarioTypeChange,
+  allowExperimentalAdd = true,
+  onServiceSelectionChange,
+  onDepthChange,
 }: ScenarioFormProps) {
   // Mock mode: prefill with a valid service; Live mode: empty for user input
   const [serviceId, setServiceId] = useState(mode === 'mock' ? 'default:productcatalog' : '')
-  const [maxDepth, setMaxDepth] = useState(2)
+  const [maxDepth, setMaxDepth] = useState(1)
   const [currentPods, setCurrentPods] = useState(3)
   const [newPods, setNewPods] = useState(5)
   const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95')
+  const [topPaths, setTopPaths] = useState(5)
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('1w')
 
   // Service Addition state
@@ -66,25 +95,32 @@ export default function ScenarioForm({
   const [discoveredServices, setDiscoveredServices] = useState<DiscoveredService[]>([])
   const [servicesLoading, setServicesLoading] = useState(false)
   const [servicesError, setServicesError] = useState<string | null>(null)
+  const [servicesNotice, setServicesNotice] = useState<string | null>(null)
   const [servicesStale, setServicesStale] = useState(false)
 
   // Fetch services from backend when Live mode is active
   const fetchServices = useCallback(async (signal?: AbortSignal) => {
     setServicesLoading(true)
     setServicesError(null)
+    setServicesNotice(null)
     try {
       const response = await getServices(signal)
-      setDiscoveredServices(response.services)
+      const resilientServices = getResilientServices(response.services)
+      setDiscoveredServices(resilientServices)
       setServicesStale(response.stale)
       if (response.error) {
-        setServicesError(response.error)
+        setServicesNotice(response.error)
+      } else if (response.stale) {
+        setServicesNotice('Showing latest available services (data source is currently stale).')
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'CanceledError') {
         return // Aborted, ignore
       }
-      setServicesError(err instanceof Error ? err.message : 'Failed to fetch services')
-      setDiscoveredServices([])
+      setServicesError(null)
+      setServicesStale(true)
+      setServicesNotice('Live service list is unavailable. Showing cached/demo services.')
+      setDiscoveredServices(getResilientServices([]))
     } finally {
       setServicesLoading(false)
     }
@@ -94,8 +130,9 @@ export default function ScenarioForm({
   useEffect(() => {
     if (mode === 'mock') {
       setServiceId('default:productcatalog')
-      setDiscoveredServices([])
+      setDiscoveredServices(getResilientServices([]))
       setServicesError(null)
+      setServicesNotice(null)
       setServicesStale(false)
     } else {
       setServiceId('')
@@ -105,6 +142,20 @@ export default function ScenarioForm({
       return () => controller.abort()
     }
   }, [mode, fetchServices])
+
+  useEffect(() => {
+    onServiceSelectionChange?.(serviceId.trim())
+  }, [serviceId, onServiceSelectionChange])
+
+  useEffect(() => {
+    onDepthChange?.(maxDepth)
+  }, [maxDepth, onDepthChange])
+
+  useEffect(() => {
+    if (!allowExperimentalAdd && scenarioType === 'add-service') {
+      onScenarioTypeChange('failure')
+    }
+  }, [allowExperimentalAdd, onScenarioTypeChange, scenarioType])
 
   // Helper: check if serviceId exists in discovered services (Live mode)
   const isServiceIdInGraph = (): boolean => {
@@ -198,6 +249,7 @@ export default function ScenarioForm({
         newPods,
         latencyMetric,
         maxDepth,
+        topPaths,
         timeWindow,
       })
     } else {
@@ -244,9 +296,9 @@ export default function ScenarioForm({
           className={controlInputMutedClass}
           suffixIcon={<FlaskConical className="h-4 w-4" />}
         >
-          <option value="add-service">Add New Service</option>
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
+          {allowExperimentalAdd && <option value="add-service">Add New Service (Experimental)</option>}
         </Select>
       </div>
 
@@ -319,6 +371,7 @@ export default function ScenarioForm({
                 value={minRam}
                 onChange={(e) => setMinRam(Number(e.target.value))}
                 className={controlInputMutedClass}
+                suffixIcon={<Gauge className="h-4 w-4" />}
               >
                 <option value={128}>128 MB</option>
                 <option value={256}>256 MB</option>
@@ -345,6 +398,7 @@ export default function ScenarioForm({
               value={addReplicas}
               onChange={(e) => setAddReplicas(Number(e.target.value))}
               className={controlInputMutedClass}
+              suffixIcon={<Layers className="h-4 w-4" />}
             >
               {[1, 2, 3, 4, 5, 10].map((num) => (
                 <option key={num} value={num}>
@@ -410,6 +464,9 @@ export default function ScenarioForm({
               label={
                 <>
                   Service ID
+                  <span className="ml-1 align-middle">
+                    <InfoHint text="Pick the service you want to test in this simulation. Use namespace:name so the system can find the exact service correctly." />
+                  </span>
                   {mode === 'live' && (
                     <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>
                   )}
@@ -417,17 +474,18 @@ export default function ScenarioForm({
                     <span className="ml-2 text-xs text-blue-400">Loading services...</span>
                   )}
                   {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
-                    <span className="ml-2 text-xs text-green-400">
+                    <span className="ml-2 text-xs text-[var(--text-secondary)]">
                       {discoveredServices.length} service
                       {discoveredServices.length === 1 ? '' : 's'} available
-                      {servicesStale && <span className="ml-1 text-yellow-400">(stale)</span>}
+                      {servicesStale && <span className="ml-1 text-amber-600">(stale source)</span>}
                     </span>
                   )}
                 </>
               }
-              helperClassName={cn(serviceIdHint ? 'text-yellow-400' : 'text-[var(--text-dim)]')}
+              helperClassName={cn(serviceIdHint ? 'text-amber-600' : 'text-[var(--text-dim)]')}
               helperText={
                 serviceIdHint ||
+                servicesNotice ||
                 (mode === 'live' &&
                 !serviceId.trim() &&
                 !servicesLoading &&
@@ -442,7 +500,7 @@ export default function ScenarioForm({
               <Combobox
                 id="serviceId"
                 value={serviceId}
-                onChange={(e) => setServiceId(e.target.value)}
+                onChange={(e) => setServiceId(normalizeLiveServiceInput(e.target.value))}
                 items={serviceComboboxItems}
                 placeholder={
                   mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'
@@ -450,9 +508,8 @@ export default function ScenarioForm({
                 className={cn(
                   compactControlClass,
                   'placeholder-slate-500',
-                  serviceIdHint ? 'border-yellow-600' : 'border-[var(--border-strong)]'
+                  serviceIdHint ? 'border-amber-500/70' : 'border-[var(--border-strong)]'
                 )}
-                disabled={mode === 'live' && servicesLoading}
               />
             </Field>
           </div>
@@ -463,10 +520,10 @@ export default function ScenarioForm({
               htmlFor="maxDepth"
               className={controlLabelClass}
             >
-              Max Depth: {maxDepth}
+              Impact Range (hops): {maxDepth}
             </label>
             <Slider
-              aria-label="Maximum dependency depth"
+              aria-label="Impact range in hops"
               id="maxDepth"
               min="1"
               max="3"
@@ -531,10 +588,33 @@ export default function ScenarioForm({
                   value={latencyMetric}
                   onChange={(e) => setLatencyMetric(e.target.value as 'p50' | 'p95' | 'p99')}
                   className={controlInputMutedClass}
+                  suffixIcon={<Gauge className="h-4 w-4" />}
                 >
-                  <option value="p50">P50</option>
-                  <option value="p95">P95</option>
-                  <option value="p99">P99</option>
+                  <option value="p50">Typical response time</option>
+                  <option value="p95">Slow-end response time (95% under this)</option>
+                  <option value="p99">Worst-case response time (99% under this)</option>
+                </Select>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="topPaths"
+                  className={controlLabelClass}
+                >
+                  Top Paths
+                </label>
+                <Select
+                  id="topPaths"
+                  value={topPaths}
+                  onChange={(e) => setTopPaths(Number(e.target.value))}
+                  className={controlInputMutedClass}
+                  suffixIcon={<Layers className="h-4 w-4" />}
+                >
+                  {[3, 5, 8, 10].map((num) => (
+                    <option key={num} value={num}>
+                      Top {num}
+                    </option>
+                  ))}
                 </Select>
               </div>
             </>

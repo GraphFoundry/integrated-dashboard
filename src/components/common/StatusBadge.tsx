@@ -21,9 +21,9 @@ interface StatusBadgeProps {
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
   default: 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]',
   secondary: 'border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-muted)]',
-  success: 'border-emerald-300/35 bg-emerald-400/15 text-emerald-200',
-  warning: 'border-amber-300/35 bg-amber-400/15 text-amber-400',
-  destructive: 'border-rose-300/35 bg-rose-400/15 text-rose-400',
+  success: 'border-emerald-500/35 bg-emerald-500/14 text-emerald-700',
+  warning: 'border-amber-500/35 bg-amber-500/14 text-amber-700',
+  destructive: 'border-rose-500/35 bg-rose-500/14 text-rose-700',
   outline: 'border-[var(--border)] bg-transparent text-[var(--text-secondary)]',
 }
 

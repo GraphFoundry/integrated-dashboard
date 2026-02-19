@@ -17,7 +17,6 @@ import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import type { TelemetryMetricsResponse, TelemetryDatapoint } from '@/lib/types'
-import { getGlossaryTerm } from '@/lib/glossary'
 import { ArrowLeft, BarChart3 } from 'lucide-react'
 
 function KpiCardSkeleton() {
@@ -208,7 +207,7 @@ export default function OffenderDetails() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KPIStatCard
               label="Traffic"
-              tooltip="Requests per second"
+              tooltip="How busy this service is right now based on incoming requests per second."
               value={
                 summaryStats.requestRate === undefined ? 'N/A' : formatRps(summaryStats.requestRate)
               }
@@ -216,7 +215,7 @@ export default function OffenderDetails() {
             />
             <KPIStatCard
               label="Failed Requests"
-              tooltip="Percentage of requests that resulted in errors"
+              tooltip="How many requests are failing out of all requests. Lower is healthier."
               value={
                 summaryStats.errorRate === undefined ? 'N/A' : formatPercent(summaryStats.errorRate)
               }
@@ -230,7 +229,7 @@ export default function OffenderDetails() {
             />
             <KPIStatCard
               label="Slow Response Time"
-              tooltip={`${getGlossaryTerm('p95').tooltip} (P95 latency)`}
+              tooltip="How slow requests become during busy moments. Lower means better user speed."
               value={summaryStats.p95 === undefined ? 'N/A' : formatMs(summaryStats.p95)}
               variant={(() => {
                 if (summaryStats.p95 === undefined) return 'default'
@@ -242,7 +241,7 @@ export default function OffenderDetails() {
             />
             <KPIStatCard
               label="Uptime"
-              tooltip="Service availability percentage"
+              tooltip="How often this service stays online and reachable over the selected time window."
               value={
                 summaryStats.availability === undefined
                   ? 'N/A'

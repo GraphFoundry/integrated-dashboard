@@ -191,7 +191,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Request Rate (RPS)' : 'Traffic'}
-          tooltip="Number of requests per second this service is receiving"
+          tooltip="How busy this service is right now. Higher traffic means more user or system requests are hitting it."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
@@ -202,7 +202,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Error Rate (%)' : 'Failed Requests'}
-          tooltip="Percentage of requests that resulted in errors (5xx responses)"
+          tooltip="How many requests are failing out of all requests. Lower is better for reliability."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
@@ -213,7 +213,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'P95 Latency (ms)' : 'Slow Responses'}
-          tooltip="95% of requests complete faster than this. This shows how slow it gets for the slowest 5% of requests."
+          tooltip="How slow responses get for users during heavier moments. Lower values mean a faster experience."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
@@ -224,7 +224,7 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Availability (%)' : 'Uptime'}
-          tooltip="Percentage of time the service was responsive and healthy"
+          tooltip="How often this service stays online and reachable. Closer to 100% means stronger reliability."
         >
           <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced

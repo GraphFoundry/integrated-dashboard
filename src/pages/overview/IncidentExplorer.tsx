@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect } from 'react'
-import { GraphCanvas, GraphNode as ReagraphNode, GraphEdge as ReagraphEdge } from 'reagraph'
+import { useMemo, useState, useEffect, useRef } from 'react'
+import { GraphCanvas, GraphNode as ReagraphNode, GraphEdge as ReagraphEdge, type GraphCanvasRef } from 'reagraph'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -23,6 +23,9 @@ import {
   ArrowDownToLine,
   ArrowUpFromLine,
   CircleAlert,
+  Plus,
+  Minus,
+  LocateFixed,
 } from 'lucide-react'
 
 type GraphMode = 'impact' | 'suspect' | 'flow'
@@ -60,6 +63,8 @@ export default function IncidentExplorer() {
   const [actives, setActives] = useState<string[]>([])
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
+  const [isNodeHovered, setIsNodeHovered] = useState(false)
+  const graphRef = useRef<GraphCanvasRef | null>(null)
 
   // Update state when WebSocket data arrives (replaces polling)
   useEffect(() => {
@@ -244,13 +249,43 @@ export default function IncidentExplorer() {
       <div className="flex-1 relative">
         {hasData ? (
           <div
-            className="absolute inset-0"
+            className={`absolute inset-0 ${isNodeHovered ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
             onMouseMove={(e) => {
               setMousePosition({ x: e.clientX, y: e.clientY })
             }}
             role="presentation"
           >
+            <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => graphRef.current?.zoomOut?.()}
+                className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+                aria-label="Zoom out graph"
+                title="Zoom out"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => graphRef.current?.zoomIn?.()}
+                className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+                aria-label="Zoom in graph"
+                title="Zoom in"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => graphRef.current?.fitNodesInView?.()}
+                className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+                aria-label="Fit graph to view"
+                title="Fit graph"
+              >
+                <LocateFixed className="h-4 w-4" />
+              </button>
+            </div>
             <GraphCanvas
+              ref={graphRef}
               nodes={reagraphNodes}
               edges={reagraphEdges}
               selections={selections}
@@ -261,6 +296,7 @@ export default function IncidentExplorer() {
               onNodeClick={(node) => handleNodeClick(node)}
               onNodePointerOver={(node) => {
                 setHoveredNode(node.data as GraphNode)
+                setIsNodeHovered(true)
 
                 // Highlight upstream/downstream on hover (if no node selected)
                 if (!selectedNode) {
@@ -299,6 +335,7 @@ export default function IncidentExplorer() {
               }}
               onNodePointerOut={() => {
                 setHoveredNode(null)
+                setIsNodeHovered(false)
                 // Clear hover highlights if no node is selected
                 if (!selectedNode) {
                   setSelections([])
@@ -309,6 +346,7 @@ export default function IncidentExplorer() {
                 setSelections([])
                 setActives([])
                 setSelectedNode(null)
+                setIsNodeHovered(false)
               }}
             />
 

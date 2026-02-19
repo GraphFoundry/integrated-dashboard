@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import { forwardRef } from 'react'
+import { forwardRef, useEffect, useMemo, useState } from 'react'
 import type { Key } from 'react-aria-components'
 import {
   Button,
@@ -44,26 +44,71 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
   },
   ref
 ) {
-  const inputValue = value == null ? '' : String(value)
+  const { onBlur, ...inputProps } = props
+  const rawValue = value == null ? '' : String(value)
+  const selectedItem = useMemo(
+    () => items.find((item) => item.value === rawValue) ?? items.find((item) => item.label === rawValue),
+    [items, rawValue]
+  )
+  const [displayValue, setDisplayValue] = useState<string>(selectedItem?.label ?? rawValue)
+
+  useEffect(() => {
+    setDisplayValue(selectedItem?.label ?? rawValue)
+  }, [rawValue, selectedItem?.label])
+
+  const filteredItems = useMemo(() => {
+    const normalizedQuery = displayValue.trim().toLowerCase()
+    const normalizedSelectedLabel = selectedItem?.label.trim().toLowerCase() ?? ''
+    if (!normalizedQuery || normalizedQuery === normalizedSelectedLabel) return items
+    return items.filter((item) => {
+      const label = item.label.toLowerCase()
+      const raw = item.value.toLowerCase()
+      return label.includes(normalizedQuery) || raw.includes(normalizedQuery)
+    })
+  }, [displayValue, items, selectedItem?.label])
 
   const handleInputChange = (nextValue: string) => {
-    onChange?.(createSyntheticInputEvent(nextValue, name, id))
+    setDisplayValue(nextValue)
+
+    if (!nextValue.trim() && selectedItem) {
+      setDisplayValue(selectedItem.label)
+      return
+    }
+
+    const matchedItem = items.find((item) => item.label === nextValue)
+    const normalizedValue = matchedItem ? matchedItem.value : nextValue.trim()
+    onChange?.(createSyntheticInputEvent(normalizedValue, name, id))
   }
 
   const handleSelectionChange = (nextKey: Key | null) => {
-    const nextValue = nextKey == null ? '' : String(nextKey)
+    if (nextKey == null) {
+      return
+    }
+
+    const nextValue = String(nextKey)
+    const nextItem = items.find((item) => item.value === nextValue)
+
+    setDisplayValue(nextItem?.label ?? nextValue)
     onSelectionChange?.(nextValue)
     onChange?.(createSyntheticInputEvent(nextValue, name, id))
+  }
+
+  const handleInputBlur = () => {
+    if (selectedItem) {
+      setDisplayValue(selectedItem.label)
+    }
   }
 
   return (
     <AriaComboBox
       className="block w-full"
       allowsCustomValue
-      inputValue={inputValue}
+      inputValue={displayValue}
       isDisabled={disabled}
       isRequired={required}
-      items={items}
+      items={filteredItems}
+      menuTrigger="focus"
+      selectedKey={selectedItem?.value}
       onInputChange={handleInputChange}
       onSelectionChange={handleSelectionChange}
     >
@@ -71,9 +116,13 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
         <AriaInput
           ref={ref}
           id={id}
-          className={cn(controlInputMutedClass, className)}
+          className={cn(controlInputMutedClass, 'cursor-pointer focus:cursor-text', className)}
           name={name}
-          {...props}
+          onBlur={(event) => {
+            handleInputBlur()
+            onBlur?.(event)
+          }}
+          {...inputProps}
         />
         <Button
           aria-label="Toggle suggestions"
@@ -89,7 +138,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
         )}
       >
         <ListBox className="w-full outline-none">
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <ListBoxItem
               key={item.value}
               id={item.value}
@@ -98,13 +147,16 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
                 cn(
                   'cursor-pointer rounded-md px-3 py-2 text-sm text-[var(--text-secondary)] outline-none',
                   isFocused && 'bg-[var(--surface-soft)] text-[var(--text-primary)]',
-                  isSelected && 'bg-emerald-500/20 text-[var(--color-emerald-300)]'
+                  isSelected && 'bg-[var(--surface-soft)] text-[var(--text-primary)]'
                 )
               }
             >
               {item.label}
             </ListBoxItem>
           ))}
+          {filteredItems.length === 0 && (
+            <div className="px-3 py-2 text-sm text-[var(--text-muted)]">No matches</div>
+          )}
         </ListBox>
       </Popover>
     </AriaComboBox>

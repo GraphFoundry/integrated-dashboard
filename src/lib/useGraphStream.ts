@@ -8,6 +8,7 @@ import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes } from '
 import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
 const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
+const graphCacheRefreshMs = Number.parseInt(import.meta.env.VITE_GRAPH_CACHE_REFRESH_MS || '5000', 10) || 5000
 
 /**
  * React hook that connects to the BFF WebSocket for real-time graph updates.
@@ -23,11 +24,14 @@ export function useGraphStream() {
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const isFirstUpdate = useRef(true)
+  const lastReceivedAtMs = useRef<number>(0)
 
   // Handler for incoming WebSocket graph updates
   const handleGraphUpdate = useCallback((data: GraphUpdateData) => {
+    const nowIso = new Date().toISOString()
+    lastReceivedAtMs.current = Date.parse(nowIso) || Date.now()
     setGraphData(data)
-    setLastUpdated(new Date().toISOString())
+    setLastUpdated(nowIso)
     if (isFirstUpdate.current) {
       setLoading(false)
       isFirstUpdate.current = false
@@ -41,8 +45,10 @@ export function useGraphStream() {
     getLatestGraphData()
       .then((result) => {
         if (isMounted && result?.data) {
+          const receivedAt = result.receivedAt || new Date().toISOString()
+          lastReceivedAtMs.current = Date.parse(receivedAt) || Date.now()
           setGraphData(result.data)
-          setLastUpdated(result.receivedAt)
+          setLastUpdated(receivedAt)
           setLoading(false)
           isFirstUpdate.current = false
         }
@@ -57,6 +63,30 @@ export function useGraphStream() {
         handleGraphUpdate(data)
       }
     })
+
+    // 2.5 Pull latest BFF cache every few seconds as a resilience layer.
+    // This still reflects webhook-ingested data (not direct analysis-engine polling).
+    const cacheRefreshTimer = setInterval(() => {
+      if (!isMounted) return
+      getLatestGraphData()
+        .then((result) => {
+          if (!isMounted || !result?.data) return
+          const receivedAt = result.receivedAt || new Date().toISOString()
+          const receivedAtMs = Date.parse(receivedAt) || Date.now()
+          if (receivedAtMs <= lastReceivedAtMs.current) return
+
+          lastReceivedAtMs.current = receivedAtMs
+          setGraphData(result.data)
+          setLastUpdated(receivedAt)
+          if (isFirstUpdate.current) {
+            setLoading(false)
+            isFirstUpdate.current = false
+          }
+        })
+        .catch(() => {
+          // Ignore transient cache refresh failures; WS channel remains primary.
+        })
+    }, graphCacheRefreshMs)
 
     // 3. Optional fallback: disabled by default to avoid masking webhook pipeline failures.
     const fallbackTimer = setTimeout(async () => {
@@ -87,6 +117,7 @@ export function useGraphStream() {
     return () => {
       isMounted = false
       cleanup()
+      clearInterval(cacheRefreshTimer)
       clearTimeout(fallbackTimer)
     }
   }, [handleGraphUpdate])

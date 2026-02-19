@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router'
 import { RefreshCw, Activity, Settings, Zap, Heart, Globe, Clock, ShieldCheck, BarChart3 } from 'lucide-react'
 import toast from 'react-hot-toast'
@@ -28,6 +28,7 @@ import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { calculateServiceRisk } from '@/lib/risk'
 import type { TelemetryDatapoint, TelemetryMetricsResponse } from '@/lib/types'
+import { useGraphStream } from '@/lib/useGraphStream'
 
 // High-level "Kid-Friendly" / Executive labels
 const METRIC_LABELS = {
@@ -96,9 +97,25 @@ export default function Metrics() {
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [services, setServices] = useState<Array<{ name: string; namespace: string }>>([])
+  const { lastUpdated } = useGraphStream()
 
-  const fetchData = async () => {
-    setLoading(true)
+  const getTimeRangeMs = useCallback((range: string): number => {
+    const units: Record<string, number> = {
+      '30s': 30 * 1000,
+      '1m': 60 * 1000,
+      '5m': 5 * 60 * 1000,
+      '15m': 15 * 60 * 1000,
+      '30m': 30 * 60 * 1000,
+      '1h': 60 * 60 * 1000,
+      '6h': 6 * 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+    }
+    return units[range] || units['1h']
+  }, [])
+
+  const fetchData = useCallback(async (background = false) => {
+    if (!background) setLoading(true)
 
     try {
       const now = new Date()
@@ -114,11 +131,13 @@ export default function Metrics() {
       setData(result)
     } catch (err) {
       console.error('Fetch error:', err)
-      toast.error(err instanceof Error ? err.message : 'Failed to fetch telemetry data')
+      if (!background) {
+        toast.error(err instanceof Error ? err.message : 'Failed to fetch telemetry data')
+      }
     } finally {
-      setLoading(false)
+      if (!background) setLoading(false)
     }
-  }
+  }, [getTimeRangeMs, serviceName, timeRange])
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -133,24 +152,13 @@ export default function Metrics() {
   }, [])
 
   useEffect(() => {
-    fetchData()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceName, timeRange])
+    fetchData(false)
+  }, [fetchData])
 
-  const getTimeRangeMs = (range: string): number => {
-    const units: Record<string, number> = {
-      '30s': 30 * 1000,
-      '1m': 60 * 1000,
-      '5m': 5 * 60 * 1000,
-      '15m': 15 * 60 * 1000,
-      '30m': 30 * 60 * 1000,
-      '1h': 60 * 60 * 1000,
-      '6h': 6 * 60 * 60 * 1000,
-      '24h': 24 * 60 * 60 * 1000,
-      '7d': 7 * 24 * 60 * 60 * 1000,
-    }
-    return units[range] || units['1h']
-  }
+  useEffect(() => {
+    if (!lastUpdated) return
+    fetchData(true)
+  }, [lastUpdated, fetchData])
 
   // Calculate summary stats from current datapoints
   const summaryStats = data?.datapoints.length
@@ -251,7 +259,7 @@ export default function Metrics() {
             </div>
           </div>
           <button type="button"
-            onClick={fetchData}
+            onClick={() => fetchData(false)}
             disabled={loading}
             className={cn(subtleIconButtonClass)}
             title="Refresh Vital Signs"

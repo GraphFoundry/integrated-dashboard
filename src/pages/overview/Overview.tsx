@@ -22,6 +22,12 @@ import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent } from '@/lib/format'
 import IncidentExplorer from '@/pages/overview/IncidentExplorer'
 import { getGlossaryTerm } from '@/lib/glossary'
+import { useGraphStream } from '@/lib/useGraphStream'
+
+function toPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return value <= 1 ? value * 100 : value
+}
 
 export default function Overview() {
   const [loading, setLoading] = useState(true)
@@ -32,6 +38,7 @@ export default function Overview() {
     avgP95: number
     avgAvailability: number
   } | null>(null)
+  const { graphData, lastUpdated } = useGraphStream()
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -94,8 +101,36 @@ export default function Overview() {
   }, [])
 
   useEffect(() => {
+    const services = graphData?.metricsSnapshot?.services
+    if (!services || services.length === 0) return
+
+    let totalRequestRate = 0
+    let totalErrorRatePct = 0
+    let totalP95 = 0
+    let totalAvailabilityPct = 0
+
+    services.forEach((service) => {
+      totalRequestRate += Number(service.rps || 0)
+      totalErrorRatePct += toPercent(Number(service.errorRate || 0))
+      totalP95 += Number(service.p95 || 0)
+      totalAvailabilityPct += toPercent(Number(service.availability || 0))
+    })
+
+    const count = services.length
+    setKpiData({
+      totalServices: count,
+      avgRequestRate: totalRequestRate,
+      avgErrorRate: count > 0 ? totalErrorRatePct / count : 0,
+      avgP95: count > 0 ? totalP95 / count : 0,
+      avgAvailability: count > 0 ? totalAvailabilityPct / count : 0,
+    })
+    setLoading(false)
+  }, [graphData, lastUpdated])
+
+  useEffect(() => {
+    if (graphData?.metricsSnapshot?.services?.length) return
     fetchData()
-  }, [fetchData])
+  }, [fetchData, graphData])
 
   return (
     <div className={pageContainerClass}>

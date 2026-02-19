@@ -7,6 +7,8 @@ import {
 import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes } from '@/lib/api'
 import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
+const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
+
 /**
  * React hook that connects to the BFF WebSocket for real-time graph updates.
  *
@@ -56,10 +58,15 @@ export function useGraphStream() {
       }
     })
 
-    // 3. If no data after 5s (WebSocket not yet connected, BFF cache empty),
-    //    do a one-time fallback fetch from analysis-engine
+    // 3. Optional fallback: disabled by default to avoid masking webhook pipeline failures.
     const fallbackTimer = setTimeout(async () => {
       if (isMounted && isFirstUpdate.current) {
+        if (!enableDirectFallback) {
+          setLoading(false)
+          isFirstUpdate.current = false
+          return
+        }
+
         try {
           console.log('[useGraphStream] Fallback: fetching from analysis-engine')
           await getDependencyGraphSnapshot()
@@ -205,11 +212,18 @@ export function useDependencyGraphSnapshot() {
     setFallbackLoading(false)
   }, [graphData, lastUpdated])
 
-  // If no WebSocket data yet, do a one-time REST fetch as fallback
+  // Optional fallback: disabled by default to avoid masking webhook pipeline failures.
   useEffect(() => {
     if (snapshot) return // Already have data from WS
 
     let isMounted = true
+    if (!enableDirectFallback) {
+      setFallbackLoading(false)
+      return () => {
+        isMounted = false
+      }
+    }
+
     const fetchFallback = async () => {
       try {
         const data = await getDependencyGraphSnapshot()
@@ -278,11 +292,18 @@ export function useServicesWithPlacement() {
     setFallbackLoading(false)
   }, [graphData])
 
-  // Fallback: one-time REST fetch if no WS data
+  // Optional fallback: disabled by default to avoid masking webhook pipeline failures.
   useEffect(() => {
     if (services.length > 0) return
 
     let isMounted = true
+    if (!enableDirectFallback) {
+      setFallbackLoading(false)
+      return () => {
+        isMounted = false
+      }
+    }
+
     const fetchFallback = async () => {
       try {
         const [servicesData, nodesData] = await Promise.all([

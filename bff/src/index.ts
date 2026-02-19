@@ -36,14 +36,48 @@ import { Storage } from './storage'
 import { AlertService } from './service'
 import { WSMessage, AlertEvent, GraphUpdateData } from './types'
 import { SmsService } from './sms.service'
+import { WebhookDedupeStore } from './webhookDedupeStore'
+import {
+  getPayloadLogicalTimestampMs,
+  hashBody,
+  isReplayAllowed,
+  verifyTimestampedSignature,
+} from './webhookSecurity'
+
+interface RawBodyRequest extends Request {
+  rawBody?: Buffer
+}
 
 const app = express()
 app.use(cors())
-app.use(express.json({ limit: '10mb' }))
+app.use(
+  express.json({
+    limit: '10mb',
+    verify: (req, _res, buf) => {
+      ;(req as RawBodyRequest).rawBody = Buffer.from(buf)
+    },
+  })
+)
 app.use(morgan('dev'))
 
 const PORT = process.env.PORT || 3001
 const DB_PATH = process.env.DB_PATH || './alerts.db'
+
+function parseIntEnv(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (!raw) return fallback
+  const parsed = Number.parseInt(raw, 10)
+  if (!Number.isFinite(parsed)) return fallback
+  return parsed
+}
+
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || ''
+const WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
+const WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
+const WEBHOOK_DEDUPE_FILE =
+  process.env.WEBHOOK_DEDUPE_FILE || path.resolve(__dirname, '../data/webhook-dedupe.json')
+const WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
+const WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
 
 function respondWithInternalServerError(
   res: Response,
@@ -72,6 +106,40 @@ function broadcast(message: WSMessage) {
 }
 
 const alertService = new AlertService(storage, broadcast, smsService)
+const graphWebhookDedupe = new WebhookDedupeStore(WEBHOOK_DEDUPE_FILE, WEBHOOK_DEDUPE_WINDOW_SEC)
+
+if (!WEBHOOK_SECRET) {
+  console.warn('[Graph Webhook] WEBHOOK_SECRET is not set. /webhook/graph-update will reject requests.')
+}
+
+const graphWebhookStats = {
+  receivedTotal: 0,
+  acceptedTotal: 0,
+  duplicateTotal: 0,
+  outOfOrderTotal: 0,
+  failedTotal: 0,
+  signatureRejectedTotal: 0,
+  replayRejectedTotal: 0,
+  rateLimitedTotal: 0,
+  lastEventId: null as string | null,
+}
+
+let webhookRateWindowStart = Date.now()
+let webhookRateWindowCount = 0
+
+function allowGraphWebhookRequest(): boolean {
+  if (WEBHOOK_RATE_LIMIT_WINDOW_MS <= 0 || WEBHOOK_RATE_LIMIT_MAX <= 0) return true
+  const now = Date.now()
+  if (now-webhookRateWindowStart >= WEBHOOK_RATE_LIMIT_WINDOW_MS) {
+    webhookRateWindowStart = now
+    webhookRateWindowCount = 0
+  }
+  if (webhookRateWindowCount >= WEBHOOK_RATE_LIMIT_MAX) {
+    return false
+  }
+  webhookRateWindowCount += 1
+  return true
+}
 
 // WebSocket connection handler
 wss.on('connection', (ws: WebSocket) => {
@@ -96,7 +164,15 @@ wss.on('connection', (ws: WebSocket) => {
 
 // Health check
 app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    graphWebhook: {
+      signatureEnforced: Boolean(WEBHOOK_SECRET),
+      replayWindowSec: WEBHOOK_REPLAY_WINDOW_SEC,
+      dedupeEntries: graphWebhookDedupe.size(),
+    },
+  })
 })
 
 // ===== WEBHOOK INGESTION =====
@@ -127,16 +203,88 @@ app.post('/ingest/webhook', (req: Request, res: Response) => {
 // Store latest graph data in memory for REST fallback
 let latestGraphData: GraphUpdateData | null = null
 let graphDataReceivedAt: string | null = null
+let latestGraphLogicalTimestampMs: number | null = null
 
 // POST /webhook/graph-update - Receive graph updates from analysis-engine
 app.post('/webhook/graph-update', (req: Request, res: Response) => {
   try {
-    const payload = req.body
+    graphWebhookStats.receivedTotal += 1
 
-    if (payload.event !== 'graph_update' || !payload.data) {
+    if (!allowGraphWebhookRequest()) {
+      graphWebhookStats.rateLimitedTotal += 1
+      graphWebhookStats.failedTotal += 1
+      return res.status(429).json({ success: false, error: 'Webhook rate limit exceeded' })
+    }
+
+    if (!WEBHOOK_SECRET) {
+      graphWebhookStats.failedTotal += 1
+      return res.status(503).json({ success: false, error: 'Webhook secret is not configured' })
+    }
+
+    const rawRequest = req as RawBodyRequest
+    const rawBody = rawRequest.rawBody ?? Buffer.from(JSON.stringify(req.body ?? {}))
+    const timestampHeader = req.header('X-Webhook-Timestamp') || ''
+    const signatureHeader = req.header('X-Webhook-Signature') || ''
+
+    if (!timestampHeader) {
+      graphWebhookStats.signatureRejectedTotal += 1
+      graphWebhookStats.failedTotal += 1
+      return res.status(400).json({ success: false, error: 'Missing X-Webhook-Timestamp' })
+    }
+
+    const replayCheck = isReplayAllowed(timestampHeader, WEBHOOK_REPLAY_WINDOW_SEC)
+    if (!replayCheck.ok) {
+      graphWebhookStats.replayRejectedTotal += 1
+      graphWebhookStats.failedTotal += 1
+      const statusCode = replayCheck.reason === 'invalid timestamp format' ? 400 : 401
+      return res.status(statusCode).json({ success: false, error: replayCheck.reason })
+    }
+
+    if (!verifyTimestampedSignature(rawBody, signatureHeader, timestampHeader, WEBHOOK_SECRET)) {
+      graphWebhookStats.signatureRejectedTotal += 1
+      graphWebhookStats.failedTotal += 1
+      return res.status(401).json({ success: false, error: 'Invalid webhook signature' })
+    }
+
+    const payload = req.body as Record<string, unknown>
+    if (payload.event !== 'graph_update' || !payload.data || typeof payload.data !== 'object') {
+      graphWebhookStats.failedTotal += 1
       return res.status(400).json({ success: false, error: 'Invalid graph update payload' })
     }
 
+    const eventIdFromPayload = typeof payload.event_id === 'string' ? payload.event_id : ''
+    const eventIdFromHeader = req.header('X-Webhook-Id') || ''
+    const eventId = eventIdFromPayload || eventIdFromHeader || `legacy_${hashBody(rawBody).slice(0, 20)}`
+    const correlationFromPayload =
+      typeof payload.correlation_id === 'string' ? payload.correlation_id : ''
+    const correlationId = correlationFromPayload || req.header('X-Correlation-Id') || eventId
+
+    const dedupe = graphWebhookDedupe.register(eventId, Date.now())
+    if (dedupe.duplicate) {
+      graphWebhookStats.duplicateTotal += 1
+      return res
+        .status(200)
+        .json({ success: true, duplicate: true, eventId, message: 'Duplicate webhook ignored' })
+    }
+
+    const logicalTimestampMs = getPayloadLogicalTimestampMs(payload)
+    if (
+      logicalTimestampMs !== null &&
+      latestGraphLogicalTimestampMs !== null &&
+      logicalTimestampMs < latestGraphLogicalTimestampMs
+    ) {
+      graphWebhookStats.outOfOrderTotal += 1
+      return res.status(200).json({
+        success: true,
+        ignored: true,
+        eventId,
+        message: 'Out-of-order webhook ignored',
+      })
+    }
+
+    if (logicalTimestampMs !== null) {
+      latestGraphLogicalTimestampMs = logicalTimestampMs
+    }
     const graphData = payload.data as GraphUpdateData
 
     // Cache the latest data for REST fallback
@@ -149,13 +297,18 @@ app.post('/webhook/graph-update', (req: Request, res: Response) => {
       data: graphData,
     }
     broadcast(wsMessage)
+    graphWebhookStats.acceptedTotal += 1
+    graphWebhookStats.lastEventId = eventId
 
     console.log(
-      `[Graph Webhook] Received and broadcast: ${graphData.metricsSnapshot?.services?.length || 0} services, ${graphData.metricsSnapshot?.edges?.length || 0} edges`
+      `[Graph Webhook] Accepted eventId=${eventId} correlationId=${correlationId}: ${graphData.metricsSnapshot?.services?.length || 0} services, ${graphData.metricsSnapshot?.edges?.length || 0} edges`
     )
 
-    res.status(200).json({ success: true, message: 'Graph update broadcast to clients' })
+    res
+      .status(200)
+      .json({ success: true, eventId, correlationId, message: 'Graph update broadcast to clients' })
   } catch (error) {
+    graphWebhookStats.failedTotal += 1
     respondWithInternalServerError(
       res,
       'Graph webhook error:',
@@ -314,6 +467,14 @@ app.get('/api/stats', (req: Request, res: Response) => {
   const overview = alertService.getOverview()
   res.json({
     ws_connections: wss.clients.size,
+    graph_webhook: {
+      ...graphWebhookStats,
+      dedupeEntries: graphWebhookDedupe.size(),
+      replayWindowSec: WEBHOOK_REPLAY_WINDOW_SEC,
+      rateLimitWindowMs: WEBHOOK_RATE_LIMIT_WINDOW_MS,
+      rateLimitMax: WEBHOOK_RATE_LIMIT_MAX,
+      signatureEnforced: Boolean(WEBHOOK_SECRET),
+    },
     ...overview,
   })
 })
@@ -328,6 +489,7 @@ server.listen(PORT, () => {
 // Graceful shutdown
 function handleShutdown(): void {
   console.log('\nShutting down gracefully...')
+  graphWebhookDedupe.close()
   storage.close()
   server.close(() => {
     console.log('Server closed')

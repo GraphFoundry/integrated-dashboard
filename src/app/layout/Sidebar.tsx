@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router'
-import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch } from 'lucide-react'
+import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X } from 'lucide-react'
 import { cn, shellSidebarClass } from '@/components/common/uiClassTokens'
 
 const navItems = [
@@ -11,14 +11,38 @@ const navItems = [
   { path: '/decisions/scheduler', label: 'Scheduler', icon: GitBranch },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  readonly open: boolean
+  readonly onClose: () => void
+}
+
+export default function Sidebar({ open, onClose }: SidebarProps) {
   return (
-    <aside className={shellSidebarClass}>
+    <aside
+      className={cn(
+        shellSidebarClass,
+        'transform transition-transform duration-300 ease-out',
+        open ? 'translate-x-0' : '-translate-x-full'
+      )}
+    >
       <div className="border-b border-[var(--border)] p-6">
-        <h1 className="text-xl font-bold text-[var(--text-primary)]">Adaptive Microservices</h1>
-        <p className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
-          Management Dashboard
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-[var(--text-primary)]">Adaptive Microservices</h1>
+            <p className="mt-1 text-xs font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Management Dashboard
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-2 text-[var(--text-secondary)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]"
+            aria-label="Hide sidebar"
+            title="Hide sidebar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <nav className="flex-1 p-4">

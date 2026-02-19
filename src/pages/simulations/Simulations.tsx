@@ -282,7 +282,7 @@ export default function Simulations() {
         <EmptyState
           icon={<Network className="h-10 w-10 text-[var(--text-dim)]" />}
           message="Select a target service to preview its neighborhood context"
-          className="flex h-full min-h-[30rem] flex-col justify-center"
+          className="flex h-full min-h-0 flex-col justify-center"
         />
       )
     }
@@ -320,7 +320,7 @@ export default function Simulations() {
     const topEdges = [...visibleEdges].sort((a, b) => b.rate - a.rate).slice(0, 12)
 
     return (
-      <div className="space-y-4">
+      <div className="h-full min-h-0 space-y-4 overflow-y-auto pr-1">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           <KPIStatCard
             label="Target Service"
@@ -775,7 +775,7 @@ export default function Simulations() {
             title="Simulation Context Preview"
             icon={Network}
             className="h-full"
-            contentClassName="h-full"
+            contentClassName="h-full min-h-0 overflow-hidden"
           >
             {renderContextPreview()}
           </Section>

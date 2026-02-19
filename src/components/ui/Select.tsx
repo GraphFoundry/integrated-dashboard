@@ -105,6 +105,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
   const selectedOption = options.find((option) => option.value === selectedValue)
   const selectedKey = selectedOption?.key
   const [query, setQuery] = useState(selectedOption?.textValue ?? '')
+  const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
     setQuery(selectedOption?.textValue ?? '')
@@ -148,10 +149,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
     }
   }
 
-  const handleInputBlur = () => {
-    setQuery(selectedOption?.textValue ?? '')
-  }
-
   return (
     <>
       <select
@@ -186,6 +183,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         menuTrigger="focus"
         selectedKey={selectedKey}
         onInputChange={handleInputChange}
+        onOpenChange={setIsOpen}
         onSelectionChange={handleSelectionChange}
       >
         <div className="relative w-full">
@@ -195,9 +193,21 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
             aria-label={fallbackAriaLabel}
             aria-labelledby={ariaLabelledBy}
             autoFocus={autoFocus}
-            className={cn(controlInputMutedClass, 'w-full cursor-pointer pr-12', className)}
+            className={cn(
+              controlInputMutedClass,
+              'w-full cursor-pointer pr-12',
+              !isOpen && 'caret-transparent',
+              className
+            )}
             name={name}
-            onBlur={handleInputBlur}
+            onClick={(event) => {
+              if (!isOpen && document.activeElement === event.currentTarget) {
+                event.currentTarget.blur()
+                requestAnimationFrame(() => {
+                  event.currentTarget.focus()
+                })
+              }
+            }}
           />
           <Button
             aria-label="Toggle options"

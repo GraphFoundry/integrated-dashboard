@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { Outlet } from 'react-router'
 import Sidebar from '@/app/layout/Sidebar'
 import Topbar from '@/app/layout/Topbar'
-import { shellMainClass } from '@/components/common/uiClassTokens'
+import { cn, shellMainClass } from '@/components/common/uiClassTokens'
 
 export default function DashboardLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[var(--app-bg)] text-[var(--text-primary)]">
       <div className="pointer-events-none absolute inset-0">
@@ -12,9 +15,14 @@ export default function DashboardLayout() {
       </div>
 
       <div className="relative min-h-screen">
-        <Sidebar />
-        <div className="ml-72 flex min-h-screen min-w-0 flex-1 flex-col">
-          <Topbar />
+        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <div
+          className={cn(
+            'flex min-h-screen min-w-0 flex-1 flex-col transition-[margin] duration-300 ease-out',
+            sidebarOpen ? 'ml-72' : 'ml-0'
+          )}
+        >
+          <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
           <main className={shellMainClass}>
             <Outlet />
           </main>

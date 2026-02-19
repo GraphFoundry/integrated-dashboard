@@ -44,13 +44,14 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
   },
   ref
 ) {
-  const { onBlur, ...inputProps } = props
+  const { onBlur: _onBlur, onClick, ...inputProps } = props
   const rawValue = value == null ? '' : String(value)
   const selectedItem = useMemo(
     () => items.find((item) => item.value === rawValue) ?? items.find((item) => item.label === rawValue),
     [items, rawValue]
   )
   const [displayValue, setDisplayValue] = useState<string>(selectedItem?.label ?? rawValue)
+  const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
     setDisplayValue(selectedItem?.label ?? rawValue)
@@ -93,12 +94,6 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
     onChange?.(createSyntheticInputEvent(nextValue, name, id))
   }
 
-  const handleInputBlur = () => {
-    if (selectedItem) {
-      setDisplayValue(selectedItem.label)
-    }
-  }
-
   return (
     <AriaComboBox
       className="block w-full"
@@ -110,17 +105,28 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
       menuTrigger="focus"
       selectedKey={selectedItem?.value}
       onInputChange={handleInputChange}
+      onOpenChange={setIsOpen}
       onSelectionChange={handleSelectionChange}
     >
       <div className="relative w-full">
         <AriaInput
           ref={ref}
           id={id}
-          className={cn(controlInputMutedClass, 'cursor-pointer focus:cursor-text', className)}
+          className={cn(
+            controlInputMutedClass,
+            'cursor-pointer focus:cursor-text',
+            !isOpen && 'caret-transparent',
+            className
+          )}
           name={name}
-          onBlur={(event) => {
-            handleInputBlur()
-            onBlur?.(event)
+          onClick={(event) => {
+            if (!isOpen && document.activeElement === event.currentTarget) {
+              event.currentTarget.blur()
+              requestAnimationFrame(() => {
+                event.currentTarget.focus()
+              })
+            }
+            onClick?.(event)
           }}
           {...inputProps}
         />

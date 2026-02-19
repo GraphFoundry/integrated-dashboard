@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
-import { RefreshCw, History as HistoryIcon, Filter, ScrollText } from 'lucide-react'
+import { RefreshCw, History as HistoryIcon, Filter } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
@@ -217,7 +217,7 @@ export default function History() {
       {/* Empty State */}
       {!loading && data?.decisions.length === 0 && (
         <EmptyState
-          icon={<ScrollText className="h-12 w-12 text-[var(--color-emerald-300)]" />}
+          icon={null}
           message="No decision history found"
           action={
             typeFilter ? (

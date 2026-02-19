@@ -22,7 +22,11 @@ export default function EmptyState({
       role="status"
       aria-live="polite"
     >
-      <div className={typeof icon === 'string' ? 'mb-4 text-5xl' : 'mb-4 flex justify-center'}>{icon}</div>
+      {icon != null && (
+        <div className={typeof icon === 'string' ? 'mb-4 text-5xl' : 'mb-4 flex justify-center'}>
+          {icon}
+        </div>
+      )}
       {title && <h3 className="mb-2 text-lg font-semibold text-[var(--text-primary)]">{title}</h3>}
       <p className="mb-1 text-base font-semibold text-[var(--text-primary)]">{message}</p>
       {description && (

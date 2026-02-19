@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { FlaskConical, AlertTriangle, TrendingUp, CalendarClock, X } from 'lucide-react'
+import { FlaskConical, CalendarClock, X } from 'lucide-react'
 import type { Scenario, ScenarioType, DiscoveredService, TimeWindow } from '@/lib/types'
 import { getServices } from '@/lib/api'
 import {
@@ -242,25 +242,11 @@ export default function ScenarioForm({
           value={scenarioType}
           onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
           className={controlInputMutedClass}
+          suffixIcon={<FlaskConical className="h-4 w-4" />}
         >
-          <option value="add-service">
-            <span className="flex items-center justify-between gap-2">
-              <span>Add New Service</span>
-              <FlaskConical className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
-          <option value="failure">
-            <span className="flex items-center justify-between gap-2">
-              <span>Failure Simulation</span>
-              <AlertTriangle className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
-          <option value="scale">
-            <span className="flex items-center justify-between gap-2">
-              <span>Scaling Simulation</span>
-              <TrendingUp className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
+          <option value="add-service">Add New Service</option>
+          <option value="failure">Failure Simulation</option>
+          <option value="scale">Scaling Simulation</option>
         </Select>
       </div>
 
@@ -274,31 +260,12 @@ export default function ScenarioForm({
           value={timeWindow}
           onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
           className={controlInputMutedClass}
+          suffixIcon={<CalendarClock className="h-4 w-4" />}
         >
-          <option value="5d">
-            <span className="flex items-center justify-between gap-2">
-              <span>5 Days</span>
-              <CalendarClock className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
-          <option value="1w">
-            <span className="flex items-center justify-between gap-2">
-              <span>1 Week</span>
-              <CalendarClock className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
-          <option value="2w">
-            <span className="flex items-center justify-between gap-2">
-              <span>2 Weeks</span>
-              <CalendarClock className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
-          <option value="1m">
-            <span className="flex items-center justify-between gap-2">
-              <span>1 Month</span>
-              <CalendarClock className="h-4 w-4 text-[var(--color-emerald-300)]" />
-            </span>
-          </option>
+          <option value="5d">5 Days</option>
+          <option value="1w">1 Week</option>
+          <option value="2w">2 Weeks</option>
+          <option value="1m">1 Month</option>
         </Select>
       </div>
 

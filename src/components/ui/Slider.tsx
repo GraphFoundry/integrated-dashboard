@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import { Slider as AriaSlider, SliderThumb, SliderTrack } from 'react-aria-components'
+import * as RadixSlider from '@radix-ui/react-slider'
 import { cn } from '@/components/common/uiClassTokens'
 import type { NativeInputChangeEvent, SliderAdapterProps } from './types'
 
@@ -42,32 +42,28 @@ export const Slider = forwardRef<HTMLInputElement, SliderAdapterProps>(function 
           // Hidden sync element for form/ref compatibility.
         }}
       />
-      <AriaSlider
+      <RadixSlider.Root
         aria-describedby={ariaProps['aria-describedby']}
         aria-invalid={ariaProps['aria-invalid']}
         aria-label={ariaProps['aria-label']}
         aria-labelledby={ariaProps['aria-labelledby']}
         id={id}
-        isDisabled={disabled}
-        maxValue={maxValue}
-        minValue={minValue}
+        disabled={disabled}
+        max={maxValue}
+        min={minValue}
         step={stepValue}
-        value={value}
-        onChange={(nextValue) => onChange?.(createSyntheticRangeEvent(nextValue))}
-        className={cn('w-full', className)}
+        value={[value]}
+        onValueChange={(nextValue) => onChange?.(createSyntheticRangeEvent(nextValue[0] ?? value))}
+        className={cn('relative flex h-8 w-full touch-none select-none items-center', className)}
       >
-        <SliderTrack className="relative h-2 w-full rounded-full bg-white/15">
-          {({ state }) => (
-            <>
-              <div
-                className="absolute h-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500"
-                style={{ width: state.getThumbPercent(0) * 100 + '%' }}
-              />
-              <SliderThumb className="top-1/2 h-4 w-4 rounded-full border border-cyan-200 bg-cyan-100 shadow-[var(--shadow-neon)] outline-none -translate-y-1/2" />
-            </>
-          )}
-        </SliderTrack>
-      </AriaSlider>
+        <RadixSlider.Track className="relative h-2.5 w-full grow overflow-hidden rounded-full bg-slate-800">
+          <RadixSlider.Range className="absolute h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-300" />
+        </RadixSlider.Track>
+        <RadixSlider.Thumb
+          className="block h-5 w-5 rounded-full border-2 border-emerald-100 bg-emerald-50 shadow-[0_0_0_3px_rgba(16,185,129,0.35)] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-emerald-300)] disabled:pointer-events-none disabled:opacity-50"
+          aria-label={ariaProps['aria-label'] ?? 'slider thumb'}
+        />
+      </RadixSlider.Root>
     </>
   )
 })

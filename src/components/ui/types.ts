@@ -20,6 +20,7 @@ export interface TextareaAdapterProps
 export interface SelectAdapterProps extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
   onChange?: NativeSelectChangeHandler
   children?: React.ReactNode
+  suffixIcon?: React.ReactNode
 }
 
 export interface ComboboxItem {

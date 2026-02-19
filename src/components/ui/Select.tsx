@@ -89,7 +89,7 @@ function createSyntheticSelectEvent(
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function Select(
-  { className, children, disabled, id, name, onChange, required, value, ...restProps },
+  { className, children, disabled, id, name, onChange, required, suffixIcon, value, ...restProps },
   ref
 ) {
   const ariaLabel = restProps['aria-label']
@@ -156,7 +156,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
           <span className="min-w-0 flex-1 truncate">
             <SelectValue />
           </span>
-          <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+          {suffixIcon ? (
+            <span aria-hidden className="h-4 w-4 shrink-0 text-[var(--color-emerald-300)]">
+              {suffixIcon}
+            </span>
+          ) : (
+            <ChevronDown aria-hidden className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
+          )}
         </Button>
         <Popover
           className={cn(

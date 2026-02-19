@@ -32,9 +32,7 @@ import {
   X,
   Bell,
   CircleDot,
-  CircleCheckBig,
   Flame,
-  CircleAlert,
 } from 'lucide-react'
 
 interface Toast {
@@ -361,25 +359,11 @@ export default function AlertsPage() {
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value as any })}
               className={cn(controlInputMutedClass, 'appearance-none pr-11')}
+              suffixIcon={<CircleDot className="h-4 w-4" />}
             >
-              <option value="all">
-                <span className="flex items-center justify-between gap-2">
-                  <span>All Statuses</span>
-                  <CircleDot className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
-              <option value="open">
-                <span className="flex items-center justify-between gap-2">
-                  <span>Open</span>
-                  <CircleAlert className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
-              <option value="resolved">
-                <span className="flex items-center justify-between gap-2">
-                  <span>Resolved</span>
-                  <CircleCheckBig className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
+              <option value="all">All Statuses</option>
+              <option value="open">Open</option>
+              <option value="resolved">Resolved</option>
             </Select>
           </div>
 
@@ -392,32 +376,13 @@ export default function AlertsPage() {
               value={filter.severity}
               onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
               className={cn(controlInputMutedClass, 'appearance-none pr-11')}
+              suffixIcon={<Flame className="h-4 w-4" />}
             >
               <option value="">All Severities</option>
-              <option value="critical">
-                <span className="flex items-center justify-between gap-2">
-                  <span>Critical</span>
-                  <Flame className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
-              <option value="high">
-                <span className="flex items-center justify-between gap-2">
-                  <span>High</span>
-                  <AlertTriangle className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
-              <option value="medium">
-                <span className="flex items-center justify-between gap-2">
-                  <span>Medium</span>
-                  <Activity className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
-              <option value="low">
-                <span className="flex items-center justify-between gap-2">
-                  <span>Low</span>
-                  <Shield className="h-4 w-4 text-[var(--color-emerald-300)]" />
-                </span>
-              </option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
             </Select>
           </div>
         </div>

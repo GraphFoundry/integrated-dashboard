@@ -503,11 +503,13 @@ export default function Metrics() {
                 <p className="mt-1 text-xs text-[var(--text-muted)]">
                   N/A: error-rate telemetry unavailable in this window
                 </p>
-              ) : summaryStats.healthScore < 100 ? (
-                <p className="mt-1 text-xs text-rose-700">
-                  {formatPercent(summaryStats.errorRate)} requests failing
+              ) : (
+                <p className="mt-1 text-xs text-[var(--text-muted)]">
+                  {summaryStats.isGlobalScope
+                    ? 'Aggregate: weighted AVG success across in-scope services'
+                    : 'Scope: selected service(s) latest datapoint'}
                 </p>
-              ) : undefined
+              )
             }
             tone="emerald"
             tooltip="Overall success score. Global mode uses request-rate-weighted average error rate across latest per-service datapoints."

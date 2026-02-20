@@ -84,7 +84,7 @@ export default function MetricHighlightCard({
           <p className="mb-4 text-xs text-[var(--text-secondary)]">{description}</p>
         </div>
         <div>
-          <div className={cn('text-3xl font-bold tracking-tight', valueClassName)}>{value}</div>
+          <div className={cn('text-3xl font-bold tracking-tight whitespace-nowrap', valueClassName)}>{value}</div>
           {note}
         </div>
       </div>

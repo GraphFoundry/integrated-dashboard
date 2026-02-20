@@ -119,6 +119,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
             className
           )}
           name={name}
+          readOnly={!isOpen}
           onClick={(event) => {
             if (!isOpen && document.activeElement === event.currentTarget) {
               event.currentTarget.blur()

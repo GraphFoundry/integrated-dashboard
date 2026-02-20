@@ -282,7 +282,7 @@ export default function Simulations() {
         <EmptyState
           icon={<Network className="h-10 w-10 text-[var(--text-dim)]" />}
           message="Select a target service to preview its neighborhood context"
-          className="flex h-full min-h-0 flex-col justify-center"
+          className="flex h-full min-h-0 flex-col justify-center p-6 md:p-8"
         />
       )
     }
@@ -774,8 +774,8 @@ export default function Simulations() {
           <Section
             title="Simulation Context Preview"
             icon={Network}
-            className="h-full"
-            contentClassName="h-full min-h-0 overflow-hidden"
+            className="flex h-full min-h-0 flex-col"
+            contentClassName="flex-1 min-h-0 overflow-hidden"
           >
             {renderContextPreview()}
           </Section>

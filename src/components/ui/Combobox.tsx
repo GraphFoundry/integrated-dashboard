@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import { forwardRef, useEffect, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import type { Key } from 'react-aria-components'
 import {
   Button,
@@ -52,6 +52,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
   )
   const [displayValue, setDisplayValue] = useState<string>(selectedItem?.label ?? rawValue)
   const [isOpen, setIsOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     setDisplayValue(selectedItem?.label ?? rawValue)
@@ -90,8 +91,25 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
     const nextItem = items.find((item) => item.value === nextValue)
 
     setDisplayValue(nextItem?.label ?? nextValue)
+    setIsOpen(false)
     onSelectionChange?.(nextValue)
     onChange?.(createSyntheticInputEvent(nextValue, name, id))
+    requestAnimationFrame(() => {
+      inputRef.current?.blur()
+      const activeEl = document.activeElement
+      if (activeEl instanceof HTMLElement) {
+        activeEl.blur()
+      }
+    })
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setIsOpen(nextOpen)
+    if (!nextOpen) {
+      requestAnimationFrame(() => {
+        inputRef.current?.blur()
+      })
+    }
   }
 
   return (
@@ -105,12 +123,19 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
       menuTrigger="focus"
       selectedKey={selectedItem?.value}
       onInputChange={handleInputChange}
-      onOpenChange={setIsOpen}
+      onOpenChange={handleOpenChange}
       onSelectionChange={handleSelectionChange}
     >
       <div className="relative w-full">
         <AriaInput
-          ref={ref}
+          ref={(node) => {
+            inputRef.current = node
+            if (typeof ref === 'function') {
+              ref(node)
+            } else if (ref) {
+              ref.current = node
+            }
+          }}
           id={id}
           className={cn(
             controlInputMutedClass,

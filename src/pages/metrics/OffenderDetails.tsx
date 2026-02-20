@@ -1,16 +1,34 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
+import {
+  pageContainerClass,
+  primaryButtonClass,
+  cn,
+  glassSurfaceClass,
+} from '@/components/common/uiClassTokens'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import type { TelemetryMetricsResponse, TelemetryDatapoint } from '@/lib/types'
-import { getGlossaryTerm } from '@/lib/glossary'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, BarChart3 } from 'lucide-react'
+
+function KpiCardSkeleton() {
+  return (
+    <div className={cn(glassSurfaceClass, 'interactive-soft rounded-[var(--radius-md)] p-4')}>
+      <SkeletonBlock variant="line" className="mb-2 h-3 w-2/5" />
+      <div className="flex items-baseline gap-2">
+        <SkeletonBlock variant="title" className="h-8 w-1/2" />
+      </div>
+    </div>
+  )
+}
 
 export default function OffenderDetails() {
   const { serviceKey } = useParams() // Expects "namespace:serviceName"
@@ -24,14 +42,12 @@ export default function OffenderDetails() {
   const [timeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!serviceName) return
 
     const fetchData = async () => {
       setLoading(true)
-      setError(null)
       try {
         const now = new Date()
         const from = new Date(now.getTime() - getTimeRangeMs(timeRange))
@@ -44,7 +60,7 @@ export default function OffenderDetails() {
         })
         setData(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch offender data')
+        toast.error(err instanceof Error ? err.message : 'Failed to fetch offender data')
       } finally {
         setLoading(false)
       }
@@ -71,7 +87,7 @@ export default function OffenderDetails() {
   // Calculate summary stats from latest datapoint
   const summaryStats = data?.datapoints.length
     ? (() => {
-        const latest = data.datapoints.at(-1)
+        const latest = data.datapoints[data.datapoints.length - 1]
         if (!latest) return null
 
         return {
@@ -127,12 +143,12 @@ export default function OffenderDetails() {
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={pageContainerClass} aria-busy={loading}>
       {/* Header with Breadcrumb */}
       <div className="space-y-4">
-        <button
+        <button type="button"
           onClick={() => navigate('/metrics')}
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-200 transition-colors"
+          className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm">Back to Metrics</span>
@@ -144,18 +160,45 @@ export default function OffenderDetails() {
         />
       </div>
 
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-          <p className="text-red-300">{error}</p>
-        </div>
-      )}
-
       {/* Loading State */}
       {loading && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-slate-400">Loading offender details...</p>
-        </div>
+        <>
+          <Section title="Health Summary" description="Current service performance indicators">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" aria-busy="true">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <KpiCardSkeleton key={`offender-kpi-skeleton-${index}`} />
+              ))}
+            </div>
+          </Section>
+
+          <Section title="What Changed" description="Comparison: First half vs Second half of time window">
+            <div className="bg-[var(--surface-solid)] border border-[var(--border)] rounded-lg p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`offender-delta-skeleton-${index}`}>
+                    <SkeletonBlock variant="line" className="mb-2 h-4 w-1/2" />
+                    <SkeletonBlock variant="title" className="h-8 w-3/4" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Trends" description="Time-series performance visualization">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={`offender-chart-skeleton-${index}`}>
+                  <SkeletonBlock variant="line" className="mb-3 h-4 w-2/5" />
+                  <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section>
+            <SkeletonBlock variant="line" className="h-10 w-44 rounded-[var(--radius-sm)]" />
+          </Section>
+        </>
       )}
 
       {/* Health Summary (KPI Cards) */}
@@ -164,7 +207,7 @@ export default function OffenderDetails() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KPIStatCard
               label="Traffic"
-              tooltip="Requests per second"
+              tooltip="How busy this service is right now based on incoming requests per second. Higher values can increase pressure on pods and dependencies."
               value={
                 summaryStats.requestRate === undefined ? 'N/A' : formatRps(summaryStats.requestRate)
               }
@@ -172,7 +215,7 @@ export default function OffenderDetails() {
             />
             <KPIStatCard
               label="Failed Requests"
-              tooltip="Percentage of requests that resulted in errors"
+              tooltip="How many requests are failing out of all requests. Lower is healthier because more users get successful responses."
               value={
                 summaryStats.errorRate === undefined ? 'N/A' : formatPercent(summaryStats.errorRate)
               }
@@ -186,7 +229,7 @@ export default function OffenderDetails() {
             />
             <KPIStatCard
               label="Slow Response Time"
-              tooltip={`${getGlossaryTerm('p95').tooltip} (P95 latency)`}
+              tooltip="How slow requests become during busy moments. Lower means better user speed and smoother experience."
               value={summaryStats.p95 === undefined ? 'N/A' : formatMs(summaryStats.p95)}
               variant={(() => {
                 if (summaryStats.p95 === undefined) return 'default'
@@ -198,7 +241,7 @@ export default function OffenderDetails() {
             />
             <KPIStatCard
               label="Uptime"
-              tooltip="Service availability percentage"
+              tooltip="How often this service stays online and reachable during the selected window. Lower uptime may indicate restarts, outages, or dependency issues."
               value={
                 summaryStats.availability === undefined
                   ? 'N/A'
@@ -222,16 +265,16 @@ export default function OffenderDetails() {
           title="What Changed"
           description="Comparison: First half vs Second half of time window"
         >
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
+          <div className="bg-[var(--surface-solid)] border border-[var(--border)] rounded-lg p-6">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Traffic Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Traffic</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Traffic</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.requestRate > 0) return 'text-blue-400'
                     if (deltaStats.requestRate < 0) return 'text-orange-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.requestRate > 0 ? '+' : ''}
@@ -241,12 +284,12 @@ export default function OffenderDetails() {
 
               {/* Failed Requests Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Failed Requests</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Failed Requests</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.errorRate > 0) return 'text-red-400'
                     if (deltaStats.errorRate < 0) return 'text-green-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.errorRate > 0 ? '+' : ''}
@@ -256,12 +299,12 @@ export default function OffenderDetails() {
 
               {/* Slow Response Time Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Slow Response Time</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Slow Response Time</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.p95 > 0) return 'text-red-400'
                     if (deltaStats.p95 < 0) return 'text-green-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.p95 > 0 ? '+' : ''}
@@ -271,12 +314,12 @@ export default function OffenderDetails() {
 
               {/* Uptime Delta */}
               <div>
-                <div className="text-sm text-slate-400 mb-1">Uptime</div>
+                <div className="text-sm text-[var(--text-muted)] mb-1">Uptime</div>
                 <div
                   className={`text-2xl font-semibold ${(() => {
                     if (deltaStats.availability > 0) return 'text-green-400'
                     if (deltaStats.availability < 0) return 'text-red-400'
-                    return 'text-slate-400'
+                    return 'text-[var(--text-muted)]'
                   })()}`}
                 >
                   {deltaStats.availability > 0 ? '+' : ''}
@@ -294,35 +337,35 @@ export default function OffenderDetails() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Traffic Trend */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Traffic</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Traffic</h3>
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.requestRate,
                 }))}
-                strokeColor="hsl(var(--primary))"
-                fillColor="hsl(var(--primary))"
+                strokeColor="var(--primary)"
+                fillColor="var(--primary)"
                 valueFormatter={(v) => formatRps(v)}
               />
             </div>
 
             {/* Failures Trend */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Failures</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Failures</h3>
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.errorRate,
                 }))}
-                strokeColor="hsl(var(--destructive))"
-                fillColor="hsl(var(--destructive))"
+                strokeColor="var(--destructive)"
+                fillColor="var(--destructive)"
                 valueFormatter={(v) => formatPercent(v)}
               />
             </div>
 
             {/* Slow Response Time Trend (Latency) */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 Slow Response Time (P50/P95/P99)
               </h3>
               <LatencyMultiLineChart
@@ -337,14 +380,14 @@ export default function OffenderDetails() {
 
             {/* Uptime Trend */}
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Uptime</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Uptime</h3>
               <TimeSeriesLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,
                   value: d.availability,
                 }))}
-                strokeColor="hsl(var(--success))"
-                fillColor="hsl(var(--success))"
+                strokeColor="var(--success)"
+                fillColor="var(--success)"
                 valueFormatter={(v) => formatPercent(v)}
               />
             </div>
@@ -355,9 +398,9 @@ export default function OffenderDetails() {
       {/* Actions */}
       {!loading && data && data.datapoints.length > 0 && (
         <Section>
-          <button
+          <button type="button"
             onClick={handleOpenInSimulations}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            className={primaryButtonClass}
           >
             Open in Simulations
           </button>
@@ -367,7 +410,7 @@ export default function OffenderDetails() {
       {/* Empty State */}
       {!loading && (!data || data.datapoints.length === 0) && (
         <EmptyState
-          icon="📊"
+          icon={<BarChart3 className="h-12 w-12 text-[var(--color-emerald-300)]" />}
           message="No telemetry data available for this service in the selected time range"
         />
       )}

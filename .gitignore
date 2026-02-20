@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+bff/data
 
 # Editor directories and files
 .vscode/*
@@ -28,3 +29,5 @@ dist-ssr
 .env.local
 .env.*.local
 **.md
+!.github/**/*.md
+!docs/ui-library-migration.md

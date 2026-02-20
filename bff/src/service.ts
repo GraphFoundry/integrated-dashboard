@@ -1,20 +1,28 @@
-import { AlertEvent, Incident, WSMessage } from './types'
-import { Storage } from './storage'
+import { AlertEvent, Incident, IncidentDetail, Overview, ServiceRollup, WSMessage } from './types'
+import { IncidentListFilter, Storage } from './storage'
 
 import { SmsService } from './sms.service'
+
+function isInvalidAlertEvent(event: AlertEvent): boolean {
+  return !event.event_id || !event.dedupe_key || !event.service?.name || !event.service?.namespace
+}
+
+function toIncidentStatus(state: AlertEvent['alert']['state']): Incident['status'] {
+  return state === 'resolved' ? 'RESOLVED' : 'OPEN'
+}
 
 export class AlertService {
   constructor(
     private storage: Storage,
     private broadcast: (msg: WSMessage) => void,
     private smsService?: SmsService
-  ) { }
+  ) {}
 
   // Ingest webhook event (source of truth)
   ingestAlertEvent(event: AlertEvent): { success: boolean; message: string } {
     try {
       // Validate required fields
-      if (!event.event_id || !event.dedupe_key || !event.service?.name || !event.service?.namespace) {
+      if (isInvalidAlertEvent(event)) {
         return { success: false, message: 'Missing required fields' }
       }
 
@@ -42,9 +50,9 @@ export class AlertService {
       }
 
       return { success: true, message: 'Event ingested successfully' }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Failed to ingest event:', error)
-      return { success: false, message: error.message }
+      return { success: false, message: (error as { message: string }).message }
     }
   }
 
@@ -57,41 +65,12 @@ export class AlertService {
       const allEvents = this.storage.getEventsByDedupeKey(event.dedupe_key, event.service.namespace, event.service.name)
 
       // Update existing incident
-      const incident: Incident = {
-        ...existing,
-        current_severity: event.alert.severity,
-        current_priority: event.decision.priority,
-        current_action: event.decision.action,
-        auto: event.decision.auto,
-        risk_score: event.decision.risk_score || 0,
-        reason_codes: event.decision.reason_codes,
-        last_observed_at: event.observed_at,
-        latest_event_id: event.event_id,
-        status: event.alert.state === 'resolved' ? 'RESOLVED' : 'OPEN',
-        event_count: existing.event_count + 1,
-        quality_flags: this.computeQualityFlagsForIncident(allEvents),
-      }
+      const incident = this.createUpdatedIncident(existing, event, allEvents)
 
       this.storage.upsertIncident(incident)
     } else {
       // Create new incident - pass array with single event
-      const incident: Incident = {
-        dedupe_key: event.dedupe_key,
-        namespace: event.service.namespace,
-        service: event.service.name,
-        status: event.alert.state === 'resolved' ? 'RESOLVED' : 'OPEN',
-        current_severity: event.alert.severity,
-        current_priority: event.decision.priority,
-        current_action: event.decision.action,
-        auto: event.decision.auto,
-        risk_score: event.decision.risk_score || 0,
-        reason_codes: event.decision.reason_codes,
-        first_observed_at: event.observed_at,
-        last_observed_at: event.observed_at,
-        latest_event_id: event.event_id,
-        event_count: 1,
-        quality_flags: this.computeQualityFlagsForIncident([event]),
-      }
+      const incident = this.createNewIncident(event)
 
       this.storage.upsertIncident(incident)
     }
@@ -108,25 +87,45 @@ export class AlertService {
     })
   }
 
-  private computeQualityFlags(event: AlertEvent): string[] {
-    const flags: string[] = []
-
-    // Check for missing evidence
-    if (!event.evidence || Object.keys(event.evidence).length === 0) {
-      flags.push('missing_evidence')
+  private createUpdatedIncident(
+    existing: Incident,
+    event: AlertEvent,
+    allEvents: AlertEvent[]
+  ): Incident {
+    return {
+      ...existing,
+      current_severity: event.alert.severity,
+      current_priority: event.decision.priority,
+      current_action: event.decision.action,
+      auto: event.decision.auto,
+      risk_score: event.decision.risk_score || 0,
+      reason_codes: event.decision.reason_codes,
+      last_observed_at: event.observed_at,
+      latest_event_id: event.event_id,
+      status: toIncidentStatus(event.alert.state),
+      event_count: existing.event_count + 1,
+      quality_flags: this.computeQualityFlagsForIncident(allEvents),
     }
+  }
 
-    // Check for missing context
-    if (!event.context || Object.keys(event.context).length === 0) {
-      flags.push('missing_context')
+  private createNewIncident(event: AlertEvent): Incident {
+    return {
+      dedupe_key: event.dedupe_key,
+      namespace: event.service.namespace,
+      service: event.service.name,
+      status: toIncidentStatus(event.alert.state),
+      current_severity: event.alert.severity,
+      current_priority: event.decision.priority,
+      current_action: event.decision.action,
+      auto: event.decision.auto,
+      risk_score: event.decision.risk_score || 0,
+      reason_codes: event.decision.reason_codes,
+      first_observed_at: event.observed_at,
+      last_observed_at: event.observed_at,
+      latest_event_id: event.event_id,
+      event_count: 1,
+      quality_flags: this.computeQualityFlagsForIncident([event]),
     }
-
-    // Check for missing links
-    if (!event.links || (!event.links.details_ref && !event.links.runbook)) {
-      flags.push('missing_links')
-    }
-
-    return flags
   }
 
   // Compute quality flags for an incident based on ALL its events
@@ -136,7 +135,7 @@ export class AlertService {
 
     // Check if ALL events are missing evidence
     const allMissingEvidence = events.every(
-      e => !e.evidence || Object.keys(e.evidence).length === 0
+      (e) => !e.evidence || Object.keys(e.evidence).length === 0
     )
     if (allMissingEvidence) {
       flags.push('missing_evidence')
@@ -144,7 +143,7 @@ export class AlertService {
 
     // Check if ALL events are missing context
     const allMissingContext = events.every(
-      e => !e.context || Object.keys(e.context).length === 0
+      (e) => !e.context || Object.keys(e.context).length === 0
     )
     if (allMissingContext) {
       flags.push('missing_context')
@@ -152,7 +151,7 @@ export class AlertService {
 
     // Check if ALL events are missing links
     const allMissingLinks = events.every(
-      e => !e.links || (!e.links.details_ref && !e.links.runbook && !e.links.dashboard)
+      (e) => !e.links || (!e.links.details_ref && !e.links.runbook && !e.links.dashboard)
     )
     if (allMissingLinks) {
       flags.push('missing_links')
@@ -162,23 +161,23 @@ export class AlertService {
   }
 
   // Query methods
-  getOverview() {
+  getOverview(): Overview {
     return this.storage.getOverview()
   }
 
-  listIncidents(filter?: any) {
+  listIncidents(filter?: IncidentListFilter): Incident[] {
     return this.storage.listIncidents(filter)
   }
 
-  getIncidentDetail(dedupeKey: string, namespace: string, service: string) {
+  getIncidentDetail(dedupeKey: string, namespace: string, service: string): IncidentDetail | null {
     return this.storage.getIncidentDetail(dedupeKey, namespace, service)
   }
 
-  getServices() {
+  getServices(): ServiceRollup[] {
     return this.storage.getServices()
   }
 
-  getEvent(eventId: string) {
+  getEvent(eventId: string): AlertEvent | null {
     return this.storage.getEvent(eventId)
   }
 }

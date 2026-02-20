@@ -2,6 +2,24 @@ import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router'
 import { bffApi, Incident, Overview, connectToAlertStream, WSMessage } from '@/lib/bffApiClient'
 import StatusBadge from '@/components/common/StatusBadge'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
+import InfoHint from '@/components/common/InfoHint'
+import EmptyState from '@/components/layout/EmptyState'
+import {
+  cn,
+  controlInputMutedClass,
+  controlLabelClass,
+  loadingCardClass,
+  pageContainerClass,
+  subtleIconButtonClass,
+  tableBodyRowClass,
+  tableCellClass,
+  tableHeadRowClass,
+  tableHeadStickyClass,
+  tableHeaderCellClass,
+  tableShellClass,
+} from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import { formatDistanceToNow } from '@/lib/format'
 import {
   AlertTriangle,
@@ -14,12 +32,70 @@ import {
   Users,
   X,
   Bell,
+  CircleDot,
+  Flame,
 } from 'lucide-react'
 
 interface Toast {
   id: string
   message: string
   type: 'info' | 'warning' | 'success'
+}
+
+interface OverviewStatCardProps {
+  readonly accentContainerClass: string
+  readonly borderClass: string
+  readonly hoverBorderClass: string
+  readonly hoverShadowClass: string
+  readonly glowBaseClass: string
+  readonly glowHoverClass: string
+  readonly icon: React.ReactNode
+  readonly topRight?: React.ReactNode
+  readonly title: string
+  readonly value: React.ReactNode
+  readonly subtitle: React.ReactNode
+  readonly tooltip?: string
+}
+
+function OverviewStatCard({
+  accentContainerClass,
+  borderClass,
+  hoverBorderClass,
+  hoverShadowClass,
+  glowBaseClass,
+  glowHoverClass,
+  icon,
+  topRight,
+  title,
+  value,
+  subtitle,
+  tooltip,
+}: OverviewStatCardProps) {
+  const hintText = tooltip ?? `${title}: ${subtitle}`
+
+  return (
+    <div
+      className={`surface-glass interactive-soft group relative overflow-hidden rounded-[var(--radius-md)] border p-6 ${borderClass} ${hoverBorderClass} ${hoverShadowClass}`}
+    >
+      <div className="mb-4 flex items-start justify-between">
+        <div className={`rounded-lg p-3 ${accentContainerClass}`}>{icon}</div>
+        {topRight}
+      </div>
+      <div className="space-y-1">
+        <p className="max-w-full break-words text-sm font-medium leading-snug text-[var(--text-secondary)]">
+          {title}
+          <span className="ml-1 inline-flex align-middle">
+            <InfoHint text={hintText} />
+          </span>
+        </p>
+        <p className="text-4xl font-bold text-[var(--text-primary)]">{value}</p>
+        <p className="text-xs text-[var(--text-muted)]">{subtitle}</p>
+      </div>
+      <div
+        className={`absolute bottom-0 right-0 h-32 w-32 rounded-full blur-2xl transition-all ${glowBaseClass} ${glowHoverClass}`}
+      />
+    </div>
+  )
 }
 
 export default function AlertsPage() {
@@ -51,12 +127,6 @@ export default function AlertsPage() {
     isWebSocketUpdateRef.current = false
     loadDataWithFilters(filter)
   }, [filter])
-
-  // Connect to WebSocket for real-time updates
-  useEffect(() => {
-    const ws = connectToAlertStream(handleWSMessage)
-    return () => ws.close()
-  }, [])
 
   // Restore scroll position after WebSocket updates
   useEffect(() => {
@@ -105,7 +175,7 @@ export default function AlertsPage() {
       // Fetch the updated incident to check if it matches current filters
       try {
         const incidentDetail = await bffApi.getIncidentDetail(dedupe_key, namespace, service)
-        const incident = incidentDetail.incident
+        const incident = incidentDetail
 
         // Check if incident matches current filters
         const statusMatches =
@@ -136,6 +206,17 @@ export default function AlertsPage() {
     }
   }
 
+  // Stable ref so the WS callback always sees the latest closure without causing reconnects
+  // Declared after handleWSMessage to avoid the temporal dead zone
+  const handleWSMessageRef = useRef<(msg: WSMessage) => void>(() => {})
+  handleWSMessageRef.current = handleWSMessage
+
+  // Connect to WebSocket for real-time updates (auto-reconnect on disconnect)
+  useEffect(() => {
+    const cleanup = connectToAlertStream((msg) => handleWSMessageRef.current(msg))
+    return cleanup
+  }, [])
+
   const showToast = (message: string, type: Toast['type'] = 'info') => {
     const id = Date.now().toString()
     setToasts((prev) => [...prev, { id, message, type }])
@@ -150,227 +231,230 @@ export default function AlertsPage() {
     setToasts((prev) => prev.filter((t) => t.id !== id))
   }
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case 'critical':
-        return 'text-red-500'
-      case 'high':
-        return 'text-orange-500'
-      case 'medium':
-        return 'text-yellow-500'
-      case 'low':
-        return 'text-blue-500'
-      default:
-        return 'text-gray-500'
-    }
-  }
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-6">Alerts Dashboard</h1>
-        <div className="text-gray-400">Loading...</div>
+      <div className={pageContainerClass}>
+        <div className="surface-panel rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
+          <SkeletonBlock variant="title" className="mb-4 w-1/3" />
+          <SkeletonBlock variant="line" className="mb-2 w-2/3" />
+          <SkeletonBlock variant="line" className="w-1/2" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={`alerts-kpi-skeleton-${index}`} className={cn(loadingCardClass, 'p-6 text-left')}>
+              <SkeletonBlock variant="chip" className="mb-4 w-16" />
+              <SkeletonBlock variant="title" className="mb-2 w-1/2" />
+              <SkeletonBlock variant="line" className="w-2/3" />
+            </div>
+          ))}
+        </div>
+        <div className={tableShellClass}>
+          <div className="p-6 space-y-3">
+            <SkeletonBlock variant="line" className="w-1/4" />
+            {Array.from({ length: 5 }).map((_, index) => (
+              <SkeletonBlock key={`alerts-table-skeleton-${index}`} variant="table-row" />
+            ))}
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       {/* Header with gradient */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 rounded-2xl border border-gray-700/50 p-8">
+      <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-blue-400" />
-            <h1 className="text-4xl font-bold text-white">Alerts Dashboard</h1>
+            <Shield className="w-8 h-8 text-cyan-300" />
+            <h1 className="text-4xl font-bold text-[var(--text-primary)]">Alerts Dashboard</h1>
           </div>
-          <p className="text-gray-300 text-lg">
+          <p className="text-lg text-[var(--text-secondary)]">
             Real-time incident monitoring and automated response tracking
           </p>
         </div>
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-0 right-0 h-64 w-64 rounded-full bg-cyan-400/10 blur-3xl"></div>
       </div>
 
       {/* Overview Stats with Enhanced Cards */}
       {overview && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Open Incidents Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-orange-500/10 to-red-500/10 backdrop-blur-sm rounded-xl border border-orange-500/30 p-6 hover:border-orange-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-orange-500/20 rounded-lg">
-                <AlertTriangle className="w-6 h-6 text-orange-400" />
-              </div>
-              <div className="flex items-center gap-1 text-xs text-gray-400">
+          <OverviewStatCard
+            accentContainerClass="bg-orange-400/15"
+            borderClass="border-orange-300/26 bg-orange-400/6"
+            hoverBorderClass="hover:border-orange-300/42"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(251,146,60,0.18)]"
+            glowBaseClass="bg-orange-500/5"
+            glowHoverClass="group-hover:bg-orange-500/10"
+            icon={<AlertTriangle className="w-6 h-6 text-orange-400" />}
+            topRight={
+              <div className="flex items-center gap-1 text-xs text-[var(--text-muted)]">
                 <Activity className="w-3 h-3" />
                 <span>Live</span>
               </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Open Incidents</p>
-              <p className="text-4xl font-bold text-white">{overview.open_incidents}</p>
-              <p className="text-xs text-gray-400">{overview.total_incidents} total incidents</p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-orange-500/5 rounded-full blur-2xl group-hover:bg-orange-500/10 transition-all"></div>
-          </div>
+            }
+            title="Open Incidents"
+            value={overview.open_incidents}
+            subtitle={`${overview.total_incidents} total incidents`}
+            tooltip="Incidents that are still open and not solved yet. These items still require review, investigation, or mitigation from the team."
+          />
 
-          {/* Critical Alerts Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-red-500/10 to-pink-500/10 backdrop-blur-sm rounded-xl border border-red-500/30 p-6 hover:border-red-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-red-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-red-500/20 rounded-lg">
-                <Zap className="w-6 h-6 text-red-400" />
-              </div>
-              {overview.critical_count > 0 && (
-                <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs font-semibold rounded-full">
+          <OverviewStatCard
+            accentContainerClass="bg-rose-400/15"
+            borderClass="border-rose-300/28 bg-rose-400/6"
+            hoverBorderClass="hover:border-rose-300/45"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(244,63,94,0.2)]"
+            glowBaseClass="bg-red-500/5"
+            glowHoverClass="group-hover:bg-red-500/10"
+            icon={<Zap className="w-6 h-6 text-red-400" />}
+            topRight={
+              overview.critical_count > 0 ? (
+                <span className="rounded-full border border-rose-300/35 bg-rose-400/14 px-2 py-1 text-xs font-semibold text-rose-400">
                   URGENT
                 </span>
-              )}
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Critical Alerts</p>
-              <p className="text-4xl font-bold text-white">{overview.critical_count}</p>
-              <p className="text-xs text-gray-400">{overview.high_count} high severity</p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition-all"></div>
-          </div>
+              ) : undefined
+            }
+            title="Critical Alerts"
+            value={overview.critical_count}
+            subtitle={`${overview.high_count} high severity`}
+            tooltip="Most urgent alerts with the highest risk. These should be checked first because they can impact users or business operations quickly."
+          />
 
-          {/* Auto Actions Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-green-500/10 to-emerald-500/10 backdrop-blur-sm rounded-xl border border-green-500/30 p-6 hover:border-green-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-green-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-green-500/20 rounded-lg">
-                <CheckCircle2 className="w-6 h-6 text-green-400" />
-              </div>
+          <OverviewStatCard
+            accentContainerClass="bg-emerald-400/15"
+            borderClass="border-emerald-300/26 bg-emerald-400/6"
+            hoverBorderClass="hover:border-emerald-300/42"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(16,185,129,0.2)]"
+            glowBaseClass="bg-green-500/5"
+            glowHoverClass="group-hover:bg-green-500/10"
+            icon={<CheckCircle2 className="w-6 h-6 text-green-400" />}
+            topRight={
               <div className="flex items-center gap-1 text-xs text-green-400">
                 <TrendingUp className="w-3 h-3" />
                 <span>Automated</span>
               </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Auto Actions</p>
-              <p className="text-4xl font-bold text-white">{overview.auto_actions_count}</p>
-              <p className="text-xs text-gray-400">
-                {overview.manual_actions_count} manual reviews
-              </p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-all"></div>
-          </div>
+            }
+            title="Auto Actions"
+            value={overview.auto_actions_count}
+            subtitle={`${overview.manual_actions_count} manual reviews`}
+            tooltip="Cases where the platform already took an automatic step. This reduces manual workload and can shorten response time."
+          />
 
-          {/* Services Affected Card */}
-          <div className="group relative overflow-hidden bg-gradient-to-br from-blue-500/10 to-cyan-500/10 backdrop-blur-sm rounded-xl border border-blue-500/30 p-6 hover:border-blue-500/50 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/20">
-            <div className="flex items-start justify-between mb-4">
-              <div className="p-3 bg-blue-500/20 rounded-lg">
-                <Users className="w-6 h-6 text-blue-400" />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-300">Services Affected</p>
-              <p className="text-4xl font-bold text-white">{overview.services_affected}</p>
-              <p className="text-xs text-gray-400">Active monitoring</p>
-            </div>
-            <div className="absolute bottom-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition-all"></div>
-          </div>
+          <OverviewStatCard
+            accentContainerClass="bg-blue-400/15"
+            borderClass="border-blue-300/26 bg-blue-400/6"
+            hoverBorderClass="hover:border-blue-300/42"
+            hoverShadowClass="hover:shadow-[0_16px_30px_rgba(59,130,246,0.2)]"
+            glowBaseClass="bg-blue-500/5"
+            glowHoverClass="group-hover:bg-blue-500/10"
+            icon={<Users className="w-6 h-6 text-blue-400" />}
+            title="Services Affected"
+            value={overview.services_affected}
+            subtitle="Active monitoring"
+            tooltip="Number of services currently impacted by active incidents or alerts. A higher count usually means broader system impact."
+          />
         </div>
       )}
 
       {/* Filters */}
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 p-6 shadow-lg">
+      <div className="surface-glass rounded-[var(--radius-md)] border border-[var(--border)] p-6 shadow-[0_16px_30px_rgba(2,6,23,0.24)]">
         <div className="flex items-center gap-2 mb-4">
           <Activity className="w-5 h-5 text-blue-400" />
-          <h2 className="text-lg font-semibold text-white">Filter Incidents</h2>
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Filter Incidents</h2>
         </div>
         <div className="flex flex-wrap gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-            <select
+          <div className="w-full sm:flex-1">
+            <label htmlFor="alerts-status-filter" className={controlLabelClass}>
+              Status
+            </label>
+            <Select
+              id="alerts-status-filter"
               value={filter.status}
               onChange={(e) => setFilter({ ...filter, status: e.target.value as any })}
-              className="bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={cn(controlInputMutedClass, 'appearance-none pr-11')}
+              suffixIcon={<CircleDot className="h-4 w-4" />}
             >
               <option value="all">All Statuses</option>
               <option value="open">Open</option>
               <option value="resolved">Resolved</option>
-            </select>
+            </Select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Severity</label>
-            <select
+          <div className="w-full sm:flex-1">
+            <label htmlFor="alerts-severity-filter" className={controlLabelClass}>
+              Severity
+            </label>
+            <Select
+              id="alerts-severity-filter"
               value={filter.severity}
               onChange={(e) => setFilter({ ...filter, severity: e.target.value })}
-              className="bg-gray-700/70 text-white border border-gray-600/50 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+              className={cn(controlInputMutedClass, 'appearance-none pr-11')}
+              suffixIcon={<Flame className="h-4 w-4" />}
             >
               <option value="">All Severities</option>
-              <option value="critical">🔴 Critical</option>
-              <option value="high">🟠 High</option>
-              <option value="medium">🟡 Medium</option>
-              <option value="low">🔵 Low</option>
-            </select>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </Select>
           </div>
         </div>
       </div>
 
       {/* Incidents Table */}
-      <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700/50 overflow-hidden shadow-lg">
-        <div className="bg-gray-700/30 px-6 py-4 border-b border-gray-700/50">
+      <div className={tableShellClass}>
+        <div className="border-b border-[var(--border)] bg-[var(--surface-subtle)] px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Clock className="w-5 h-5 text-blue-400" />
-              <h2 className="text-lg font-semibold text-white">Active Incidents</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Active Incidents</h2>
             </div>
-            <div className="text-sm text-gray-400">
+            <div className="text-sm text-[var(--text-muted)]">
               {incidents.length} {incidents.length === 1 ? 'incident' : 'incidents'}
             </div>
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="max-h-[620px] overflow-auto">
           <table className="w-full">
-            <thead className="bg-gray-700/20">
+            <thead className={cn(tableHeadRowClass, tableHeadStickyClass)}>
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Service
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Severity
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Action
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Priority
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Events
-                </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-300 uppercase tracking-wider">
-                  Last Update
-                </th>
+                <th className={tableHeaderCellClass}>Service</th>
+                <th className={tableHeaderCellClass}>Severity</th>
+                <th className={tableHeaderCellClass}>Status</th>
+                <th className={tableHeaderCellClass}>Action</th>
+                <th className={tableHeaderCellClass}>Priority</th>
+                <th className={tableHeaderCellClass}>Events</th>
+                <th className={tableHeaderCellClass}>Last Update</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700/50">
+            <tbody>
               {incidents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-3">
-                      <div className="p-4 bg-gray-700/30 rounded-full">
-                        <CheckCircle2 className="w-12 h-12 text-gray-500" />
-                      </div>
-                      <div className="text-lg font-medium text-gray-400">No incidents found</div>
-                      <p className="text-sm text-gray-500 max-w-md">
-                        {filter.status === 'open'
-                          ? 'All systems are operating normally. No open incidents at this time.'
-                          : 'No incidents match the current filter criteria.'}
-                      </p>
-                    </div>
+                  <td colSpan={7} className={cn(tableCellClass, 'py-16 text-center')}>
+                    <EmptyState
+                      icon={<CheckCircle2 className="h-12 w-12 text-[var(--text-dim)]" />}
+                      title="No incidents found"
+                      message={
+                        filter.status === 'open'
+                          ? 'All systems are operating normally.'
+                          : 'No incidents match the current filter criteria.'
+                      }
+                      description={
+                        filter.status === 'open'
+                          ? 'No open incidents at this time.'
+                          : undefined
+                      }
+                    />
                   </td>
                 </tr>
               ) : (
                 incidents.map((incident) => (
                   <tr
                     key={`${incident.dedupe_key}-${incident.service}`}
-                    className="hover:bg-gray-700/30 transition-colors duration-150"
+                    className={cn(tableBodyRowClass, 'transition-colors duration-150')}
                   >
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <Link
                         to={`/alerts/${encodeURIComponent(incident.dedupe_key)}?namespace=${incident.namespace}&service=${incident.service}`}
                         className="group flex flex-col"
@@ -378,10 +462,10 @@ export default function AlertsPage() {
                         <span className="text-blue-400 hover:text-blue-300 font-medium transition-colors group-hover:underline">
                           {incident.service}
                         </span>
-                        <span className="text-xs text-gray-500 mt-0.5">{incident.namespace}</span>
+                        <span className="text-xs text-[var(--text-dim)] mt-0.5">{incident.namespace}</span>
                       </Link>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="inline-flex items-center gap-2">
                         <span
                           className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
@@ -426,17 +510,17 @@ export default function AlertsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <StatusBadge variant={incident.status === 'OPEN' ? 'warning' : 'success'}>
                         {incident.status}
                       </StatusBadge>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="flex flex-col gap-1">
-                        <span className="text-sm font-medium text-white">
+                        <span className="text-sm font-medium text-[var(--text-primary)]">
                           {incident.current_action}
                         </span>
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
+                        <span className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                           {incident.auto ? (
                             <>
                               <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full"></span>
@@ -451,7 +535,7 @@ export default function AlertsPage() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
                           incident.current_priority === 'P1'
@@ -464,16 +548,16 @@ export default function AlertsPage() {
                         {incident.current_priority}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className={tableCellClass}>
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex items-center justify-center w-7 h-7 bg-gray-700/50 rounded-full text-xs font-semibold text-gray-300">
+                        <span className="inline-flex items-center justify-center w-7 h-7 bg-[var(--surface-soft)] rounded-full text-xs font-semibold text-[var(--text-secondary)]">
                           {incident.event_count}
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5 text-sm text-gray-300">
-                        <Clock className="w-3.5 h-3.5 text-gray-500" />
+                    <td className={tableCellClass}>
+                      <div className="flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+                        <Clock className="w-3.5 h-3.5 text-[var(--text-dim)]" />
                         {formatDistanceToNow(incident.last_observed_at)}
                       </div>
                     </td>
@@ -486,11 +570,11 @@ export default function AlertsPage() {
       </div>
 
       {/* Toast Notifications */}
-      <div className="fixed bottom-4 right-4 z-50 space-y-2">
+      <div className="fixed bottom-4 right-4 z-50 space-y-2" aria-live="polite" aria-atomic="true">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className="flex items-start gap-3 bg-gray-800 border border-gray-700 rounded-lg shadow-xl p-4 min-w-[320px] max-w-md animate-slide-in"
+            className="surface-glass flex min-w-[320px] max-w-md items-start gap-3 rounded-lg border border-[var(--border)] p-4 shadow-xl animate-slide-in"
           >
             <div
               className={`flex-shrink-0 p-2 rounded-lg ${
@@ -512,11 +596,12 @@ export default function AlertsPage() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white">{toast.message}</p>
+              <p className="text-sm text-[var(--text-primary)]">{toast.message}</p>
             </div>
-            <button
+            <button type="button"
               onClick={() => dismissToast(toast.id)}
-              className="flex-shrink-0 text-gray-400 hover:text-white transition-colors"
+              className={cn(subtleIconButtonClass, 'h-8 w-8 bg-[var(--surface-subtle)] text-[var(--text-secondary)]')}
+              aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />
             </button>

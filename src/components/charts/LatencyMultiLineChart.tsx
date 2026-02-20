@@ -11,9 +11,9 @@ import {
 
 interface DataPoint {
   timestamp: string
-  p50?: number
-  p95?: number
-  p99?: number
+  p50?: number | null
+  p95?: number | null
+  p99?: number | null
 }
 
 interface LatencyMultiLineChartProps {
@@ -41,17 +41,17 @@ export default function LatencyMultiLineChart({
     payload,
   }: {
     active?: boolean
-    payload?: Array<{ name: string; value: number; payload: DataPoint; color?: string }>
+    payload?: Array<{ name: string; value: number | null; payload: DataPoint; color?: string }>
   }) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-firebase-card border border-firebase-border rounded-lg p-3 shadow-lg">
-          <p className="text-xs text-firebase-text-secondary mb-2">
+        <div className="rounded-lg border border-[var(--chart-tooltip-border)] bg-[var(--chart-tooltip-bg)] p-3 shadow-lg">
+          <p className="mb-2 text-xs text-[var(--text-muted)]">
             {new Date(payload[0].payload.timestamp).toLocaleString()}
           </p>
           {payload.map((entry) => (
             <p key={entry.name} className="text-sm font-medium" style={{ color: entry.color }}>
-              {entry.name}: {formatMs(entry.value)}
+              {entry.name}: {typeof entry.value === 'number' && Number.isFinite(entry.value) ? formatMs(entry.value) : 'N/A'}
             </p>
           ))}
         </div>
@@ -63,23 +63,23 @@ export default function LatencyMultiLineChart({
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 10, right: 30, left: 20, bottom: 30 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#2c2c2c" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
         <XAxis
           dataKey="timestamp"
           tickFormatter={formatXAxis}
-          stroke="#5f6368"
-          tick={{ fill: '#9aa0a6', fontSize: 12 }}
-          label={xAxisLabel ? { value: xAxisLabel, position: 'insideBottom', offset: -10, fill: '#9aa0a6', fontSize: 12 } : undefined}
+          stroke="var(--chart-axis)"
+          tick={{ fill: 'var(--chart-axis-label)', fontSize: 12 }}
+          label={xAxisLabel ? { value: xAxisLabel, position: 'insideBottom', offset: -10, fill: 'var(--chart-axis-label)', fontSize: 12 } : undefined}
         />
         <YAxis
-          stroke="#5f6368"
-          tick={{ fill: '#9aa0a6', fontSize: 12 }}
+          stroke="var(--chart-axis)"
+          tick={{ fill: 'var(--chart-axis-label)', fontSize: 12 }}
           tickFormatter={formatMs}
-          label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: 'insideLeft', fill: '#9aa0a6', fontSize: 12, style: { textAnchor: 'middle' } } : undefined}
+          label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: 'insideLeft', fill: 'var(--chart-axis-label)', fontSize: 12, style: { textAnchor: 'middle' } } : undefined}
         />
         <Tooltip content={<CustomTooltip />} />
-        <Legend wrapperStyle={{ fontSize: '12px', color: '#9aa0a6' }} />
-        {data.some((d) => d.p50 !== undefined) && (
+        <Legend wrapperStyle={{ fontSize: '12px', color: 'var(--chart-axis-label)' }} />
+        {data.some((d) => typeof d.p50 === 'number' && Number.isFinite(d.p50)) && (
           <Line
             type="monotone"
             dataKey="p50"
@@ -90,7 +90,7 @@ export default function LatencyMultiLineChart({
             activeDot={{ r: 4 }}
           />
         )}
-        {data.some((d) => d.p95 !== undefined) && (
+        {data.some((d) => typeof d.p95 === 'number' && Number.isFinite(d.p95)) && (
           <Line
             type="monotone"
             dataKey="p95"
@@ -101,7 +101,7 @@ export default function LatencyMultiLineChart({
             activeDot={{ r: 4 }}
           />
         )}
-        {data.some((d) => d.p99 !== undefined) && (
+        {data.some((d) => typeof d.p99 === 'number' && Number.isFinite(d.p99)) && (
           <Line
             type="monotone"
             dataKey="p99"

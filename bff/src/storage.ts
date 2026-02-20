@@ -1,12 +1,34 @@
 import { AlertEvent, Incident, ServiceRollup, Overview, IncidentDetail } from './types'
 
+export interface IncidentListFilter {
+  status?: string
+  severity?: string
+  namespace?: string
+  service?: string
+  priority?: string
+  auto?: boolean
+}
+
+function toEpoch(isoTimestamp: string): number {
+  return new Date(isoTimestamp).getTime()
+}
+
+function sortByObservedAtDesc(events: AlertEvent[]): AlertEvent[] {
+  return events.sort((a, b) => toEpoch(b.observed_at) - toEpoch(a.observed_at))
+}
+
+function sortByLastObservedDesc(incidents: Incident[]): Incident[] {
+  return incidents.sort((a, b) => toEpoch(b.last_observed_at) - toEpoch(a.last_observed_at))
+}
+
 // In-memory storage implementation (production should use SQLite/Postgres)
 export class Storage {
   private events: Map<string, AlertEvent> = new Map()
   private incidents: Map<string, Incident> = new Map()
 
-  constructor(_dbPath?: string) {
+  constructor(dbPath?: string) {
     // In-memory implementation - dbPath ignored for now
+    void dbPath
     console.log('Using in-memory storage')
   }
 
@@ -27,7 +49,7 @@ export class Storage {
 
   getEventsByDedupeKey(dedupeKey: string, namespace: string, service: string): AlertEvent[] {
     const events: AlertEvent[] = []
-    
+
     for (const event of this.events.values()) {
       if (
         event.dedupe_key === dedupeKey &&
@@ -39,9 +61,7 @@ export class Storage {
     }
 
     // Sort by observed_at DESC
-    return events.sort((a, b) => 
-      new Date(b.observed_at).getTime() - new Date(a.observed_at).getTime()
-    )
+    return sortByObservedAtDesc(events)
   }
 
   // Incident operations
@@ -66,19 +86,13 @@ export class Storage {
     return this.incidents.get(key) || null
   }
 
-  listIncidents(filter?: {
-    status?: string
-    severity?: string
-    namespace?: string
-    service?: string
-    priority?: string
-    auto?: boolean
-  }): Incident[] {
+  listIncidents(filter?: IncidentListFilter): Incident[] {
     let incidents = Array.from(this.incidents.values())
 
     if (filter) {
       if (filter.status) {
-        incidents = incidents.filter((i) => i.status === filter.status!.toUpperCase())
+        const status = filter.status.toUpperCase()
+        incidents = incidents.filter((i) => i.status === status)
       }
       if (filter.severity) {
         incidents = incidents.filter((i) => i.current_severity === filter.severity)
@@ -98,9 +112,7 @@ export class Storage {
     }
 
     // Sort by last_observed_at DESC
-    return incidents.sort((a, b) => 
-      new Date(b.last_observed_at).getTime() - new Date(a.last_observed_at).getTime()
-    )
+    return sortByLastObservedDesc(incidents)
   }
 
   getIncidentDetail(dedupeKey: string, namespace: string, service: string): IncidentDetail | null {
@@ -133,7 +145,7 @@ export class Storage {
     const lastUpdatedAt =
       incidents.length > 0
         ? incidents.reduce((latest, i) =>
-            new Date(i.last_observed_at).getTime() > new Date(latest).getTime()
+            toEpoch(i.last_observed_at) > toEpoch(latest)
               ? i.last_observed_at
               : latest
           , incidents[0].last_observed_at)
@@ -159,7 +171,7 @@ export class Storage {
 
     for (const incident of this.incidents.values()) {
       const key = `${incident.namespace}:${incident.service}`
-      
+
       if (!serviceMap.has(key)) {
         serviceMap.set(key, {
           namespace: incident.namespace,
@@ -185,7 +197,7 @@ export class Storage {
       }
 
       // Update last_alert_at if this incident is more recent
-      if (new Date(incident.last_observed_at).getTime() > new Date(rollup.last_alert_at).getTime()) {
+      if (toEpoch(incident.last_observed_at) > toEpoch(rollup.last_alert_at)) {
         rollup.last_alert_at = incident.last_observed_at
       }
     }
@@ -203,8 +215,7 @@ export class Storage {
     return `${dedupeKey}:${namespace}:${service}`
   }
 
-  close() {
+  close(): void {
     // No-op for in-memory storage
   }
 }
-

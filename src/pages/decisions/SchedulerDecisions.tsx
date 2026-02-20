@@ -1,8 +1,25 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, Calendar, Filter, Server, AlertTriangle, X, Play, CheckCircle } from 'lucide-react'
+import { RefreshCw, Calendar, Filter, Server, X, Play, CheckCircle, AlertTriangle } from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
+import EmptyState from '@/components/layout/EmptyState'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
+import {
+  cn,
+  controlInputPanelClass,
+  controlLabelClass,
+  glassInteractiveCardClass,
+  loadingCardClass,
+  modalPanelClass,
+  pageContainerClass,
+  secondaryButtonClass,
+  subtleIconButtonClass,
+  successButtonClass,
+} from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import { getServicesWithPlacement } from '@/lib/api'
+import { schedulerApi } from '@/lib/schedulerApiClient'
 
 interface SchedulerDecision {
   namespace: string
@@ -16,11 +33,6 @@ interface SchedulerDecision {
   podName?: string
 }
 
-interface ServiceInfo {
-  service: string
-  podName: string
-  namespace: string
-}
 
 interface RestartResponse {
   success: boolean
@@ -28,19 +40,68 @@ interface RestartResponse {
   error?: string
 }
 
-const API_BASE_URL = '/scheduler-api'
+interface FilterSelectProps {
+  readonly id: string
+  readonly label: string
+  readonly value: string
+  readonly allLabel: string
+  readonly options: string[]
+  readonly onChange: (value: string) => void
+}
+
+function FilterSelect({
+  id,
+  label,
+  value,
+  allLabel,
+  options,
+  onChange,
+}: FilterSelectProps) {
+  return (
+    <div className="flex-1 w-full">
+      <label htmlFor={id} className={controlLabelClass}>
+        {label}
+      </label>
+      <Select
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={cn(controlInputPanelClass, 'appearance-none pr-11')}
+      >
+        <option value="">{allLabel}</option>
+        {options.map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </Select>
+    </div>
+  )
+}
+
+interface DecisionMetricCardProps {
+  readonly label: string
+  readonly className?: string
+  readonly children: React.ReactNode
+}
+
+function DecisionMetricCard({ label, className = '', children }: DecisionMetricCardProps) {
+  return (
+    <div className={`surface-glass rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-3 ${className}`}>
+      <p className="mb-1 text-xs text-[var(--text-dim)]">{label}</p>
+      {children}
+    </div>
+  )
+}
 
 export default function SchedulerDecisions() {
   const [decisions, setDecisions] = useState<SchedulerDecision[]>([])
-  const [services, setServices] = useState<Record<string, string[]>>({}) // Service -> PodName[]
+  const [services, setServices] = useState<Record<string, string[]>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
-  // Filters
   const [namespaceFilter, setNamespaceFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
 
-  // Apply Modal State
   const [applyModalOpen, setApplyModalOpen] = useState(false)
   const [selectedDecision, setSelectedDecision] = useState<SchedulerDecision | null>(null)
   const [selectedPod, setSelectedPod] = useState('')
@@ -50,20 +111,15 @@ export default function SchedulerDecisions() {
 
   const loadData = async () => {
     setLoading(true)
-    setError(null)
     try {
-      // Fetch decisions and services (via Graph API) in parallel
       const [decisionsRes, servicesRes] = await Promise.all([
-        fetch(`${API_BASE_URL}/decisions`),
+        schedulerApi.get<SchedulerDecision[]>('/decisions'),
         getServicesWithPlacement().catch(() => ({ services: [] }))
       ])
 
-      if (!decisionsRes.ok) throw new Error(`Decisions API error: ${decisionsRes.statusText}`)
-
-      const decisionsData = await decisionsRes.json()
+      const decisionsData = decisionsRes.data
       const servicesData = servicesRes.services || []
 
-      // Process Services into a Map of Service -> PodName[]
       const svcMap: Record<string, string[]> = {}
       servicesData.forEach(s => {
         if (s.placement?.nodes) {
@@ -87,7 +143,7 @@ export default function SchedulerDecisions() {
 
     } catch (err) {
       console.error('Error loading data:', err)
-      setError(err instanceof Error ? err.message : 'Failed to load data')
+      toast.error(err instanceof Error ? err.message : 'Failed to load data')
     } finally {
       setLoading(false)
     }
@@ -122,43 +178,26 @@ export default function SchedulerDecisions() {
     setApplyResult(null)
 
     try {
-      // Reuse the existing restart endpoint
-      const response = await fetch(`${API_BASE_URL}/restart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          namespace: selectedDecision.namespace,
-          podName: selectedPod,
-          force: true,
-        }),
+      const { data } = await schedulerApi.post<RestartResponse>('/restart', {
+        namespace: selectedDecision.namespace,
+        podName: selectedPod,
+        force: true,
       })
-
-      const text = await response.text()
-      let result
-      try {
-        result = JSON.parse(text)
-      } catch {
-        // fall back to text
-      }
-
-      if (!response.ok) {
-        throw new Error(result?.error || result?.message || text || 'Apply failed')
-      }
 
       setApplyResult({
         success: true,
-        message: result?.message || 'Placement applied successfully (Pod restarted)',
+        message: data.message || 'Placement applied successfully (Pod restarted)',
       })
+      toast.success(data.message || 'Placement applied successfully')
 
-      // Refresh data after success to get new placement status
       setTimeout(() => loadData(), 2000)
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to apply decision'
       setApplyResult({
         success: false,
-        message: err instanceof Error ? err.message : 'Failed to apply decision',
+        message: errorMessage,
       })
+      toast.error(errorMessage)
     } finally {
       setApplying(false)
     }
@@ -179,7 +218,7 @@ export default function SchedulerDecisions() {
       case 'StaleMetrics':
         return 'bg-red-900/30 text-red-300 border-red-700/50'
       default:
-        return 'bg-slate-900/30 text-slate-300 border-slate-700/50'
+        return 'bg-[var(--surface-subtle)] text-[var(--text-secondary)] border-[var(--border)]'
     }
   }
 
@@ -200,24 +239,19 @@ export default function SchedulerDecisions() {
   const uniqueStatuses = Array.from(new Set(decisions.map((d) => d.status))).sort()
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20">
+    <div className={`${pageContainerClass} pb-20`}>
       <PageHeader
         title="Scheduler Decisions"
         description="Real-time Kubernetes scheduling decisions. Apply recommendations to optimize placement."
         icon={Server}
         actions={
           <div className="flex items-center gap-3">
-            {error && (
-              <span className="text-red-400 text-sm flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4" />
-                Connection Failed
-              </span>
-            )}
-            <button
+            <button type="button"
               onClick={loadData}
               disabled={loading}
-              className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer shadow-lg shadow-blue-900/20"
+              className={cn(subtleIconButtonClass)}
               title="Refresh data"
+              aria-label="Refresh scheduler decisions"
             >
               <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
             </button>
@@ -228,51 +262,31 @@ export default function SchedulerDecisions() {
       {/* Filters */}
       <Section icon={Filter}>
         <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <label
-              htmlFor="namespace-filter"
-              className="block text-sm font-medium text-gray-300 mb-2"
-            >
-              Filter by Namespace
-            </label>
-            <select
-              id="namespace-filter"
-              value={namespaceFilter}
-              onChange={(e) => setNamespaceFilter(e.target.value)}
-              className="w-full bg-gray-900/50 text-white border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            >
-              <option value="">All Namespaces</option>
-              {uniqueNamespaces.map((ns) => (
-                <option key={ns} value={ns}>
-                  {ns}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex-1 w-full">
-            <label htmlFor="status-filter" className="block text-sm font-medium text-gray-300 mb-2">
-              Filter by Status
-            </label>
-            <select
-              id="status-filter"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full bg-gray-900/50 text-white border border-gray-700 rounded-lg px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-            >
-              <option value="">All Statuses</option>
-              {uniqueStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button
+          <FilterSelect
+            id="namespace-filter"
+            label="Filter by Namespace"
+            value={namespaceFilter}
+            allLabel="All Namespaces"
+            options={uniqueNamespaces}
+            onChange={setNamespaceFilter}
+          />
+          <FilterSelect
+            id="status-filter"
+            label="Filter by Status"
+            value={statusFilter}
+            allLabel="All Statuses"
+            options={uniqueStatuses}
+            onChange={setStatusFilter}
+          />
+          <button type="button"
             onClick={() => {
               setNamespaceFilter('')
               setStatusFilter('')
             }}
-            className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition-colors whitespace-nowrap h-[42px] border border-slate-600"
+            className={cn(
+              secondaryButtonClass,
+              'h-11 whitespace-nowrap px-6'
+            )}
           >
             Clear Filters
           </button>
@@ -281,36 +295,23 @@ export default function SchedulerDecisions() {
 
       {/* Loading State */}
       {loading && decisions.length === 0 && (
-        <div className="flex justify-center py-12">
-          <div className="flex flex-col items-center gap-3">
-            <RefreshCw className="w-8 h-8 text-blue-500 animate-spin" />
-            <p className="text-slate-400">Loading live decisions...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Error State */}
-      {!loading && error && decisions.length === 0 && (
-        <div className="bg-red-900/20 border border-red-900/50 rounded-xl p-8 text-center">
-          <AlertTriangle className="w-10 h-10 text-red-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-red-400 mb-2">Failed to load data</h3>
-          <p className="text-slate-400 mb-6">{error}</p>
-          <button
-            onClick={loadData}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
+        <div className={cn(loadingCardClass, 'space-y-4 p-6 text-left')} aria-label="Loading scheduler decisions">
+          <SkeletonBlock variant="title" className="w-1/3" />
+          <SkeletonBlock variant="line" className="w-1/2" />
+          {Array.from({ length: 3 }).map((_, index) => (
+            <SkeletonBlock key={`scheduler-skeleton-${index}`} variant="card" className="h-28" />
+          ))}
         </div>
       )}
 
       {/* Empty State */}
-      {!loading && !error && filteredDecisions.length === 0 && (
-        <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-12 text-center">
-          <Server className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-slate-300">No decisions found</h3>
-          <p className="text-slate-500">Try adjusting your filters or wait for new scheduling events.</p>
-        </div>
+      {!loading && filteredDecisions.length === 0 && (
+        <EmptyState
+          icon={<Server className="h-12 w-12 text-[var(--text-dim)]" />}
+          title="No decisions found"
+          message="Try adjusting your filters."
+          description="No scheduling events currently match the selected criteria."
+        />
       )}
 
       {/* Decisions Grid */}
@@ -322,16 +323,19 @@ export default function SchedulerDecisions() {
           return (
             <div
               key={`${decision.namespace}-${decision.service}-${decision.evaluatedAt}-${idx}`}
-              className="group relative overflow-hidden bg-slate-800/40 backdrop-blur-sm rounded-xl border border-slate-700/50 hover:border-slate-600 transition-all duration-300 hover:shadow-lg hover:shadow-black/20"
+              className={cn(
+                glassInteractiveCardClass,
+                'group relative border-[var(--border)] bg-[var(--surface-subtle)] hover:border-cyan-300/25 hover:shadow-[0_18px_34px_rgba(2,6,23,0.4)]'
+              )}
             >
               {/* Action Bar (Top Right) */}
               <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-                <button
+                <button type="button"
                   onClick={() => handleApplyClick(decision)}
                   disabled={isOptimized}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors border font-medium ${isOptimized
-                    ? 'bg-slate-800/50 text-slate-500 border-slate-700/50 cursor-not-allowed'
-                    : 'bg-green-500/10 hover:bg-green-500/20 text-green-400 border-green-500/30'
+                  className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
+                    ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-dim)]'
+                    : 'border-emerald-300/35 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/18'
                     }`}
                 >
                   {isOptimized ? <CheckCircle className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -346,9 +350,9 @@ export default function SchedulerDecisions() {
                     <Server className="w-6 h-6 text-blue-400" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-1.5">{decision.service}</h3>
+                    <h3 className="text-xl font-bold text-[var(--text-primary)] mb-1.5">{decision.service}</h3>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs px-2 py-0.5 bg-slate-700 text-slate-300 rounded border border-slate-600">
+                      <span className="text-xs px-2 py-0.5 bg-[var(--surface-soft)] text-[var(--text-secondary)] rounded border border-[var(--border-strong)]">
                         {decision.namespace}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded border ${getStatusColor(decision.status)}`}>
@@ -362,49 +366,46 @@ export default function SchedulerDecisions() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
                   {/* Timestamp */}
-                  <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/30">
-                    <p className="text-xs text-slate-500 mb-1">Evaluated At</p>
-                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                  <DecisionMetricCard label="Evaluated At">
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                       <Calendar className="w-3.5 h-3.5" />
                       {formatTimestamp(decision.evaluatedAt)}
                     </div>
-                  </div>
+                  </DecisionMetricCard>
 
                   {/* Best Node */}
-                  <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/30">
-                    <p className="text-xs text-slate-500 mb-1">Best Node</p>
+                  <DecisionMetricCard label="Best Node">
                     <div className="text-sm font-semibold text-green-400 font-mono">
                       {decision.bestNode || 'N/A'}
                     </div>
-                  </div>
+                  </DecisionMetricCard>
 
                   {/* Current Nodes */}
-                  <div className="bg-slate-900/30 rounded-lg p-3 border border-slate-700/30 col-span-1 md:col-span-2">
-                    <p className="text-xs text-slate-500 mb-1">Current Nodes</p>
+                  <DecisionMetricCard label="Current Nodes" className="col-span-1 md:col-span-2">
                     <div className="flex flex-wrap gap-1.5">
                       {decision.currentNodes?.length > 0 ? (
                         decision.currentNodes.map(node => (
-                          <span key={node} className="text-xs font-mono bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">
+                          <span key={node} className="text-xs font-mono bg-[var(--surface-solid)] text-[var(--text-secondary)] px-1.5 py-0.5 rounded border border-[var(--border)]">
                             {node}
                           </span>
                         ))
                       ) : (
-                        <span className="text-xs text-slate-600 italic">None</span>
+                        <span className="text-xs text-[var(--text-dim)] italic">None</span>
                       )}
                     </div>
-                  </div>
+                  </DecisionMetricCard>
                 </div>
 
                 {/* Scores List */}
-                <div className="border-t border-slate-700/50 pt-4">
-                  <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-3">Node Scores</p>
+                <div className="border-t border-[var(--border)] pt-4">
+                  <p className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-3">Node Scores</p>
                   <div className="flex flex-wrap gap-3">
                     {Object.entries(decision.scores || {})
                       .sort(([, a], [, b]) => b - a)
                       .map(([node, score]) => (
-                        <div key={node} className="flex items-center gap-2 bg-slate-900/40 rounded px-2.5 py-1.5 border border-slate-700/40">
-                          <span className="text-sm text-slate-400 font-mono">{node}</span>
-                          <div className="h-4 w-px bg-slate-700"></div>
+                        <div key={node} className="flex items-center gap-2 bg-[var(--surface-subtle)] rounded px-2.5 py-1.5 border border-[var(--border)]">
+                          <span className="text-sm text-[var(--text-muted)] font-mono">{node}</span>
+                          <div className="h-4 w-px bg-[var(--surface-soft)]"></div>
                           <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score}</span>
                         </div>
                       ))}
@@ -419,8 +420,13 @@ export default function SchedulerDecisions() {
 
       {/* Apply/Restart Confirm Modal */}
       {applyModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--overlay-backdrop)] backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="apply-decision-title"
+            className={cn(modalPanelClass, 'max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200')}
+          >
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div className="flex items-center gap-3">
@@ -428,13 +434,16 @@ export default function SchedulerDecisions() {
                     <Play className="w-5 h-5 text-green-500" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-white">Apply Decision</h3>
-                    <p className="text-sm text-slate-400">Apply placement for <b>{selectedDecision?.service}</b></p>
+                    <h3 id="apply-decision-title" className="text-lg font-semibold text-[var(--text-primary)]">
+                      Apply Decision
+                    </h3>
+                    <p className="text-sm text-[var(--text-muted)]">Apply placement for <b>{selectedDecision?.service}</b></p>
                   </div>
                 </div>
-                <button
+                <button type="button"
                   onClick={closeApplyModal}
-                  className="text-slate-500 hover:text-white transition-colors"
+                  className={cn(subtleIconButtonClass, 'h-9 w-9 bg-[var(--surface-subtle)] text-[var(--text-muted)]')}
+                  aria-label="Close apply decision modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -443,22 +452,25 @@ export default function SchedulerDecisions() {
               <div className="space-y-4">
                 {!applyResult ? (
                   <>
-                    <div className="bg-blue-900/20 border border-blue-900/40 rounded-lg p-3 text-sm text-blue-200/80">
+                    <div className="surface-glass rounded-lg border border-cyan-300/24 bg-cyan-400/10 p-3 text-sm text-[var(--text-secondary)]">
                       <p>This action will restart the pod to allow it to be rescheduled onto the best node (<b>{selectedDecision?.bestNode}</b>).</p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-300 mb-1.5">Select Pod to Restart</label>
+                      <label htmlFor="pod-select" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                        Select Pod to Restart
+                      </label>
                       {availablePods.length > 0 ? (
-                        <select
+                        <Select
+                          id="pod-select"
                           value={selectedPod}
                           onChange={(e) => setSelectedPod(e.target.value)}
-                          className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none"
+                          className={cn(controlInputPanelClass, 'appearance-none pr-11')}
                         >
                           {availablePods.map(pod => (
                             <option key={pod} value={pod}>{pod}</option>
                           ))}
-                        </select>
+                        </Select>
                       ) : (
                         <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
                           No active pods found for this service.
@@ -466,23 +478,23 @@ export default function SchedulerDecisions() {
                       )}
 
                       {availablePods.length > 0 && (
-                        <p className="text-xs text-slate-500 mt-1.5">
+                        <p className="text-xs text-[var(--text-dim)] mt-1.5">
                           Select the specific pod instance to migrate to the best node.
                         </p>
                       )}
                     </div>
 
                     <div className="flex gap-3 pt-2">
-                      <button
+                      <button type="button"
                         onClick={closeApplyModal}
-                        className="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition-colors font-medium border border-slate-700"
+                        className={cn(secondaryButtonClass, 'flex-1')}
                       >
                         Cancel
                       </button>
-                      <button
+                      <button type="button"
                         onClick={confirmApply}
                         disabled={!selectedPod || applying}
-                        className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-900/50 disabled:text-green-300/50 text-white rounded-lg transition-colors font-medium flex items-center justify-center gap-2"
+                        className={cn(successButtonClass, 'flex-1 justify-center gap-2')}
                       >
                         {applying ? (
                           <>
@@ -503,18 +515,18 @@ export default function SchedulerDecisions() {
                           <CheckCircle className="w-6 h-6" />
                         </div>
                         <h4 className="font-semibold text-lg">Applied Successfully</h4>
-                        <p className="text-sm text-slate-400 px-4">{applyResult.message}</p>
+                        <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <AlertTriangle className="w-8 h-8 mb-2" />
                         <h4 className="font-semibold text-lg">Apply Failed</h4>
-                        <p className="text-sm text-slate-400 px-4">{applyResult.message}</p>
+                        <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
                       </div>
                     )}
-                    <button
+                    <button type="button"
                       onClick={closeApplyModal}
-                      className="mt-6 px-6 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                      className={cn(secondaryButtonClass, 'mt-6 px-6')}
                     >
                       Close
                     </button>

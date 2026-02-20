@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router'
 import { ArrowLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
-import { getDecisionHistory } from '@/lib/api'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
+import { getDecisionById } from '@/lib/api'
 import { formatDate, formatRps, formatMs } from '@/lib/format'
 import type { DecisionRecord, Recommendation, PipelineTrace } from '@/lib/types'
 
@@ -28,13 +29,13 @@ const getScenarioSummary = (item: DecisionRecord): string => {
 const getConfidenceBadge = (confidence?: string) => {
   if (!confidence) return null
   const colors: Record<string, string> = {
-    high: 'bg-green-900/30 text-green-300 border-green-700',
-    medium: 'bg-yellow-900/30 text-yellow-300 border-yellow-700',
-    low: 'bg-red-900/30 text-red-300 border-red-700',
+    high: 'bg-emerald-500/12 text-emerald-700 border-emerald-500/45',
+    medium: 'bg-amber-500/12 text-amber-700 border-amber-500/45',
+    low: 'bg-rose-500/12 text-rose-700 border-rose-500/45',
   }
   return (
     <span
-      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-slate-700 text-slate-300'}`}
+      className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${colors[confidence] || 'bg-[var(--surface-soft)] text-[var(--text-secondary)]'}`}
     >
       {confidence}
     </span>
@@ -54,13 +55,13 @@ export default function DecisionDetail() {
 
       try {
         setLoading(true)
-        const response = await getDecisionHistory({ limit: 1000, offset: 0 })
-        const found = response.decisions.find((item) => item.id.toString() === id)
-        if (found) {
-          setDecision(found)
-        } else {
+        const parsedId = Number(id)
+        if (!Number.isFinite(parsedId)) {
           setError('Decision not found')
+          return
         }
+        const found = await getDecisionById(parsedId)
+        setDecision(found)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load decision')
       } finally {
@@ -73,8 +74,45 @@ export default function DecisionDetail() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto" />
+      <div className="p-8 space-y-6" aria-busy="true">
+        <div className="flex items-center gap-4">
+          <SkeletonBlock variant="line" className="h-5 w-5 rounded" />
+          <div className="w-full">
+            <PageHeader title="Decision Details" description="Loading timeline..." />
+          </div>
+        </div>
+
+        <Section title="Summary">
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <SkeletonBlock variant="line" className="mb-3 h-5 w-4/5" />
+            <SkeletonBlock variant="line" className="h-5 w-2/3" />
+          </div>
+        </Section>
+
+        <Section title="Configuration Audit">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div
+                key={`decision-config-skeleton-${index}`}
+                className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]"
+              >
+                <SkeletonBlock variant="line" className="mb-2 h-3 w-1/3" />
+                <SkeletonBlock variant="line" className="h-5 w-2/3" />
+              </div>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="Evidence Chain">
+          <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={`decision-evidence-skeleton-${index}`} className="p-3 bg-[var(--surface-solid)] rounded border border-[var(--border)]">
+                <SkeletonBlock variant="line" className="mb-2 h-4 w-2/5" />
+                <SkeletonBlock variant="line" className="h-3 w-1/2" />
+              </div>
+            ))}
+          </div>
+        </Section>
       </div>
     )
   }
@@ -108,59 +146,64 @@ export default function DecisionDetail() {
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center gap-4">
-        <Link to="/history" className="text-slate-400 hover:text-white transition-colors">
+        <Link to="/history" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <PageHeader
-          title="Decision Details"
-          description={formatDate(new Date(decision.timestamp))}
-        />
+        <div className="flex-1">
+          <PageHeader
+            title="Decision Story"
+            description={formatDate(new Date(decision.timestamp))}
+          />
+        </div>
       </div>
 
       {/* Summary */}
-      <Section title="Summary">
-        <div className="p-4 bg-slate-900 rounded-lg border border-slate-700">
-          <p className="text-lg text-white leading-relaxed">{summary}</p>
+      <Section title="What was simulated">
+        <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+          <p className="text-lg text-[var(--text-primary)] leading-relaxed">{summary}</p>
           {confidence && (
             <div className="flex items-center gap-2 mt-3">
-              <span className="text-sm text-slate-400">Confidence:</span>
+              <span className="text-sm text-[var(--text-muted)]">Confidence:</span>
               {getConfidenceBadge(confidence)}
             </div>
           )}
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">
+            This run is read-only and based on available graph evidence at that time.
+          </p>
         </div>
       </Section>
 
       {/* Configuration Audit (Inputs) */}
       <Section
-        title="Configuration Audit"
-        description="System state inputs used for this simulation"
+        title="Simulation inputs"
+        description="Key inputs used to produce this outcome"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-            <div className="text-xs text-slate-500 uppercase mb-1">Scenario Type</div>
-            <div className="text-white font-medium capitalize">{decision.type}</div>
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Scenario Type</div>
+            <div className="text-[var(--text-primary)] font-medium capitalize">{decision.type}</div>
           </div>
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-            <div className="text-xs text-slate-500 uppercase mb-1">Target Service</div>
-            <div className="text-white font-medium">{decision.scenario.serviceId as string}</div>
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Target Service</div>
+            <div className="text-[var(--text-primary)] font-medium">{decision.scenario.serviceId as string}</div>
           </div>
           {(decision.type === 'scale' || decision.type === 'scaling') && (
             <>
-              <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-                <div className="text-xs text-slate-500 uppercase mb-1">Current Pods</div>
-                <div className="text-white font-medium">
+              <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+                <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Current Pods</div>
+                <div className="text-[var(--text-primary)] font-medium">
                   {decision.scenario.currentPods as number}
                 </div>
               </div>
-              <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-                <div className="text-xs text-slate-500 uppercase mb-1">Target Pods</div>
-                <div className="text-white font-medium">{decision.scenario.newPods as number}</div>
+              <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+                <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Target Pods</div>
+                <div className="text-[var(--text-primary)] font-medium">{decision.scenario.newPods as number}</div>
               </div>
             </>
           )}
-          <div className="p-4 bg-slate-900 rounded-lg border border-slate-800">
-            <div className="text-xs text-slate-500 uppercase mb-1">Simulation Depth</div>
-            <div className="text-white font-medium">
+          <div className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]">
+            <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Simulation Depth</div>
+            <div className="text-[var(--text-primary)] font-medium">
               {(decision.scenario.maxDepth as number) ?? 'N/A'} hops
             </div>
           </div>
@@ -174,13 +217,13 @@ export default function DecisionDetail() {
             {pipelineTrace.stages.map((stage, idx) => (
               <div
                 key={idx}
-                className="relative pl-6 pb-4 border-l border-slate-700 last:pb-0 last:border-0"
+                className="relative pl-6 pb-4 border-l border-[var(--border)] last:pb-0 last:border-0"
               >
                 <div className="absolute left-[-5px] top-0 w-2.5 h-2.5 rounded-full bg-blue-500 ring-4 ring-slate-900" />
-                <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                <div className="bg-[var(--surface-solid)] p-3 rounded border border-[var(--border)]">
                   <div className="flex justify-between items-start mb-1">
-                    <span className="text-sm font-medium text-white">{stage.name}</span>
-                    <span className="text-xs text-slate-500 flex items-center gap-1">
+                    <span className="text-sm font-medium text-[var(--text-primary)]">{stage.name}</span>
+                    <span className="text-xs text-[var(--text-dim)] flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {formatMs(stage.ms)}
                     </span>
@@ -207,17 +250,17 @@ export default function DecisionDetail() {
 
       {/* Affected Services */}
       {decision.type === 'failure' && (
-        <Section title="Impact Analysis">
+        <Section title="What changed">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Upstream Callers */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Upstream Callers ({affectedCallers.length})
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
+                Upstream callers impacted ({affectedCallers.length})
               </h3>
               {affectedCallers.length === 0 ? (
-                <div className="p-8 text-center bg-slate-900 rounded border border-slate-800 border-dashed">
-                  <CheckCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">No upstream callers affected</p>
+                <div className="p-8 text-center bg-[var(--surface-solid)] rounded border border-[var(--border)] border-dashed">
+                  <CheckCircle className="w-8 h-8 text-[var(--text-dim)] mx-auto mb-2" />
+                  <p className="text-sm text-[var(--text-dim)]">No upstream callers affected</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -226,13 +269,13 @@ export default function DecisionDetail() {
                     return (
                       <div
                         key={`caller-${c.namespace}-${c.name}-${idx}`}
-                        className="p-3 bg-slate-900 rounded border border-yellow-700/30"
+                        className="p-3 bg-[var(--surface-solid)] rounded border border-yellow-700/30"
                       >
-                        <div className="font-medium text-white">{c.name as string}</div>
-                        <div className="text-xs text-slate-400">{c.namespace as string}</div>
+                        <div className="font-medium text-[var(--text-primary)]">{c.name as string}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{c.namespace as string}</div>
                         {c.lostTrafficRps !== undefined && (
-                          <div className="text-sm text-yellow-300 mt-1">
-                            Lost: {formatRps(c.lostTrafficRps as number)} RPS
+                          <div className="text-sm text-[var(--text-primary)] mt-1">
+                            Lost traffic: {formatRps(c.lostTrafficRps as number)} req/s
                           </div>
                         )}
                       </div>
@@ -244,13 +287,13 @@ export default function DecisionDetail() {
 
             {/* Downstream Dependencies */}
             <div>
-              <h3 className="text-sm font-semibold text-slate-300 mb-3">
-                Downstream Impacted ({affectedDownstream.length})
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)] mb-3">
+                Downstream services impacted ({affectedDownstream.length})
               </h3>
               {affectedDownstream.length === 0 ? (
-                <div className="p-8 text-center bg-slate-900 rounded border border-slate-800 border-dashed">
-                  <CheckCircle className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-sm text-slate-500">No downstream services impacted</p>
+                <div className="p-8 text-center bg-[var(--surface-solid)] rounded border border-[var(--border)] border-dashed">
+                  <CheckCircle className="w-8 h-8 text-[var(--text-dim)] mx-auto mb-2" />
+                  <p className="text-sm text-[var(--text-dim)]">No downstream services impacted</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -259,13 +302,13 @@ export default function DecisionDetail() {
                     return (
                       <div
                         key={`downstream-${d.namespace}-${d.name}-${idx}`}
-                        className="p-3 bg-slate-900 rounded border border-red-700/30"
+                        className="p-3 bg-[var(--surface-solid)] rounded border border-red-700/30"
                       >
-                        <div className="font-medium text-white">{d.name as string}</div>
-                        <div className="text-xs text-slate-400">{d.namespace as string}</div>
+                        <div className="font-medium text-[var(--text-primary)]">{d.name as string}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{d.namespace as string}</div>
                         {d.lostTrafficRps !== undefined && (
-                          <div className="text-sm text-red-300 mt-1">
-                            Lost: {formatRps(d.lostTrafficRps as number)} RPS
+                          <div className="text-sm text-[var(--text-primary)] mt-1">
+                            Lost traffic: {formatRps(d.lostTrafficRps as number)} req/s
                           </div>
                         )}
                       </div>
@@ -280,24 +323,24 @@ export default function DecisionDetail() {
 
       {/* Latency Impact (Scaling) */}
       {(decision.type === 'scale' || decision.type === 'scaling') && latencyEstimate && (
-        <Section title="Latency Impact">
+        <Section title="What changed">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-slate-900 rounded-lg">
-              <div className="text-xs text-slate-500 uppercase mb-1">Baseline</div>
-              <div className="text-white text-xl font-semibold">
+            <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Current slow-end response time</div>
+              <div className="text-[var(--text-primary)] text-xl font-semibold">
                 {formatMs((latencyEstimate.baselineMs as number) ?? 0)}
               </div>
             </div>
-            <div className="p-4 bg-slate-900 rounded-lg">
-              <div className="text-xs text-slate-500 uppercase mb-1">Projected</div>
-              <div className="text-white text-xl font-semibold">
+            <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Projected slow-end response time</div>
+              <div className="text-[var(--text-primary)] text-xl font-semibold">
                 {formatMs((latencyEstimate.projectedMs as number) ?? 0)}
               </div>
             </div>
-            <div className="p-4 bg-slate-900 rounded-lg">
-              <div className="text-xs text-slate-500 uppercase mb-1">Delta</div>
+            <div className="p-4 bg-[var(--surface-solid)] rounded-lg">
+              <div className="text-xs text-[var(--text-dim)] uppercase mb-1">Expected change</div>
               <div
-                className={`text-xl font-semibold ${((latencyEstimate.deltaMs as number) ?? 0) < 0 ? 'text-green-400' : 'text-red-400'}`}
+                className={`text-xl font-semibold ${((latencyEstimate.deltaMs as number) ?? 0) < 0 ? 'text-emerald-700' : 'text-rose-700'}`}
               >
                 {((latencyEstimate.deltaMs as number) ?? 0) < 0 ? '' : '+'}
                 {formatMs((latencyEstimate.deltaMs as number) ?? 0)}
@@ -310,21 +353,21 @@ export default function DecisionDetail() {
       {/* Recommendations */}
       {recommendations.length > 0 && (
         <Section
-          title="Recommendations"
-          description="AI-generated action items based on simulation results"
+          title="What to do next"
+          description="Suggested next actions based on this simulation"
         >
           <div className="space-y-3">
             {recommendations.map((rec, idx) => {
               const priorityClass = (() => {
-                if (rec.priority === 'high') return 'bg-red-900/30 text-red-300'
-                if (rec.priority === 'medium') return 'bg-yellow-900/30 text-yellow-300'
-                return 'bg-blue-900/30 text-blue-300'
+                if (rec.priority === 'high') return 'bg-rose-500/15 text-rose-700'
+                if (rec.priority === 'medium') return 'bg-amber-500/15 text-amber-700'
+                return 'bg-blue-500/15 text-blue-700'
               })()
 
               return (
                 <div
                   key={`rec-${rec.description}-${idx}`}
-                  className="p-4 bg-slate-900 rounded-lg border border-slate-700"
+                  className="p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)]"
                 >
                   <div className="flex items-start gap-3">
                     <span
@@ -332,7 +375,7 @@ export default function DecisionDetail() {
                     >
                       {rec.priority || 'info'}
                     </span>
-                    <p className="text-sm text-slate-300 flex-1">{rec.description}</p>
+                    <p className="text-sm text-[var(--text-secondary)] flex-1">{rec.description}</p>
                   </div>
                 </div>
               )
@@ -343,20 +386,20 @@ export default function DecisionDetail() {
 
       {/* Advanced Details */}
       <Section>
-        <button
+        <button type="button"
           onClick={() => setShowRawJson(!showRawJson)}
-          className="w-full flex items-center justify-between p-4 bg-slate-900 rounded-lg border border-slate-700 hover:border-slate-600 transition-colors"
+          className="w-full flex items-center justify-between p-4 bg-[var(--surface-solid)] rounded-lg border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors"
         >
-          <span className="text-sm font-medium text-slate-300">Raw Record (Debug)</span>
-          <span className="text-slate-500">{showRawJson ? '▼' : '▶'}</span>
+          <span className="text-sm font-medium text-[var(--text-secondary)]">Advanced technical record</span>
+          <span className="text-[var(--text-dim)]">{showRawJson ? '▼' : '▶'}</span>
         </button>
 
         {showRawJson && (
-          <div className="mt-4 p-4 bg-slate-900 rounded-lg">
-            <div className="text-xs text-slate-500 mb-2 font-mono">
+          <div className="mt-4 p-4 bg-[var(--surface-solid)] rounded-lg">
+            <div className="text-xs text-[var(--text-dim)] mb-2 font-mono">
               ID: {decision.id} | Correlation: {decision.correlationId || 'N/A'}
             </div>
-            <pre className="text-xs text-slate-300 overflow-x-auto font-mono">
+            <pre className="text-xs text-[var(--text-secondary)] overflow-x-auto font-mono">
               {JSON.stringify(decision, null, 2)}
             </pre>
           </div>

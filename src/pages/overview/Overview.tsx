@@ -1,15 +1,36 @@
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, LayoutDashboard } from 'lucide-react'
+import {
+  RefreshCw,
+  LayoutDashboard,
+  Layers3,
+  Globe,
+  Heart,
+  Zap,
+  ShieldCheck,
+} from 'lucide-react'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
-import KPIStatCard from '@/components/layout/KPIStatCard'
+import MetricHighlightCard from '@/components/layout/MetricHighlightCard'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
+import {
+  cn,
+  loadingCardClass,
+  pageContainerClass,
+  subtleIconButtonClass,
+} from '@/components/common/uiClassTokens'
 import { getTelemetryMetrics, getServices } from '@/lib/api'
 import { formatRps, formatPercent } from '@/lib/format'
 import IncidentExplorer from '@/pages/overview/IncidentExplorer'
 import { getGlossaryTerm } from '@/lib/glossary'
+import { useGraphStream } from '@/lib/useGraphStream'
+
+function toPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return value <= 1 ? value * 100 : value
+}
 
 export default function Overview() {
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [kpiData, setKpiData] = useState<{
     totalServices: number
     avgRequestRate: number
@@ -17,10 +38,10 @@ export default function Overview() {
     avgP95: number
     avgAvailability: number
   } | null>(null)
+  const { graphData, lastUpdated } = useGraphStream()
 
   const fetchData = useCallback(async () => {
     setLoading(true)
-    setError(null)
 
     try {
       // Fetch services
@@ -49,13 +70,13 @@ export default function Overview() {
       let totalAvailability = 0
       let count = 0
 
-      services.forEach((service, idx) => {
+      services.forEach((_, idx) => {
         const telemetry = telemetryResults[idx]
         if (!telemetry || telemetry.datapoints.length === 0) {
           return
         }
 
-        const latest = telemetry.datapoints.at(-1)
+        const latest = telemetry.datapoints[telemetry.datapoints.length - 1]
         if (!latest) return
 
         totalRequestRate += latest.requestRate
@@ -73,28 +94,58 @@ export default function Overview() {
         avgAvailability: count > 0 ? totalAvailability / count : 0,
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load overview data')
+      toast.error(err instanceof Error ? err.message : 'Failed to load overview data')
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => {
+    const services = graphData?.metricsSnapshot?.services
+    if (!services || services.length === 0) return
+
+    let totalRequestRate = 0
+    let totalErrorRatePct = 0
+    let totalP95 = 0
+    let totalAvailabilityPct = 0
+
+    services.forEach((service) => {
+      totalRequestRate += Number(service.rps || 0)
+      totalErrorRatePct += toPercent(Number(service.errorRate || 0))
+      totalP95 += Number(service.p95 || 0)
+      totalAvailabilityPct += toPercent(Number(service.availability || 0))
+    })
+
+    const count = services.length
+    setKpiData({
+      totalServices: count,
+      avgRequestRate: totalRequestRate,
+      avgErrorRate: count > 0 ? totalErrorRatePct / count : 0,
+      avgP95: count > 0 ? totalP95 / count : 0,
+      avgAvailability: count > 0 ? totalAvailabilityPct / count : 0,
+    })
+    setLoading(false)
+  }, [graphData, lastUpdated])
+
+  useEffect(() => {
+    if (graphData?.metricsSnapshot?.services?.length) return
     fetchData()
-  }, [fetchData])
+  }, [fetchData, graphData])
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className={pageContainerClass}>
       <PageHeader
         title="Overview"
         description="System health and top risks"
         icon={LayoutDashboard}
         actions={
           <button
+            type="button"
             onClick={fetchData}
             disabled={loading}
-            className="p-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:opacity-50 text-white rounded-lg transition-colors cursor-pointer"
+            className={cn(subtleIconButtonClass)}
             title="Refresh data"
+            aria-label="Refresh overview data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -103,61 +154,79 @@ export default function Overview() {
 
       {/* Loading State */}
       {loading && !kpiData && (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-12 text-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-          <p className="text-slate-400">Loading overview...</p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-          <p className="text-red-300">{error}</p>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5" aria-label="Loading overview metrics">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={`overview-skeleton-${index}`} className={cn(loadingCardClass, 'p-6 text-left')}>
+              <SkeletonBlock variant="line" className="mb-3 w-2/3" />
+              <SkeletonBlock variant="line" className="mb-4 w-5/6" />
+              <SkeletonBlock variant="title" className="w-1/2" />
+            </div>
+          ))}
         </div>
       )}
 
       {/* KPI Cards */}
       {kpiData && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <KPIStatCard
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+          <MetricHighlightCard
             label="Services Monitored"
+            description="How many services are currently being observed?"
+            icon={Layers3}
             value={kpiData?.totalServices ?? 0}
-            variant="default"
+            valueClassName="text-indigo-200"
+            tone="indigo"
+            tooltip="Total number of services currently under monitoring. This defines the size of the system scope for the metrics shown on this page."
           />
-          <KPIStatCard
+          <MetricHighlightCard
             label={getGlossaryTerm('requestRate').label}
+            description="How many requests are arriving across the platform?"
+            icon={Globe}
             value={formatRps(kpiData?.avgRequestRate ?? 0)}
-            variant="default"
+            valueClassName="text-[var(--text-primary)]"
+            tone="blue"
+            tooltip="Average incoming request traffic across monitored services. Higher values mean the platform is handling more demand right now."
           />
-          <KPIStatCard
+          <MetricHighlightCard
             label={getGlossaryTerm('errorRate').label}
+            description="Percentage of requests failing across observed services."
+            icon={Heart}
             value={formatPercent(kpiData?.avgErrorRate ?? 0)}
-            variant={(() => {
+            valueClassName={(() => {
               const rate = kpiData?.avgErrorRate ?? 0
-              if (rate > 5) return 'danger'
-              if (rate > 1) return 'warning'
-              return 'success'
+              if (rate > 5) return 'text-rose-300'
+              if (rate > 1) return 'text-amber-300'
+              return 'text-emerald-300'
             })()}
+            tone="rose"
+            tooltip="Average failure percentage across observed services. Lower values are better because fewer users see broken requests."
           />
-          <KPIStatCard
+          <MetricHighlightCard
             label={getGlossaryTerm('p95').label}
+            description="How quickly requests complete under higher load."
+            icon={Zap}
             value={`${(kpiData?.avgP95 ?? 0).toFixed(0)}ms`}
-            variant={(() => {
+            valueClassName={(() => {
               const p95 = kpiData?.avgP95 ?? 0
-              if (p95 > 1000) return 'danger'
-              if (p95 > 500) return 'warning'
-              return 'success'
+              if (p95 > 1000) return 'text-rose-300'
+              if (p95 > 500) return 'text-amber-300'
+              return 'text-emerald-300'
             })()}
+            tone="amber"
+            tooltip="Slow-end response time under load (P95). It represents slower user experiences, so lower values indicate better performance."
           />
-          <KPIStatCard
+          <MetricHighlightCard
             label={getGlossaryTerm('availability').label}
+            description="How consistently services stay reachable and responsive."
+            icon={ShieldCheck}
             value={formatPercent(kpiData?.avgAvailability ?? 0)}
-            variant={(() => {
+            valueClassName={(() => {
               const avail = kpiData?.avgAvailability ?? 0
-              if (avail >= 99) return 'success'
-              if (avail >= 95) return 'warning'
-              return 'danger'
+              if (avail >= 99) return 'text-emerald-300'
+              if (avail >= 95) return 'text-amber-300'
+              return 'text-rose-300'
             })()}
+            tone="emerald"
+            tooltip="Average uptime across monitored services. Values closer to 100% mean services stayed online and reachable more consistently."
           />
         </div>
       )}

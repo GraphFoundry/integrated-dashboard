@@ -1,15 +1,36 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router'
+import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
+import SkeletonBlock from '@/components/common/SkeletonBlock'
+import {
+  controlInputMutedClass,
+  pageContainerClass,
+  primaryButtonClass,
+  cn,
+  glassSurfaceClass,
+} from '@/components/common/uiClassTokens'
+import { Select } from '@/components/ui'
 import TimeSeriesLineChart from '@/components/charts/TimeSeriesLineChart'
 import LatencyMultiLineChart from '@/components/charts/LatencyMultiLineChart'
 import { getTelemetryMetrics } from '@/lib/api'
 import { formatRps, formatPercent, formatMs } from '@/lib/format'
 import { TelemetryMetricsResponse } from '@/lib/types'
 import { getGlossaryTerm } from '@/lib/glossary'
+
+function KpiCardSkeleton() {
+  return (
+    <div className={cn(glassSurfaceClass, 'interactive-soft rounded-[var(--radius-md)] p-4')}>
+      <SkeletonBlock variant="line" className="mb-2 h-3 w-2/5" />
+      <div className="flex items-baseline gap-2">
+        <SkeletonBlock variant="title" className="h-8 w-1/2" />
+      </div>
+    </div>
+  )
+}
 
 export default function ServiceHealthDetails() {
   const { serviceId } = useParams() // Expects "namespace:serviceName" or just "serviceName"
@@ -23,14 +44,12 @@ export default function ServiceHealthDetails() {
   const [timeRange, setTimeRange] = useState('1h')
   const [data, setData] = useState<TelemetryMetricsResponse | null>(null)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!serviceName) return
 
     const fetchData = async () => {
       setLoading(true)
-      setError(null)
       try {
         const now = new Date()
         const from = new Date(now.getTime() - getTimeRangeMs(timeRange))
@@ -43,7 +62,7 @@ export default function ServiceHealthDetails() {
         })
         setData(result)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch service data')
+        toast.error(err instanceof Error ? err.message : 'Failed to fetch service data')
       } finally {
         setLoading(false)
       }
@@ -63,32 +82,33 @@ export default function ServiceHealthDetails() {
   }
 
   // Summary Stats
-  const summary = data?.datapoints.at(-1)
+  const summary = data?.datapoints[data.datapoints.length - 1]
 
   if (!serviceName) {
     return <EmptyState message="Service not found" />
   }
 
   return (
-    <div className="p-8 space-y-6">
+    <div className={pageContainerClass} aria-busy={loading && !data}>
       <PageHeader
         title={serviceName}
         description={`Service Health • Namespace: ${namespace}`}
         actions={
-          <div className="flex gap-3">
-            <select
+          <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
+            <Select
+              aria-label="Telemetry time range"
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 outline-none"
+              className={cn(controlInputMutedClass, 'w-full min-w-[16rem] appearance-none pr-11')}
             >
               <option value="1h">Last 1 hour</option>
               <option value="6h">Last 6 hours</option>
               <option value="24h">Last 24 hours</option>
               <option value="7d">Last 7 days</option>
-            </select>
-            <button
+            </Select>
+            <button type="button"
               onClick={() => navigate(`/simulations?service=${namespace}:${serviceName}`)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-sm"
+              className={`${primaryButtonClass} text-sm`}
             >
               Open in Simulations
             </button>
@@ -96,16 +116,31 @@ export default function ServiceHealthDetails() {
         }
       />
 
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 rounded-lg p-4 text-red-300">
-          {error}
-        </div>
-      )}
 
       {loading && !data && (
-        <div className="h-64 flex items-center justify-center">
-          <div className="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full" />
-        </div>
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4" aria-busy="true">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <KpiCardSkeleton key={`service-health-kpi-skeleton-${index}`} />
+            ))}
+          </div>
+          <Section title="Performance Trends">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <SkeletonBlock variant="line" className="mb-3 h-4 w-2/5" />
+                <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+              </div>
+              <div>
+                <SkeletonBlock variant="line" className="mb-3 h-4 w-2/5" />
+                <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+              </div>
+              <div className="lg:col-span-2">
+                <SkeletonBlock variant="line" className="mb-3 h-4 w-1/3" />
+                <SkeletonBlock variant="card" className="h-[200px] w-full rounded-lg" />
+              </div>
+            </div>
+          </Section>
+        </>
       )}
 
       {summary && (
@@ -141,7 +176,7 @@ export default function ServiceHealthDetails() {
         <Section title="Performance Trends">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 {getGlossaryTerm('requestRate').label}
               </h3>
               <TimeSeriesLineChart
@@ -155,7 +190,7 @@ export default function ServiceHealthDetails() {
               />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-slate-300 mb-3">
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">
                 {getGlossaryTerm('errorRate').label}
               </h3>
               <TimeSeriesLineChart
@@ -166,7 +201,7 @@ export default function ServiceHealthDetails() {
               />
             </div>
             <div className="lg:col-span-2">
-              <h3 className="text-sm font-medium text-slate-300 mb-3">Response Time (Latency)</h3>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-3">Response Time (Latency)</h3>
               <LatencyMultiLineChart
                 data={data.datapoints.map((d) => ({
                   timestamp: d.timestamp,

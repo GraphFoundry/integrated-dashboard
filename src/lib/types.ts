@@ -45,10 +45,19 @@ export type ServiceRef = {
   namespace?: string
 }
 
+export type RequestNormalized = {
+  serviceId?: string
+  graphLookupKey?: string
+  depthUsed?: number
+}
+
 export type Recommendation = {
   type?: string
   priority?: string
   description?: string
+  target?: string
+  reason?: string
+  action?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,11 +87,33 @@ export type CriticalPath = {
   length?: number
 }
 
+export type ImpactGraphNode = {
+  serviceId?: string
+  name?: string
+  namespace?: string
+  status?: 'target_failed' | 'broken' | 'unreachable' | 'normal'
+}
+
+export type ImpactGraphEdge = {
+  source?: string
+  target?: string
+  rate?: number
+  errorRate?: number
+  p95?: number
+  status?: 'broken' | 'unreachable' | 'normal'
+}
+
+export type ImpactGraph = {
+  nodes?: ImpactGraphNode[]
+  edges?: ImpactGraphEdge[]
+}
+
 export type FailureResponse = {
   pipelineTrace?: PipelineTrace
   correlationId?: string
   target?: ServiceRef
   neighborhood?: Neighborhood
+  requestNormalized?: RequestNormalized
   dataFreshness?: DataFreshness
   confidence?: 'high' | 'medium' | 'low'
   explanation?: string
@@ -90,8 +121,11 @@ export type FailureResponse = {
   affectedDownstream?: FailureAffectedDownstream[]
   unreachableServices?: ServiceRef[]
   criticalPathsToTarget?: CriticalPath[]
+  impactGraph?: ImpactGraph
   totalLostTrafficRps?: number
   recommendations?: Recommendation[]
+  sourceMode?: 'live' | 'demo'
+  snapshotId?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -130,6 +164,10 @@ export type ScaleResponse = {
   pipelineTrace?: PipelineTrace
   correlationId?: string
   target?: ServiceRef
+  neighborhood?: Neighborhood
+  requestNormalized?: RequestNormalized
+  dataFreshness?: DataFreshness
+  confidence?: 'high' | 'medium' | 'low'
   scalingDirection?: 'up' | 'down' | 'same'
   latencyEstimate?: LatencyEstimate
   affectedCallers?: ScaleAffectedCaller[] | { description?: string; items?: ScaleAffectedCaller[] }
@@ -137,6 +175,8 @@ export type ScaleResponse = {
   explanation?: string
   warnings?: string[]
   recommendations?: Recommendation[]
+  sourceMode?: 'live' | 'demo'
+  snapshotId?: string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -199,6 +239,7 @@ export type ScaleScenario = {
   newPods: number
   latencyMetric: 'p50' | 'p95' | 'p99'
   maxDepth: number
+  topPaths?: number
   timeWindow?: TimeWindow
 }
 
@@ -328,6 +369,85 @@ export type LogDecisionResponse = {
   timestamp: string
 }
 
+export type DecisionCompareResponse = {
+  left: DecisionRecord
+  right: DecisionRecord
+  summary: {
+    leftType: string
+    rightType: string
+    affectedServicesLeft: number
+    affectedServicesRight: number
+    affectedServicesDelta: number
+    leftConfidence?: string
+    rightConfidence?: string
+    confidenceChanged: boolean
+    latencyDeltaDiffMs?: number | null
+    scenarioServiceLeft?: string
+    scenarioServiceRight?: string
+    scenarioDepthLeft?: number
+    scenarioDepthRight?: number
+    generatedAt?: string
+  }
+}
+
+export type SimulationCapabilitiesResponse = {
+  enabled: string[]
+  experimental: string[]
+}
+
+export type SimulationContextNode = {
+  serviceId: string
+  name: string
+  namespace: string
+  podCount: number
+  availability: number
+}
+
+export type SimulationContextEdge = {
+  source: string
+  target: string
+  rate: number
+  errorRate: number
+  p50: number
+  p95: number
+  p99: number
+}
+
+export type SimulationContextResponse = {
+  target: ServiceRef
+  k: number
+  direction: 'both' | 'in' | 'out'
+  truncated: boolean
+  nodes: SimulationContextNode[]
+  edges: SimulationContextEdge[]
+}
+
+export type SimulationMetricsResponse = {
+  window: string
+  runs: number
+  failureRuns: number
+  scaleRuns: number
+  avgAffectedServices: number
+  avgLatencyDeltaMs: number
+  lowConfidenceRuns: number
+  trend: Array<{
+    date: string
+    runs: number
+    failureRuns: number
+    scaleRuns: number
+  }>
+}
+
+export type DemoSnapshot = {
+  id: string
+  label: string
+  description: string
+}
+
+export type DemoSnapshotsResponse = {
+  snapshots: DemoSnapshot[]
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Dependency Graph Snapshot Types (Incident Explorer)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -421,4 +541,9 @@ export type ServiceWithPlacement = {
   podCount: number
   availability: number
   placement?: ServicePlacement // Optional - may not be available in all deployments
+}
+
+export type NodeWithResources = {
+  name: string
+  resources: NodeResources
 }

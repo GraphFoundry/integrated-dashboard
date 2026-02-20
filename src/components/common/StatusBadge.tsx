@@ -19,12 +19,12 @@ interface StatusBadgeProps {
 }
 
 const VARIANT_CLASSES: Record<BadgeVariant, string> = {
-  default: 'bg-firebase-card text-firebase-text-primary border border-firebase-border',
-  secondary: 'bg-firebase-card text-firebase-text-secondary border border-firebase-border',
-  success: 'bg-firebase-success/20 text-firebase-success border border-firebase-success/30',
-  warning: 'bg-firebase-warning/20 text-firebase-warning border border-firebase-warning/30',
-  destructive: 'bg-firebase-error/20 text-firebase-error border border-firebase-error/30',
-  outline: 'bg-transparent text-firebase-text-secondary border border-firebase-border',
+  default: 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]',
+  secondary: 'border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-muted)]',
+  success: 'border-emerald-500/35 bg-emerald-500/14 text-emerald-700',
+  warning: 'border-amber-500/35 bg-amber-500/14 text-amber-700',
+  destructive: 'border-rose-500/35 bg-rose-500/14 text-rose-700',
+  outline: 'border-[var(--border)] bg-transparent text-[var(--text-secondary)]',
 }
 
 export default function StatusBadge({
@@ -32,11 +32,11 @@ export default function StatusBadge({
   variant = 'default',
   className = '',
 }: StatusBadgeProps) {
-  const baseClasses = 'px-2 py-1 rounded text-xs font-medium inline-flex items-center gap-1'
+  const baseClasses =
+    'inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold tracking-wide shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]'
   const variantClasses = VARIANT_CLASSES[variant]
 
   return <span className={`${baseClasses} ${variantClasses} ${className}`.trim()}>{children}</span>
 }
 
-// Re-export variant type for external use
 export type { BadgeVariant }

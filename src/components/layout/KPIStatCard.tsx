@@ -1,4 +1,6 @@
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
+import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
+import InfoHint from '@/components/common/InfoHint'
 
 export type TrendDirection = 'up' | 'down' | 'stable'
 
@@ -13,10 +15,10 @@ interface KPIStatCardProps {
 }
 
 const variantColors = {
-  default: 'border-firebase-border text-firebase-blue',
-  success: 'border-firebase-success/30 text-firebase-success',
-  warning: 'border-firebase-warning/30 text-firebase-warning',
-  danger: 'border-firebase-error/30 text-firebase-error',
+  default: 'border-[var(--border)]',
+  success: 'border-emerald-300/35',
+  warning: 'border-amber-300/35',
+  danger: 'border-rose-300/35',
 }
 
 const trendIcons = {
@@ -26,9 +28,9 @@ const trendIcons = {
 }
 
 const trendColors = {
-  up: 'text-firebase-success',
-  down: 'text-firebase-error',
-  stable: 'text-firebase-text-secondary',
+  up: 'text-emerald-700',
+  down: 'text-rose-700',
+  stable: 'text-[var(--text-muted)]',
 }
 
 export default function KPIStatCard({
@@ -41,18 +43,28 @@ export default function KPIStatCard({
   tooltip,
 }: Readonly<KPIStatCardProps>) {
   const TrendIcon = trend ? trendIcons[trend] : null
+  const hintText = tooltip ?? `Simple explanation of what "${label}" means on this card.`
 
   return (
     <div
-      title={tooltip}
-      className={`relative overflow-hidden bg-firebase-card border rounded-xl p-4 transition-all duration-200 hover:border-firebase-blue/50 ${variantColors[variant].split(' ')[0]} ${className}`}
+      className={cn(
+        glassSurfaceClass,
+        'interactive-soft rounded-[var(--radius-md)] p-4 hover:-translate-y-0.5 hover:border-[var(--color-emerald-300)]/60',
+        variantColors[variant],
+        className
+      )}
     >
-      <div className="text-sm text-firebase-text-secondary mb-1">{label}</div>
+      <p className="mb-1 min-w-0 break-words text-xs font-semibold uppercase tracking-[0.08em] leading-tight text-[var(--text-muted)]">
+        {label}
+        <span className="ml-1 inline-flex align-middle">
+          <InfoHint text={hintText} />
+        </span>
+      </p>
       <div className="flex items-baseline gap-2">
-        <div className="text-2xl font-bold text-firebase-text-primary">{value}</div>
+        <div className="text-2xl font-bold text-[var(--text-primary)]">{value}</div>
         {trend && TrendIcon && (
-          <div className={`flex items-center gap-1 text-xs ${trendColors[trend]}`}>
-            <TrendIcon className="w-3 h-3" />
+          <div className={cn('flex items-center gap-1 text-xs font-semibold', trendColors[trend])}>
+            <TrendIcon className="h-3 w-3" />
             {trendLabel && <span>{trendLabel}</span>}
           </div>
         )}

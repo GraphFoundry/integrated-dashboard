@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { X } from 'lucide-react'
 import { GraphNode, GraphEdge } from '@/lib/types'
 import { MetricTooltip } from './incidentExplorerUtils'
 import { getRiskBadgeClass, formatMetric } from './graphHelpers'
@@ -32,23 +33,28 @@ export function NodeDetailsDrawer({
   const flows = calculateFlows(node.id, edges, nodes)
 
   return (
-    <div className="absolute top-4 right-4 z-20 w-96 bg-slate-900/95 backdrop-blur border border-slate-700 rounded-lg shadow-xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-right duration-200">
+    <div className="absolute top-4 right-4 z-20 w-96 bg-[var(--surface-contrast)] backdrop-blur border border-[var(--border)] rounded-lg shadow-xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-right duration-200">
       {/* Header */}
-      <div className="p-4 border-b border-slate-700 flex justify-between items-start">
+      <div className="p-4 border-b border-[var(--border)] flex justify-between items-start">
         <div className="flex items-center gap-2">
           <div
             className="w-3 h-3 rounded-full"
             style={{ backgroundColor: getNodeColor(node.riskLevel) }}
           />
-          <span className="font-bold text-white text-base">{node.name}</span>
+          <span className="font-bold text-[var(--text-primary)] text-base">{node.name}</span>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
-          ✕
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          aria-label="Close node details"
+        >
+          <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-700 bg-slate-800/30">
+      <div className="flex border-b border-[var(--border)] bg-[var(--surface-subtle)]">
         <Tab
           label="Summary"
           active={activeTab === 'summary'}
@@ -100,11 +106,11 @@ function Tab({
   readonly onClick: () => void
 }) {
   return (
-    <button
+    <button type="button"
       onClick={onClick}
       className={`flex-1 px-3 py-2 text-xs font-medium transition-colors ${active
-          ? 'text-white bg-slate-800 border-b-2 border-sky-500'
-          : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+          ? 'text-[var(--text-primary)] bg-[var(--surface-solid)] border-b-2 border-sky-500'
+          : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-soft)]'
         }`}
     >
       {label}
@@ -125,10 +131,10 @@ function SummaryTab({
   return (
     <>
       <div>
-        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+        <div className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
           Namespace
         </div>
-        <div className="text-slate-300 font-mono text-sm">{node.namespace}</div>
+        <div className="text-[var(--text-secondary)] font-mono text-sm">{node.namespace}</div>
       </div>
 
       {/* Show pod count and availability if available from Graph Engine */}
@@ -136,18 +142,18 @@ function SummaryTab({
         <div className="grid grid-cols-2 gap-3">
           {node.podCount !== undefined && (
             <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+              <div className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
                 Pods Running
               </div>
-              <div className="text-slate-300 font-mono text-sm">{node.podCount}</div>
+              <div className="text-[var(--text-secondary)] font-mono text-sm">{node.podCount}</div>
             </div>
           )}
           {node.availability !== undefined && node.availability !== null && (
             <div>
-              <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+              <div className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
                 Availability
               </div>
-              <div className="text-slate-300 font-mono text-sm">
+              <div className="text-[var(--text-secondary)] font-mono text-sm">
                 {(node.availability * 100).toFixed(1)}%
               </div>
             </div>
@@ -156,7 +162,7 @@ function SummaryTab({
       )}
 
       <div>
-        <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+        <div className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
           Risk Level
         </div>
         <div
@@ -168,26 +174,26 @@ function SummaryTab({
 
       {node.riskReason && (
         <div>
-          <div className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-0.5">
+          <div className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-0.5">
             Risk Reason
           </div>
-          <p className="text-sm text-slate-300 leading-relaxed">{node.riskReason}</p>
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">{node.riskReason}</p>
         </div>
       )}
 
-      <div className="border-t border-slate-700 pt-4 space-y-3">
+      <div className="border-t border-[var(--border)] pt-4 space-y-3">
         <div className="flex justify-between items-center mb-2">
-          <h4 className="text-sm font-semibold text-white">Key Metrics</h4>
-          <button onClick={onToggleAdvanced} className="text-xs text-sky-400 hover:text-sky-300">
+          <h4 className="text-sm font-semibold text-[var(--text-primary)]">Key Metrics</h4>
+          <button type="button" onClick={onToggleAdvanced} className="text-xs text-sky-400 hover:text-sky-300">
             {showAdvanced ? 'Hide' : 'Show'} advanced
           </button>
         </div>
 
         <MetricTooltip
           label={showAdvanced ? 'Request Rate (RPS)' : 'Traffic'}
-          tooltip="Number of requests per second this service is receiving"
+          tooltip="How busy this service is right now. Higher traffic means more user or system requests are hitting it, which can increase pressure on resources."
         >
-          <div className="text-sm text-slate-200 font-mono">
+          <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
               ? formatMetric(node.reqRate, (v) => `${v.toFixed(3)} req/sec`)
               : formatMetric(node.reqRate, formatRps)}
@@ -196,9 +202,9 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Error Rate (%)' : 'Failed Requests'}
-          tooltip="Percentage of requests that resulted in errors (5xx responses)"
+          tooltip="How many requests are failing out of all requests. Lower is better for reliability because fewer users are seeing broken responses."
         >
-          <div className="text-sm text-slate-200 font-mono">
+          <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
               ? formatMetric(node.errorRatePct, (v) => `${v.toFixed(4)}%`)
               : formatMetric(node.errorRatePct, formatPercent)}
@@ -207,9 +213,9 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'P95 Latency (ms)' : 'Slow Responses'}
-          tooltip="95% of requests complete faster than this. This shows how slow it gets for the slowest 5% of requests."
+          tooltip="How slow responses get for users during heavier moments. Lower values mean a faster experience, especially during traffic spikes."
         >
-          <div className="text-sm text-slate-200 font-mono">
+          <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
               ? formatMetric(node.latencyP95Ms, (v) => `${v.toFixed(2)}ms`)
               : formatMetric(node.latencyP95Ms, (v) => `${v.toFixed(0)}ms`)}
@@ -218,9 +224,9 @@ function SummaryTab({
 
         <MetricTooltip
           label={showAdvanced ? 'Availability (%)' : 'Uptime'}
-          tooltip="Percentage of time the service was responsive and healthy"
+          tooltip="How often this service stays online and reachable. Closer to 100% means stronger reliability and fewer user-facing outages."
         >
-          <div className="text-sm text-slate-200 font-mono">
+          <div className="text-sm text-[var(--text-primary)] font-mono">
             {showAdvanced
               ? formatMetric(node.availabilityPct, (v) => `${v.toFixed(4)}%`)
               : formatMetric(node.availabilityPct, formatPercent)}
@@ -250,38 +256,38 @@ function BlastRadiusTab({
 
   return (
     <>
-      <div className="bg-slate-800/50 p-3 rounded-lg space-y-2">
+      <div className="bg-[var(--surface-soft)] p-3 rounded-lg space-y-2">
         <div className="flex justify-between">
-          <span className="text-xs text-slate-400">Directly affected (1 hop)</span>
-          <span className="text-sm font-semibold text-white">{blastRadius.hop1Count}</span>
+          <span className="text-xs text-[var(--text-muted)]">Directly affected (1 hop)</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">{blastRadius.hop1Count}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-xs text-slate-400">Indirectly affected (2 hops)</span>
-          <span className="text-sm font-semibold text-white">{blastRadius.hop2Count}</span>
+          <span className="text-xs text-[var(--text-muted)]">Indirectly affected (2 hops)</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">{blastRadius.hop2Count}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-xs text-slate-400">Extended impact (3 hops)</span>
-          <span className="text-sm font-semibold text-white">{blastRadius.hop3Count}</span>
+          <span className="text-xs text-[var(--text-muted)]">Extended impact (3 hops)</span>
+          <span className="text-sm font-semibold text-[var(--text-primary)]">{blastRadius.hop3Count}</span>
         </div>
-        <div className="flex justify-between pt-2 border-t border-slate-700">
-          <span className="text-xs font-semibold text-slate-300">Total potentially impacted</span>
+        <div className="flex justify-between pt-2 border-t border-[var(--border)]">
+          <span className="text-xs font-semibold text-[var(--text-secondary)]">Total potentially impacted</span>
           <span className="text-base font-bold text-sky-400">{blastRadius.totalCount}</span>
         </div>
       </div>
 
       {topRiskyDownstream.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-white mb-2">Top Downstream Dependencies</h4>
+          <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Top Downstream Dependencies</h4>
           <div className="space-y-2">
             {topRiskyDownstream.map((node) => (
-              <div key={node.id} className="flex items-center gap-2 p-2 bg-slate-800/30 rounded">
+              <div key={node.id} className="flex items-center gap-2 p-2 bg-[var(--surface-subtle)] rounded">
                 <div
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: getNodeColor(node.riskLevel) }}
                 />
                 <div className="flex-1">
-                  <div className="text-sm text-white">{node.name}</div>
-                  <div className="text-xs text-slate-400">{node.namespace}</div>
+                  <div className="text-sm text-[var(--text-primary)]">{node.name}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{node.namespace}</div>
                 </div>
                 <div className={`text-xs px-2 py-0.5 rounded ${getRiskBadgeClass(node.riskLevel)}`}>
                   {node.riskLevel}
@@ -293,7 +299,7 @@ function BlastRadiusTab({
       )}
 
       {blastRadius.totalCount === 0 && (
-        <div className="text-sm text-slate-400 text-center py-4">
+        <div className="text-sm text-[var(--text-muted)] text-center py-4">
           No downstream dependencies found
         </div>
       )}
@@ -311,7 +317,7 @@ function SuspectsTab({
 }) {
   if (suspects.length === 0) {
     return (
-      <div className="text-sm text-slate-400 text-center py-4">
+      <div className="text-sm text-[var(--text-muted)] text-center py-4">
         Not enough telemetry to rank suspects
       </div>
     )
@@ -319,22 +325,22 @@ function SuspectsTab({
 
   return (
     <>
-      <div className="text-xs text-slate-400 mb-3">
+      <div className="text-xs text-[var(--text-muted)] mb-3">
         Upstream services ranked by issues (highest risk first)
       </div>
       <div className="space-y-2">
         {suspects.map((suspect, idx) => (
-          <div key={suspect.nodeId} className="p-3 bg-slate-800/30 rounded-lg">
+          <div key={suspect.nodeId} className="p-3 bg-[var(--surface-subtle)] rounded-lg">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="text-xs font-semibold text-slate-500">#{idx + 1}</div>
+                <div className="text-xs font-semibold text-[var(--text-dim)]">#{idx + 1}</div>
                 <div
                   className="w-2 h-2 rounded-full"
                   style={{ backgroundColor: getNodeColor(suspect.riskLevel) }}
                 />
                 <div>
-                  <div className="text-sm font-medium text-white">{suspect.name}</div>
-                  <div className="text-xs text-slate-400">{suspect.namespace}</div>
+                  <div className="text-sm font-medium text-[var(--text-primary)]">{suspect.name}</div>
+                  <div className="text-xs text-[var(--text-muted)]">{suspect.namespace}</div>
                 </div>
               </div>
               <div
@@ -346,19 +352,19 @@ function SuspectsTab({
             <div className="grid grid-cols-2 gap-2 text-xs mt-2">
               {suspect.errorRate !== undefined && (
                 <div>
-                  <div className="text-slate-500">Error Rate</div>
-                  <div className="text-slate-200 font-mono">{formatPercent(suspect.errorRate)}</div>
+                  <div className="text-[var(--text-dim)]">Error Rate</div>
+                  <div className="text-[var(--text-primary)] font-mono">{formatPercent(suspect.errorRate)}</div>
                 </div>
               )}
               {suspect.latency !== undefined && (
                 <div>
-                  <div className="text-slate-500">{showAdvanced ? 'P95' : 'Latency'}</div>
-                  <div className="text-slate-200 font-mono">{suspect.latency.toFixed(0)}ms</div>
+                  <div className="text-[var(--text-dim)]">{showAdvanced ? 'P95' : 'Latency'}</div>
+                  <div className="text-[var(--text-primary)] font-mono">{suspect.latency.toFixed(0)}ms</div>
                 </div>
               )}
             </div>
             {suspect.reason && (
-              <div className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-700">
+              <div className="text-xs text-[var(--text-muted)] mt-2 pt-2 border-t border-[var(--border)]">
                 {suspect.reason}
               </div>
             )}
@@ -381,7 +387,7 @@ function FlowsTab({
     <>
       {flows.incoming.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-white mb-2">Incoming Edges</h4>
+          <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Incoming Edges</h4>
           <div className="space-y-2">
             {flows.incoming.map((flow) => (
               <FlowItem key={flow.edgeId} flow={flow} showAdvanced={showAdvanced} />
@@ -392,7 +398,7 @@ function FlowsTab({
 
       {flows.outgoing.length > 0 && (
         <div>
-          <h4 className="text-sm font-semibold text-white mb-2">Outgoing Edges</h4>
+          <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Outgoing Edges</h4>
           <div className="space-y-2">
             {flows.outgoing.map((flow) => (
               <FlowItem key={flow.edgeId} flow={flow} showAdvanced={showAdvanced} />
@@ -402,7 +408,7 @@ function FlowsTab({
       )}
 
       {flows.incoming.length === 0 && flows.outgoing.length === 0 && (
-        <div className="text-sm text-slate-400 text-center py-4">No edge flow data available</div>
+        <div className="text-sm text-[var(--text-muted)] text-center py-4">No edge flow data available</div>
       )}
     </>
   )
@@ -416,33 +422,33 @@ function FlowItem({
   readonly showAdvanced: boolean
 }) {
   return (
-    <div className="p-3 bg-slate-800/30 rounded-lg">
-      <div className="text-sm text-white mb-2 font-mono">
+    <div className="p-3 bg-[var(--surface-subtle)] rounded-lg">
+      <div className="text-sm text-[var(--text-primary)] mb-2 font-mono">
         {flow.from} → {flow.to}
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs">
         <div>
-          <div className="text-slate-500">Traffic</div>
+          <div className="text-[var(--text-dim)]">Traffic</div>
           {flow.reqRate === undefined ? (
-            <div className="text-slate-400">N/A</div>
+            <div className="text-[var(--text-muted)]">N/A</div>
           ) : (
-            <div className="text-slate-200 font-mono">{formatRps(flow.reqRate)}</div>
+            <div className="text-[var(--text-primary)] font-mono">{formatRps(flow.reqRate)}</div>
           )}
         </div>
         <div>
-          <div className="text-slate-500">Errors</div>
+          <div className="text-[var(--text-dim)]">Errors</div>
           {flow.errorRate === undefined ? (
-            <div className="text-slate-400">N/A</div>
+            <div className="text-[var(--text-muted)]">N/A</div>
           ) : (
-            <div className="text-slate-200 font-mono">{formatPercent(flow.errorRate)}</div>
+            <div className="text-[var(--text-primary)] font-mono">{formatPercent(flow.errorRate)}</div>
           )}
         </div>
         <div>
-          <div className="text-slate-500">{showAdvanced ? 'P95' : 'Latency'}</div>
+          <div className="text-[var(--text-dim)]">{showAdvanced ? 'P95' : 'Latency'}</div>
           {flow.latency === undefined ? (
-            <div className="text-slate-400">N/A</div>
+            <div className="text-[var(--text-muted)]">N/A</div>
           ) : (
-            <div className="text-slate-200 font-mono">{flow.latency.toFixed(0)}ms</div>
+            <div className="text-[var(--text-primary)] font-mono">{flow.latency.toFixed(0)}ms</div>
           )}
         </div>
       </div>

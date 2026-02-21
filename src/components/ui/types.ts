@@ -69,6 +69,7 @@ export interface SliderAdapterProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type' | 'value' | 'onChange'> {
   value: number
   onChange?: NativeInputChangeHandler
+  label?: React.ReactNode
 }
 
 export interface FieldProps {

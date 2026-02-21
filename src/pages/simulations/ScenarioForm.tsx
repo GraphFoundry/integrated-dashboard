@@ -510,6 +510,7 @@ export default function ScenarioForm({
                   'placeholder-slate-500',
                   serviceIdHint ? 'border-amber-500/70' : 'border-[var(--border-strong)]'
                 )}
+                aria-label="Service ID"
               />
             </Field>
           </div>

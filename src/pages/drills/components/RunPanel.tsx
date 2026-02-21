@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, CheckCircle2, XCircle, FileText, Download, RotateCcw, Activity, ShieldCheck, ChevronRight } from 'lucide-react'
 import { type DrillRun, runDrill, abortDrillRun, getDrillRun } from '@/lib/api/drills'
-import { glassPanelClass, cn } from '@/components/common/uiClassTokens'
+import { glassPanelClass, cn, primaryButtonClass, secondaryButtonClass } from '@/components/common/uiClassTokens'
 
 const STEPS = [
     { id: 'Validate', label: 'Validate' },
@@ -66,32 +66,38 @@ export default function RunPanel({
     const currentPhase = run.timeline?.[run.timeline.length - 1]?.phase || 'Pending'
 
     return (
-        <Card className={cn(glassPanelClass, "h-full shadow-xl relative overflow-hidden border-primary/20 flex flex-col")}>
-            {isRunning && <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-sky-500 to-emerald-500 animate-pulse z-20" />}
+        <Card className={cn(glassPanelClass, "h-full relative overflow-hidden flex flex-col")}>
+            {isRunning && <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-pulse z-20" />}
 
-            <CardHeader className="pb-6 border-b border-[var(--border)] bg-[var(--surface-soft)]/30">
-                <div className="flex justify-between items-start mb-2">
-                    <div>
+            <CardHeader className="pb-6 border-b border-[var(--border)] bg-[var(--surface-soft)]/30 px-6 pt-6">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="space-y-1">
                         <div className="flex items-center gap-2 mb-1">
-                            <Activity className="w-4 h-4 text-[var(--color-emerald-400)]" />
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">Active Sequence</span>
+                            <Activity className="w-3.5 h-3.5 text-emerald-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Active Sequence</span>
                         </div>
-                        <CardTitle className="text-2xl font-black tracking-tight text-[var(--text-primary)]">{run.type}</CardTitle>
+                        <CardTitle className="text-xl font-bold tracking-tight text-[var(--text-primary)]">{run.type}</CardTitle>
                     </div>
-                    <Badge variant={run.status === 'Planned' ? 'secondary' : run.status.includes('Fail') ? 'destructive' : 'default'} className="px-3 py-1 shadow-neon-sm">
+                    <Badge variant={run.status === 'Planned' ? 'secondary' : run.status.includes('Fail') ? 'destructive' : 'default'} className="px-2 py-0.5 text-[10px] font-bold uppercase">
                         {run.status}
                     </Badge>
                 </div>
-                <CardDescription className="text-sm flex items-center gap-2 bg-[var(--surface-contrast)]/50 p-2 rounded-lg border border-[var(--border)] mt-4">
-                    <span className="text-[var(--text-muted)] font-medium">Target:</span>
-                    <code className="text-[var(--color-emerald-300)] font-mono text-xs font-bold">{run.target}</code>
-                </CardDescription>
+                <div className="flex items-center justify-between bg-[var(--surface-solid)] p-3 rounded-xl border border-[var(--border)]">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Target</span>
+                        <code className="text-emerald-600 font-mono text-xs font-bold">{run.target}</code>
+                    </div>
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Run ID</span>
+                        <span className="text-xs font-bold text-[var(--text-secondary)] font-mono">#{run.id.split('-')[0].toUpperCase()}</span>
+                    </div>
+                </div>
             </CardHeader>
 
-            <CardContent className="space-y-8 py-8 flex-1">
+            <CardContent className="space-y-8 py-8 px-6 flex-1">
                 {/* Stepper */}
-                <div className="relative">
-                    <div className="absolute top-4 left-0 w-full h-0.5 bg-[var(--border)] z-0" />
+                <div className="relative px-2">
+                    <div className="absolute top-4 left-6 right-6 h-0.5 bg-[var(--border)] z-0" />
                     <div className="flex justify-between relative z-10">
                         {STEPS.map((step, idx) => {
                             const isPast = run.timeline?.some(s => s.phase === step.id)
@@ -99,15 +105,15 @@ export default function RunPanel({
                             return (
                                 <div key={step.id} className="flex flex-col items-center gap-2">
                                     <div className={cn(
-                                        "w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-500 bg-[var(--surface-solid)]",
-                                        isPast ? "border-[var(--color-emerald-500)] text-[var(--color-emerald-500)]" : "border-[var(--border)] text-[var(--text-muted)]",
-                                        isCurrent && "border-[var(--color-sky-400)] text-[var(--color-sky-400)] scale-110 shadow-neon-sm"
+                                        "w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-[var(--surface-solid)]",
+                                        isPast ? "border-emerald-500 text-emerald-500" : "border-[var(--border)] text-[var(--text-muted)]",
+                                        isCurrent && "border-sky-500 text-sky-500 scale-110 shadow-sm"
                                     )}>
-                                        {isPast && !isCurrent ? <CheckCircle2 className="w-4 h-4" /> : idx + 1}
+                                        {isPast && !isCurrent ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{idx + 1}</span>}
                                     </div>
                                     <span className={cn(
-                                        "text-[10px] font-bold uppercase tracking-wider",
-                                        isCurrent ? "text-[var(--color-sky-400)]" : isPast ? "text-[var(--color-emerald-500)]" : "text-[var(--text-muted)]"
+                                        "text-[9px] font-bold uppercase tracking-wider",
+                                        isCurrent ? "text-sky-600" : isPast ? "text-emerald-600" : "text-[var(--text-muted)]"
                                     )}>{step.label}</span>
                                 </div>
                             )
@@ -116,74 +122,73 @@ export default function RunPanel({
                 </div>
 
                 {run.status === 'Planned' && (
-                    <div className="bg-sky-500/5 text-sky-300 p-5 rounded-2xl border border-sky-500/20 text-sm shadow-inner animate-in fade-in slide-in-from-bottom-2">
-                        <h4 className="font-bold mb-3 flex items-center gap-2 text-sky-400">
-                            <ShieldCheck className="w-5 h-5" /> Ready for Execution
+                    <div className="bg-sky-500/5 text-sky-700 p-5 rounded-xl border border-sky-500/10 text-sm animate-in fade-in duration-500">
+                        <h4 className="font-bold text-xs uppercase tracking-wider mb-3 flex items-center gap-2 text-sky-600">
+                            <ShieldCheck className="w-4 h-4" /> Readiness Checklist
                         </h4>
-                        <ul className="space-y-3 opacity-90">
-                            <li className="flex items-center gap-2"><ChevronRight className="w-3 h-3 text-sky-500" /> Action: {run.type === 'ServiceShutdown' ? 'Kill all pods' : 'Modify resource limits'}</li>
-                            <li className="flex items-center gap-2"><ChevronRight className="w-3 h-3 text-sky-500" /> Reversible: Yes (Automatic Rollback)</li>
-                            <li className="flex items-center gap-2"><ChevronRight className="w-3 h-3 text-sky-500" /> Observe Window: {run.config.observeTokens ?? 15} seconds</li>
+                        <ul className="space-y-2.5">
+                            <li className="flex items-center gap-2 text-xs font-medium"><ChevronRight className="w-3 h-3 text-sky-500" /> Action: {run.type === 'ServiceShutdown' ? 'Service Termination' : 'Resource Modification'}</li>
+                            <li className="flex items-center gap-2 text-xs font-medium"><ChevronRight className="w-3 h-3 text-sky-500" /> Automatic Rollback: Verified</li>
+                            <li className="flex items-center gap-2 text-xs font-medium"><ChevronRight className="w-3 h-3 text-sky-500" /> Observation: {run.config.observeTokens ?? 15}s window</li>
                         </ul>
                     </div>
                 )}
 
                 {isRunning && (
-                    <div className="flex flex-col items-center justify-center p-10 space-y-6 bg-[var(--surface-soft)]/20 rounded-3xl border border-[var(--border)] border-dashed animate-in zoom-in duration-500">
-                        <div className="relative">
-                            <div className="absolute inset-0 bg-emerald-500/20 blur-2xl rounded-full animate-pulse" />
-                            <Loader2 className="w-16 h-12 text-[var(--color-emerald-400)] animate-spin relative z-10" />
-                        </div>
-                        <div className="text-center space-y-2">
-                            <span className="text-xl font-black text-[var(--text-primary)] block tracking-tight">Sequence Engaged</span>
-                            <span className="text-xs text-[var(--text-muted)] font-medium uppercase tracking-widest">Orchestrating state changes...</span>
+                    <div className="flex flex-col items-center justify-center p-8 space-y-4 bg-[var(--surface-soft)]/20 rounded-2xl border border-[var(--border)] border-dashed animate-in zoom-in duration-500">
+                        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+                        <div className="text-center">
+                            <span className="text-sm font-bold text-[var(--text-primary)] block uppercase tracking-wider">Sequence Engaged</span>
+                            <span className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-widest">Applying state changes...</span>
                         </div>
                     </div>
                 )}
 
                 {isCompleted && (
-                    <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                    <div className="space-y-6 animate-in fade-in duration-500">
                         <div className={cn(
-                            "p-5 rounded-2xl border text-sm flex items-start gap-4 shadow-xl",
-                            run.verdict === 'Success' ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400" : "bg-rose-500/5 border-rose-500/20 text-rose-400"
+                            "p-5 rounded-xl border text-sm flex items-start gap-4 shadow-sm",
+                            run.verdict === 'Success' ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-700" : "bg-rose-500/5 border-rose-500/10 text-rose-700"
                         )}>
-                            <div className="p-2 rounded-full bg-current/10">
-                                {run.verdict === 'Success' ? <CheckCircle2 className="w-6 h-6" /> : <XCircle className="w-6 h-6" />}
+                            <div className={cn(
+                                "p-2 rounded-lg",
+                                run.verdict === 'Success' ? "bg-emerald-500/10" : "bg-rose-500/10"
+                            )}>
+                                {run.verdict === 'Success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
                             </div>
                             <div>
-                                <h4 className="font-black text-lg uppercase tracking-tight mb-1">Drill {run.verdict}</h4>
-                                <p className="opacity-80 leading-relaxed font-medium">The chaos sequence has finished. System baseline state has been verified and fully restored.</p>
+                                <h4 className="font-bold text-base uppercase tracking-tight mb-1">Sequence {run.verdict}</h4>
+                                <p className="opacity-80 leading-relaxed font-medium text-xs">The sequence has concluded. System baseline state has been verified and fully restored.</p>
                             </div>
                         </div>
 
-                        <div className="bg-[var(--surface-soft)] p-6 rounded-2xl border border-[var(--border)] space-y-4">
-                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)] flex items-center gap-2">
-                                <FileText className="w-3.5 h-3.5" /> Immutable Evidence Pack
+                        <div className="bg-[var(--surface-soft)]/50 p-5 rounded-xl border border-[var(--border)] space-y-4">
+                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
+                                <FileText className="w-3.5 h-3.5" /> Evidence Pack
                             </h4>
-                            <div className="grid grid-cols-2 gap-3 text-[11px]">
-                                <div className="bg-[var(--surface-solid)] p-3 rounded-xl border border-[var(--border)]">
-                                    <span className="block text-[var(--text-muted)] mb-1 font-bold uppercase tracking-tighter">Snapshot ID</span>
-                                    <span className="font-mono font-black text-sm text-[var(--text-primary)]">{run.id.split('-')[0]}</span>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-[var(--surface-solid)] p-3 rounded-lg border border-[var(--border)]">
+                                    <span className="block text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Duration</span>
+                                    <span className="font-bold text-sm text-[var(--text-primary)]">{(run.config.observeTokens ?? 15) + 5}s</span>
                                 </div>
-                                <div className="bg-[var(--surface-solid)] p-3 rounded-xl border border-[var(--border)]">
-                                    <span className="block text-[var(--text-muted)] mb-1 font-bold uppercase tracking-tighter">Drill Duration</span>
-                                    <span className="font-black text-sm text-[var(--text-primary)]">{(run.config.observeTokens ?? 15) + 5}s</span>
+                                <div className="bg-[var(--surface-solid)] p-3 rounded-lg border border-[var(--border)]">
+                                    <span className="block text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Status</span>
+                                    <span className="font-bold text-sm text-emerald-600 uppercase">Archived</span>
                                 </div>
                             </div>
-                            <Button variant="outline" size="sm" className="w-full text-[10px] h-10 font-bold uppercase tracking-widest">
-                                <Download className="w-3.5 h-3.5 mr-2" /> Download Report (JSON)
+                            <Button variant="outline" size="sm" className="w-full text-[10px] h-10 rounded-lg font-bold uppercase tracking-wider bg-[var(--surface-solid)]">
+                                <Download className="w-3.5 h-3.5 mr-2" /> Download Report
                             </Button>
                         </div>
                     </div>
                 )}
             </CardContent>
 
-            <CardFooter className="flex flex-col gap-3 pt-6 pb-8 border-t border-[var(--border)] bg-[var(--surface-soft)]/20">
+            <CardFooter className="flex flex-col gap-3 p-6 border-t border-[var(--border)] bg-[var(--surface-soft)]/20">
                 {run.status === 'Planned' && (
                     <Button 
                         onPress={handleStart}
-                        className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-neon"
-                        variant="default"
+                        className={cn(primaryButtonClass, "w-full h-12 uppercase tracking-widest text-xs")}
                     >
                         Initiate Sequence
                     </Button>
@@ -192,8 +197,7 @@ export default function RunPanel({
                 {isRunning && (
                     <Button 
                         onPress={handleAbort}
-                        className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-neon-rose"
-                        variant="destructive"
+                        className="w-full h-12 text-xs font-bold uppercase tracking-widest rounded-lg border border-rose-200 bg-rose-500 text-white hover:bg-rose-600"
                     >
                         Emergency Rollback
                     </Button>
@@ -201,10 +205,10 @@ export default function RunPanel({
 
                 {isCompleted && (
                     <div className="grid grid-cols-2 gap-3 w-full">
-                        <Button variant="outline" className="w-full h-12 font-bold" onPress={onClear}>
+                        <Button variant="outline" className={secondaryButtonClass} onPress={onClear}>
                             Exit Room
                         </Button>
-                        <Button variant="secondary" className="w-full h-12 font-bold flex gap-2" onPress={() => onUpdate({ ...run, status: 'Planned', verdict: 'Pending', timeline: [] })}>
+                        <Button variant="secondary" className={cn(secondaryButtonClass, "flex gap-2")} onPress={() => onUpdate({ ...run, status: 'Planned', verdict: 'Pending', timeline: [] })}>
                             <RotateCcw className="w-4 h-4" /> Reset
                         </Button>
                     </div>
@@ -213,3 +217,5 @@ export default function RunPanel({
         </Card>
     )
 }
+
+

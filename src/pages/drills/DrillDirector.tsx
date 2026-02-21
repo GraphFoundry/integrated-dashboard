@@ -32,46 +32,54 @@ export default function DrillDirector() {
         <div className={pageContainerClass}>
             <PageHeader
                 title="Drill Director"
-                description="Safely plan, execute, and observe chaos engineering drills with real-time impact analysis."
+                description="Run safe drills and watch system impact live. Orchestrate chaos sequences with precision and automated guardrails."
                 icon={PlayCircle}
                 actions={
-                    <Badge variant="outline" className="px-4 py-1.5 flex gap-2 items-center bg-[var(--surface-soft)] border-[var(--border)] shadow-sm">
-                        <ShieldCheck className="w-4 h-4 text-[var(--color-emerald-400)]" />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-[var(--text-secondary)]">Guardrails Active</span>
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                        <Badge variant="outline" className="px-3 py-1 flex gap-2 items-center bg-[var(--surface-soft)] border-[var(--border)] shadow-sm h-10">
+                            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Guardrails Active</span>
+                        </Badge>
+                    </div>
                 }
             />
 
             <Tabs aria-label="Drill Director Control Panel" className="w-full">
-                <TabsList className="rounded-xl overflow-hidden mb-8 border border-[var(--border)] shadow-lg max-w-fit">
-                    <Tab id="director" className="min-w-[180px] flex items-center justify-center gap-2">
-                        <PlayCircle className="w-4 h-4" /> Control Room
+                <TabsList className="rounded-[var(--radius-md)] overflow-hidden mb-8 border border-[var(--border)] shadow-sm max-w-fit bg-[var(--surface-soft)]">
+                    <Tab id="director" className={({ isSelected }) => cn(
+                        "min-w-[160px] flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-semibold transition-all outline-none cursor-pointer",
+                        isSelected ? "bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                    )}>
+                        <LayoutDashboard className="w-4 h-4" /> Control Room
                     </Tab>
-                    <Tab id="history" className="min-w-[180px] flex items-center justify-center gap-2">
+                    <Tab id="history" className={({ isSelected }) => cn(
+                        "min-w-[160px] flex items-center justify-center gap-2 py-2.5 px-4 text-sm font-semibold transition-all outline-none cursor-pointer",
+                        isSelected ? "bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                    )}>
                         <History className="w-4 h-4" /> Run History
                     </Tab>
                 </TabsList>
 
                 <TabPanel id="director">
                     {activeRun ? (
-                        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 animate-in slide-in-from-bottom-6 duration-500">
-                            <div className="xl:col-span-1">
+                        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 animate-in fade-in duration-500">
+                            <div className="xl:col-span-4">
                                 <RunPanel run={activeRun} onUpdate={setActiveRun} onClear={() => setActiveRun(null)} />
                             </div>
-                            <div className="xl:col-span-2 space-y-8">
+                            <div className="xl:col-span-8 space-y-6">
                                 <LiveMetricsStrip run={activeRun} />
                                 <TimelineReplay run={activeRun} />
                             </div>
                         </div>
                     ) : (
-                        <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
-                            <div className="flex items-center gap-3 px-2">
-                                <div className="p-2 rounded-lg bg-[var(--color-emerald-500)]/10">
-                                    <LayoutDashboard className="w-5 h-5 text-[var(--color-emerald-400)]" />
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            <div className="flex items-center gap-3 px-1">
+                                <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                    <LayoutDashboard className="w-5 h-5 text-emerald-500" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black tracking-tight text-[var(--text-primary)] uppercase">Scenario Catalog</h3>
-                                    <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-widest">Select a drill sequence to engage</p>
+                                    <h3 className="text-lg font-bold tracking-tight text-[var(--text-primary)]">Scenario Catalog</h3>
+                                    <p className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">Select a drill sequence to engage</p>
                                 </div>
                             </div>
                             <DrillCatalog onDrillSelect={setActiveRun} />
@@ -107,10 +115,10 @@ export default function DrillDirector() {
                                     ) : (
                                         history.map((run) => (
                                             <tr key={run.id} className={tableBodyRowClass}>
-                                                <td className={cn(tableCellClass, "font-mono text-xs font-bold text-[var(--color-sky-400)]")}>
+                                                <td className={cn(tableCellClass, "font-mono text-xs font-bold text-sky-500")}>
                                                     {run.id.split('-')[0].toUpperCase()}
                                                 </td>
-                                                <td className={cn(tableCellClass, "font-black tracking-tight")}>
+                                                <td className={cn(tableCellClass, "font-semibold")}>
                                                     {run.type}
                                                 </td>
                                                 <td className={tableCellClass}>
@@ -119,7 +127,7 @@ export default function DrillDirector() {
                                                     </code>
                                                 </td>
                                                 <td className={tableCellClass}>
-                                                    <Badge variant="outline" className="text-[10px] font-black uppercase bg-[var(--surface-soft)]">
+                                                    <Badge variant="outline" className="text-[10px] font-bold uppercase bg-[var(--surface-soft)]">
                                                         {run.status}
                                                     </Badge>
                                                 </td>
@@ -127,8 +135,8 @@ export default function DrillDirector() {
                                                     <Badge 
                                                         variant={run.verdict === 'Success' ? 'default' : 'destructive'} 
                                                         className={cn(
-                                                            "text-[10px] font-black uppercase",
-                                                            run.verdict === 'Success' && "bg-[var(--color-emerald-500)]/20 text-[var(--color-emerald-400)] border-[var(--color-emerald-500)]/30"
+                                                            "text-[10px] font-bold uppercase",
+                                                            run.verdict === 'Success' && "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
                                                         )}
                                                     >
                                                         {run.verdict}
@@ -142,7 +150,7 @@ export default function DrillDirector() {
                                                         variant="ghost" 
                                                         size="sm" 
                                                         onPress={() => setActiveRun(run)}
-                                                        className="text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-sky-500)]/10 hover:text-[var(--color-sky-400)]"
+                                                        className="text-[10px] font-bold uppercase tracking-widest hover:bg-sky-500/10 hover:text-sky-600"
                                                     >
                                                         Review Pack
                                                     </Button>
@@ -159,3 +167,5 @@ export default function DrillDirector() {
         </div>
     )
 }
+
+

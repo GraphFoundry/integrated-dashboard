@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { AlertTriangle, Activity, Network, Zap, ArrowRight, ShieldAlert, Check, Info } from 'lucide-react'
 import { planDrill, type DrillRun } from '@/lib/api/drills'
-import { glassInteractiveCardClass, cn, controlLabelClass } from '@/components/common/uiClassTokens'
+import { glassInteractiveCardClass, cn, controlLabelClass, modalPanelClass, secondaryButtonClass, successButtonClass, controlInputBaseClass } from '@/components/common/uiClassTokens'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
 const DRILLS = [
@@ -136,42 +136,48 @@ export default function DrillCatalog({ onDrillSelect }: { onDrillSelect: (run: D
                     key={drill.type}
                     className={cn(
                         glassInteractiveCardClass,
-                        "cursor-pointer group flex flex-col justify-between border-opacity-50 transition-all duration-300"
+                        "group relative flex flex-col justify-between cursor-pointer",
+                        selectedDrill?.type === drill.type && "ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-[var(--background)]"
                     )}
                     onClick={() => setSelectedDrill(drill)}
                 >
-                    <div className="flex flex-col h-full">
-                        <CardHeader className="flex flex-row items-start justify-between pb-4 space-y-0 px-0 pt-0">
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "p-3 rounded-xl border shadow-sm transition-transform duration-300 group-hover:scale-110",
-                                    drill.tone === 'rose' && "bg-rose-500/10 border-rose-500/20",
-                                    drill.tone === 'sky' && "bg-sky-500/10 border-sky-500/20",
-                                    drill.tone === 'amber' && "bg-amber-500/10 border-amber-500/20",
-                                    drill.tone === 'emerald' && "bg-emerald-500/10 border-emerald-500/20"
-                                )}>
-                                    {drill.icon}
-                                </div>
-                                <div>
-                                    <CardTitle className="text-xl font-bold tracking-tight text-[var(--text-primary)]">{drill.title}</CardTitle>
-                                    <div className="mt-1">
-                                        <Badge variant={drill.risk === 'High' ? 'destructive' : drill.risk === 'Medium' ? 'secondary' : 'outline'} className="text-[10px] uppercase px-2 py-0">
-                                            {drill.risk} Risk
-                                        </Badge>
-                                    </div>
-                                </div>
+                    <div className="flex flex-col h-full space-y-4">
+                        <div className="flex items-start justify-between">
+                            <div className={cn(
+                                "p-3 rounded-xl border shadow-sm transition-all duration-300 group-hover:scale-105",
+                                drill.tone === 'rose' && "bg-rose-500/10 border-rose-500/20 text-rose-500",
+                                drill.tone === 'sky' && "bg-sky-500/10 border-sky-500/20 text-sky-500",
+                                drill.tone === 'amber' && "bg-amber-500/10 border-amber-500/20 text-amber-500",
+                                drill.tone === 'emerald' && "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                            )}>
+                                {drill.icon}
                             </div>
-                        </CardHeader>
-                        <CardContent className="px-0 py-2 flex-1">
+                            <Badge variant="outline" className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5",
+                                drill.risk === 'High' ? "text-rose-500 border-rose-500/20" : drill.risk === 'Medium' ? "text-amber-500 border-amber-500/20" : "text-emerald-500 border-emerald-500/20"
+                            )}>
+                                {drill.risk} Risk
+                            </Badge>
+                        </div>
+
+                        <div className="space-y-2">
+                            <CardTitle className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+                                {drill.title}
+                            </CardTitle>
                             <CardDescription className="text-sm leading-relaxed text-[var(--text-secondary)]">
                                 {drill.description}
                             </CardDescription>
-                        </CardContent>
-                        <CardFooter className="px-0 pt-6 flex justify-end">
-                            <div className="text-xs font-bold uppercase tracking-wider text-[var(--color-emerald-400)] flex items-center gap-2 group-hover:translate-x-1 transition-transform">
-                                Configure Sequence <ArrowRight className="w-4 h-4" />
+                        </div>
+
+                        <div className="pt-4 flex items-center justify-between border-t border-[var(--border)]">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Target Time</span>
+                                <span className="text-xs font-semibold text-[var(--text-secondary)]">~{drill.baseConfig.observeTokens}s Window</span>
                             </div>
-                        </CardFooter>
+                            <div className="text-xs font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-2 group-hover:translate-x-1 transition-all">
+                                Configure <ArrowRight className="w-4 h-4" />
+                            </div>
+                        </div>
                     </div>
                 </Card>
             ))}
@@ -184,69 +190,86 @@ export default function DrillCatalog({ onDrillSelect }: { onDrillSelect: (run: D
                 }
             }}>
                 <Button className="hidden">Trigger</Button>
-                <DialogContent>
-                    <DialogHeader>
-                        <div className="flex items-center gap-3 mb-2">
+                <DialogContent className={modalPanelClass}>
+                    <DialogHeader className="space-y-3">
+                        <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
                                 <ShieldAlert className="w-6 h-6 text-amber-500" />
                             </div>
-                            <DialogTitle>Safety Gate: {selectedDrill?.title}</DialogTitle>
+                            <div>
+                                <DialogTitle className="text-xl font-bold text-[var(--text-primary)]">Safety Gate</DialogTitle>
+                                <DialogDescription className="text-sm font-medium">Execution planning for chaos sequences</DialogDescription>
+                            </div>
                         </div>
-                        <DialogDescription>
-                            Execution planning for chaos drills requires explicit confirmation of the blast radius.
-                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="py-6 space-y-6">
-                        <div className="space-y-3">
-                            <label className={controlLabelClass}>
-                                Target Component
-                            </label>
-                            <Combobox
-                                items={comboItems}
-                                value={targetService}
-                                onSelectionChange={(val) => setTargetService(val as string)}
-                                placeholder="Select a service..."
-                            />
-                            <p className="text-[11px] text-[var(--text-muted)] flex items-center gap-1.5">
-                                <Info className="w-3 h-3" /> 
-                                This drill will target the deployment in the specified namespace.
-                            </p>
-                        </div>
-
-                        <div className="bg-[var(--surface-soft)] border border-[var(--border)] p-4 rounded-xl space-y-4">
-                            <div className="flex items-start gap-3">
-                                <Checkbox
-                                    checked={isConfirmed}
-                                    onChange={(e) => {
-                                        setIsConfirmed(e.target.checked)
-                                        if (e.target.checked) startCountdown()
-                                    }}
-                                    label="I acknowledge that this sequence will simulate a failure in the analysis engine."
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <label className={controlLabelClass}>
+                                    Target Component
+                                </label>
+                                <Combobox
+                                    items={comboItems}
+                                    value={targetService}
+                                    onSelectionChange={(val) => setTargetService(val as string)}
+                                    placeholder="Select a service..."
+                                    aria-label="Target Component"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <label className={controlLabelClass}>
+                                    Observation Window
+                                </label>
+                                <div className={cn(controlInputBaseClass, "flex items-center bg-[var(--surface-soft)]")}>
+                                    {selectedDrill?.baseConfig.observeTokens} Seconds
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-3 p-4 bg-rose-500/5 border border-rose-500/20 rounded-xl text-xs text-rose-300 shadow-inner">
-                            <AlertTriangle className="shrink-0 w-5 h-5 text-rose-400" />
-                            <div>
-                                <p className="font-bold mb-1 uppercase tracking-tight text-rose-400">Simulation Guardrail</p>
-                                <p className="leading-relaxed opacity-80">The system will automatically restore services after the observation window (30s) or upon manual abort.</p>
+                        <div className="bg-[var(--surface-soft)] border border-[var(--border)] p-4 rounded-[var(--radius-md)]">
+                            <Checkbox
+                                checked={isConfirmed}
+                                onChange={(e) => {
+                                    setIsConfirmed(e.target.checked)
+                                    if (e.target.checked) startCountdown()
+                                }}
+                                label={
+                                    <div className="space-y-0.5">
+                                        <p className="text-sm font-semibold text-[var(--text-primary)]">I acknowledge the blast radius</p>
+                                        <p className="text-xs text-[var(--text-muted)] font-medium">This sequence will simulate a failure in the analysis engine.</p>
+                                    </div>
+                                }
+                            />
+                        </div>
+
+                        <div className="flex gap-3 p-4 bg-rose-500/5 border border-rose-500/20 rounded-[var(--radius-md)] text-xs text-rose-600 shadow-sm">
+                            <AlertTriangle className="shrink-0 w-5 h-5 text-rose-500" />
+                            <div className="space-y-1">
+                                <p className="font-bold uppercase tracking-wider text-rose-500">Simulation Guardrail</p>
+                                <p className="leading-relaxed font-medium opacity-90">
+                                    System will automatically restore services after the observation window or upon manual abort.
+                                </p>
                             </div>
                         </div>
                     </div>
 
-                    <DialogFooter>
-                        <Button variant="ghost" onPress={() => setSelectedDrill(null)}>Cancel</Button>
+                    <DialogFooter className="gap-3">
+                        <Button 
+                            variant="ghost" 
+                            onPress={() => setSelectedDrill(null)}
+                            className={secondaryButtonClass}
+                        >
+                            Cancel
+                        </Button>
                         <Button
                             onPress={handlePlan}
                             isDisabled={isPlanning || !isConfirmed || countdown > 0}
-                            className="min-w-[160px] font-bold"
-                            variant={isConfirmed ? "success" : "secondary"}
+                            className={cn(successButtonClass, "min-w-[180px]")}
                         >
-                            {isPlanning ? 'Planning...' : countdown > 0 ? `Unlocking in ${countdown}s...` : (
+                            {isPlanning ? 'Sequencing...' : countdown > 0 ? `Unlocking in ${countdown}s` : (
                                 <span className="flex items-center gap-2">
-                                    <Check className="w-4 h-4 font-bold" /> Generate Run Plan
+                                    Engage Sequence <Check className="w-4 h-4" />
                                 </span>
                             )}
                         </Button>
@@ -256,3 +279,5 @@ export default function DrillCatalog({ onDrillSelect }: { onDrillSelect: (run: D
         </div>
     )
 }
+
+

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card'
+import { Card, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/Checkbox'
@@ -12,10 +12,10 @@ import {
     DialogDescription,
     DialogFooter
 } from '@/components/ui/dialog'
-import { AlertTriangle, Activity, Network, Zap, ArrowRight, ShieldAlert, Check, Info } from 'lucide-react'
+import { AlertTriangle, Activity, Network, Zap, ArrowRight, ShieldAlert, Check } from 'lucide-react'
 import { planDrill, type DrillRun } from '@/lib/api/drills'
+import { getServices } from '@/lib/api'
 import { glassInteractiveCardClass, cn, controlLabelClass, modalPanelClass, secondaryButtonClass, successButtonClass, controlInputBaseClass } from '@/components/common/uiClassTokens'
-import { predictiveApi } from '@/lib/predictiveApiClient'
 
 const DRILLS = [
     {
@@ -67,10 +67,10 @@ export default function DrillCatalog({ onDrillSelect }: { onDrillSelect: (run: D
     useEffect(() => {
         const fetchServices = async () => {
             try {
-                const response = await predictiveApi.get('/services')
-                setServices(response.data.services || [])
-                if (response.data.services?.length > 0) {
-                    const first = response.data.services[0]
+                const response = await getServices()
+                setServices(response.services || [])
+                if (response.services?.length > 0) {
+                    const first = response.services[0]
                     setTargetService(`${first.namespace}/${first.name}`)
                 }
             } catch (err) {
@@ -255,8 +255,8 @@ export default function DrillCatalog({ onDrillSelect }: { onDrillSelect: (run: D
                     </div>
 
                     <DialogFooter className="gap-3">
-                        <Button 
-                            variant="ghost" 
+                        <Button
+                            variant="ghost"
                             onPress={() => setSelectedDrill(null)}
                             className={secondaryButtonClass}
                         >

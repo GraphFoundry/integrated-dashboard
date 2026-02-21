@@ -5,7 +5,7 @@ import {
   type GraphUpdateData,
   type GraphFreshness,
 } from '@/lib/bffApiClient'
-import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes } from '@/lib/api'
+import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes, isInfrastructureService } from '@/lib/api'
 import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
 const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
@@ -158,12 +158,14 @@ export function useDependencyGraphSnapshot() {
     }
 
     // Build nodes (same enrichment logic as analysis-engine DependencyGraphHandler)
-    const nodes = metricsSnapshot.services.map((svc) => {
-      const ns = svc.namespace || 'default'
-      const id = `${ns}:${svc.name}`
-      const errPct = svc.errorRate * 100
-      const availPct = (typeof svc.availability === 'number' ? svc.availability : 0) * 100
-      const centralityScore = centralityMap.get(svc.name)
+    const nodes = metricsSnapshot.services
+      .filter((svc) => !isInfrastructureService({ name: svc.name, namespace: svc.namespace || 'default' }))
+      .map((svc) => {
+        const ns = svc.namespace || 'default'
+        const id = `${ns}:${svc.name}`
+        const errPct = svc.errorRate * 100
+        const availPct = (typeof svc.availability === 'number' ? svc.availability : 0) * 100
+        const centralityScore = centralityMap.get(svc.name)
 
       // Risk calculation (mirrors analysis-engine calculateRiskLevel)
       let riskLevel: GraphRiskLevel = 'LOW'
@@ -220,18 +222,27 @@ export function useDependencyGraphSnapshot() {
       serviceNamespaceMap.set(svc.name, svc.namespace || 'default')
     })
 
-    const edges = metricsSnapshot.edges.map((e) => {
-      const fromNs = serviceNamespaceMap.get(e.from) || 'default'
-      const toNs = e.namespace || serviceNamespaceMap.get(e.to) || 'default'
-      return {
-        id: `${fromNs}:${e.from}->${toNs}:${e.to}`,
-        source: `${fromNs}:${e.from}`,
-        target: `${toNs}:${e.to}`,
-        reqRate: e.rps,
-        errorRatePct: Number(e.errorRate || 0) * 100,
-        latencyP95Ms: e.p95,
-      }
-    })
+    const edges = metricsSnapshot.edges
+      .filter((e) => {
+        const fromNs = serviceNamespaceMap.get(e.from) || 'default'
+        const toNs = e.namespace || serviceNamespaceMap.get(e.to) || 'default'
+        return (
+          !isInfrastructureService({ name: e.from, namespace: fromNs }) &&
+          !isInfrastructureService({ name: e.to, namespace: toNs })
+        )
+      })
+      .map((e) => {
+        const fromNs = serviceNamespaceMap.get(e.from) || 'default'
+        const toNs = e.namespace || serviceNamespaceMap.get(e.to) || 'default'
+        return {
+          id: `${fromNs}:${e.from}->${toNs}:${e.to}`,
+          source: `${fromNs}:${e.from}`,
+          target: `${toNs}:${e.to}`,
+          reqRate: e.rps,
+          errorRatePct: Number(e.errorRate || 0) * 100,
+          latencyP95Ms: e.p95,
+        }
+      })
 
     const fallbackUpdatedSecondsAgo =
       lastUpdated && Number.isFinite(Date.parse(lastUpdated))
@@ -322,13 +333,15 @@ export function useServicesWithPlacement() {
     if (!graphData) return
 
     // Map webhook services to ServiceWithPlacement format
-    const mappedServices: ServiceWithPlacement[] = graphData.services.map((svc) => ({
-      name: svc.name,
-      namespace: svc.namespace,
-      podCount: svc.podCount,
-      availability: svc.availability,
-      placement: svc.placement,
-    }))
+    const mappedServices: ServiceWithPlacement[] = graphData.services
+      .filter((svc) => !isInfrastructureService({ name: svc.name, namespace: svc.namespace }))
+      .map((svc) => ({
+        name: svc.name,
+        namespace: svc.namespace,
+        podCount: svc.podCount,
+        availability: svc.availability,
+        placement: svc.placement,
+      }))
 
     // Map infrastructure nodes
     const mappedNodes: NodeWithResources[] = (graphData.infrastructure?.nodes || []).map((n) => ({

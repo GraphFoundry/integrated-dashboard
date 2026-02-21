@@ -3,6 +3,7 @@ import {
   connectToGraphStream,
   getLatestGraphData,
   type GraphUpdateData,
+  type GraphFreshness,
 } from '@/lib/bffApiClient'
 import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes } from '@/lib/api'
 import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResources } from '@/lib/types'
@@ -23,6 +24,7 @@ export function useGraphStream() {
   const [graphData, setGraphData] = useState<GraphUpdateData | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [freshness, setFreshness] = useState<GraphFreshness | null>(null)
   const isFirstUpdate = useRef(true)
   const lastReceivedAtMs = useRef<number>(0)
 
@@ -44,7 +46,9 @@ export function useGraphStream() {
     // 1. Try to get cached data from BFF first (fast initial render)
     getLatestGraphData()
       .then((result) => {
-        if (isMounted && result?.data) {
+        if (!isMounted || !result) return
+        if (result.freshness) setFreshness(result.freshness)
+        if (result.data) {
           const receivedAt = result.receivedAt || new Date().toISOString()
           lastReceivedAtMs.current = Date.parse(receivedAt) || Date.now()
           setGraphData(result.data)
@@ -70,7 +74,9 @@ export function useGraphStream() {
       if (!isMounted) return
       getLatestGraphData()
         .then((result) => {
-          if (!isMounted || !result?.data) return
+          if (!isMounted || !result) return
+          if (result.freshness) setFreshness(result.freshness)
+          if (!result.data) return
           const receivedAt = result.receivedAt || new Date().toISOString()
           const receivedAtMs = Date.parse(receivedAt) || Date.now()
           if (receivedAtMs <= lastReceivedAtMs.current) return
@@ -122,7 +128,7 @@ export function useGraphStream() {
     }
   }, [handleGraphUpdate])
 
-  return { graphData, loading, lastUpdated }
+  return { graphData, loading, lastUpdated, freshness }
 }
 
 /**
@@ -133,7 +139,7 @@ export function useGraphStream() {
  * Drop-in replacement for the previous polling useEffect pattern.
  */
 export function useDependencyGraphSnapshot() {
-  const { graphData, loading, lastUpdated } = useGraphStream()
+  const { graphData, loading, lastUpdated, freshness } = useGraphStream()
   const [snapshot, setSnapshot] = useState<GraphSnapshot | null>(null)
   const [fallbackLoading, setFallbackLoading] = useState(true)
 
@@ -222,17 +228,29 @@ export function useDependencyGraphSnapshot() {
         source: `${fromNs}:${e.from}`,
         target: `${toNs}:${e.to}`,
         reqRate: e.rps,
+        errorRatePct: Number(e.errorRate || 0) * 100,
         latencyP95Ms: e.p95,
       }
     })
+
+    const fallbackUpdatedSecondsAgo =
+      lastUpdated && Number.isFinite(Date.parse(lastUpdated))
+        ? Math.max(0, Math.floor((Date.now() - Date.parse(lastUpdated)) / 1000))
+        : null
+    const resolvedWindowMinutes = freshness?.windowMinutes ?? 5
+    const resolvedUpdatedSecondsAgo = freshness?.lastUpdatedSecondsAgo ?? fallbackUpdatedSecondsAgo
+    const resolvedStale =
+      freshness?.stale ?? (resolvedUpdatedSecondsAgo === null
+        ? true
+        : resolvedUpdatedSecondsAgo > resolvedWindowMinutes * 60)
 
     setSnapshot({
       nodes,
       edges,
       metadata: {
-        stale: false,
-        lastUpdatedSecondsAgo: 0,
-        windowMinutes: 5,
+        stale: resolvedStale,
+        lastUpdatedSecondsAgo: resolvedUpdatedSecondsAgo,
+        windowMinutes: resolvedWindowMinutes,
         nodeCount: nodes.length,
         edgeCount: edges.length,
         nodesWithMetrics: nodes.length,
@@ -241,7 +259,7 @@ export function useDependencyGraphSnapshot() {
       },
     })
     setFallbackLoading(false)
-  }, [graphData, lastUpdated])
+  }, [graphData, lastUpdated, freshness])
 
   // Optional fallback: disabled by default to avoid masking webhook pipeline failures.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import express, { Request, Response } from 'express'
+import axios from 'axios'
 
 // Simple .env loader
 const envPath = path.resolve(__dirname, '../.env')
@@ -78,6 +79,14 @@ const WEBHOOK_DEDUPE_FILE =
   process.env.WEBHOOK_DEDUPE_FILE || path.resolve(__dirname, '../data/webhook-dedupe.json')
 const WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
 const WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
+const GRAPH_HEALTH_URL = process.env.GRAPH_HEALTH_URL || 'http://localhost:3000/graph/health'
+const GRAPH_STALE_WINDOW_MINUTES = 5
+
+interface GraphFreshness {
+  stale: boolean
+  lastUpdatedSecondsAgo: number | null
+  windowMinutes: number
+}
 
 function respondWithInternalServerError(
   res: Response,
@@ -205,6 +214,47 @@ let latestGraphData: GraphUpdateData | null = null
 let graphDataReceivedAt: string | null = null
 let latestGraphLogicalTimestampMs: number | null = null
 
+function computeFallbackFreshness(data: GraphUpdateData | null): GraphFreshness {
+  const windowMinutes = GRAPH_STALE_WINDOW_MINUTES
+  if (!data?.metricsSnapshot?.timestamp) {
+    return { stale: true, lastUpdatedSecondsAgo: null, windowMinutes }
+  }
+
+  const tsMs = Date.parse(data.metricsSnapshot.timestamp)
+  if (!Number.isFinite(tsMs)) {
+    return { stale: true, lastUpdatedSecondsAgo: null, windowMinutes }
+  }
+
+  const ageSeconds = Math.max(0, Math.floor((Date.now() - tsMs) / 1000))
+  return {
+    stale: ageSeconds > windowMinutes * 60,
+    lastUpdatedSecondsAgo: ageSeconds,
+    windowMinutes,
+  }
+}
+
+async function resolveGraphFreshness(data: GraphUpdateData | null): Promise<GraphFreshness> {
+  try {
+    const response = await axios.get(GRAPH_HEALTH_URL, { timeout: 1500 })
+    const body = response?.data as Partial<GraphFreshness> | undefined
+    if (typeof body?.stale === 'boolean') {
+      const lastUpdatedSecondsAgo =
+        typeof body.lastUpdatedSecondsAgo === 'number' ? body.lastUpdatedSecondsAgo : null
+      const windowMinutes =
+        typeof body.windowMinutes === 'number' ? body.windowMinutes : GRAPH_STALE_WINDOW_MINUTES
+      return {
+        stale: body.stale,
+        lastUpdatedSecondsAgo,
+        windowMinutes,
+      }
+    }
+  } catch {
+    // Fall back to cached timestamp if graph health is temporarily unavailable.
+  }
+
+  return computeFallbackFreshness(data)
+}
+
 // POST /webhook/graph-update - Receive graph updates from analysis-engine
 app.post('/webhook/graph-update', (req: Request, res: Response) => {
   try {
@@ -319,13 +369,15 @@ app.post('/webhook/graph-update', (req: Request, res: Response) => {
 })
 
 // GET /api/graph/latest - Get the latest cached graph data (REST fallback)
-app.get('/api/graph/latest', (req: Request, res: Response) => {
+app.get('/api/graph/latest', async (req: Request, res: Response) => {
+  const freshness = await resolveGraphFreshness(latestGraphData)
   if (!latestGraphData) {
     // Keep startup polling quiet: return an empty payload until first webhook arrives.
     return res.status(200).json({
       data: null,
       receivedAt: graphDataReceivedAt,
       hasData: false,
+      freshness,
       message: 'No graph data available yet',
     })
   }
@@ -333,6 +385,7 @@ app.get('/api/graph/latest', (req: Request, res: Response) => {
     data: latestGraphData,
     receivedAt: graphDataReceivedAt,
     hasData: true,
+    freshness,
   })
 })
 

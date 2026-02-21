@@ -194,6 +194,20 @@ export interface GraphUpdateData {
   }
 }
 
+export interface GraphFreshness {
+  stale: boolean
+  lastUpdatedSecondsAgo: number | null
+  windowMinutes: number
+}
+
+export interface GraphLatestDataResponse {
+  data: GraphUpdateData | null
+  receivedAt: string | null
+  hasData: boolean
+  freshness?: GraphFreshness
+  message?: string
+}
+
 // API Client
 export const bffApi = {
   // Overview
@@ -453,7 +467,7 @@ export function connectToGraphStream(
 /**
  * Fetch the latest cached graph data via REST (fallback if WebSocket is not connected yet)
  */
-export async function getLatestGraphData(): Promise<{ data: GraphUpdateData; receivedAt: string } | null> {
+export async function getLatestGraphData(): Promise<GraphLatestDataResponse | null> {
   try {
     const response = await fetch(`${BFF_BASE_URL}/api/graph/latest`)
     if (!response.ok) return null

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FlaskConical, CalendarClock, Gauge, Layers, X } from 'lucide-react'
-import type { Scenario, ScenarioType, DiscoveredService, TimeWindow } from '@/lib/types'
+import type { Scenario, ScenarioType, DiscoveredService, SimulationDemoConstraints, TimeWindow } from '@/lib/types'
 import { getResilientServices, getServices } from '@/lib/api'
 import InfoHint from '@/components/common/InfoHint'
 import {
@@ -21,6 +21,13 @@ const EXAMPLE_SERVICES = [
   'default:recommendationservice',
   'default:paymentservice',
 ]
+
+const DEFAULT_DEMO_CONSTRAINTS: SimulationDemoConstraints = {
+  note: 'Demo Snapshot Mode uses deterministic fixtures and supports a curated subset of scenarios.',
+  addServiceSupported: false,
+  failure: { serviceId: 'default:checkoutservice' },
+  scale: { serviceId: 'default:recommendationservice', currentPods: 2, newPods: 5 },
+}
 
 // Validate serviceId format for Live mode: must be "namespace:name"
 function isValidLiveServiceId(serviceId: string): boolean {
@@ -56,6 +63,7 @@ interface ScenarioFormProps {
   readonly loading: boolean
   readonly mode: 'demo' | 'live'
   readonly scenarioType: ScenarioType
+  readonly demoConstraints?: SimulationDemoConstraints
   readonly onScenarioTypeChange: (type: ScenarioType) => void
   readonly allowExperimentalAdd?: boolean
   readonly onServiceSelectionChange?: (serviceId: string) => void
@@ -70,6 +78,7 @@ export default function ScenarioForm({
   loading,
   mode,
   scenarioType,
+  demoConstraints,
   onScenarioTypeChange,
   allowExperimentalAdd = true,
   onServiceSelectionChange,
@@ -97,6 +106,16 @@ export default function ScenarioForm({
   const [servicesError, setServicesError] = useState<string | null>(null)
   const [servicesNotice, setServicesNotice] = useState<string | null>(null)
   const [servicesStale, setServicesStale] = useState(false)
+  const effectiveDemoConstraints = demoConstraints ?? DEFAULT_DEMO_CONSTRAINTS
+  const activeDemoScenarioConstraint =
+    mode !== 'demo'
+      ? undefined
+      : scenarioType === 'failure'
+        ? effectiveDemoConstraints.failure
+        : scenarioType === 'scale'
+          ? effectiveDemoConstraints.scale
+          : undefined
+  const demoScaleConstraint = mode === 'demo' && scenarioType === 'scale' ? effectiveDemoConstraints.scale : undefined
 
   // Fetch services from backend when Live mode is active
   const fetchServices = useCallback(async (signal?: AbortSignal) => {
@@ -129,7 +148,13 @@ export default function ScenarioForm({
   // Reset serviceId and fetch services when mode changes
   useEffect(() => {
     if (mode === 'demo') {
-      setServiceId('default:productcatalog')
+      if (scenarioType === 'failure') {
+        setServiceId(effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice')
+      } else if (scenarioType === 'scale') {
+        setServiceId(effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice')
+        setCurrentPods(effectiveDemoConstraints.scale?.currentPods ?? 2)
+        setNewPods(effectiveDemoConstraints.scale?.newPods ?? 5)
+      }
       setDiscoveredServices(getResilientServices([]))
       setServicesError(null)
       setServicesNotice(null)
@@ -141,7 +166,15 @@ export default function ScenarioForm({
       fetchServices(controller.signal)
       return () => controller.abort()
     }
-  }, [mode, fetchServices])
+  }, [
+    mode,
+    fetchServices,
+    scenarioType,
+    effectiveDemoConstraints.failure?.serviceId,
+    effectiveDemoConstraints.scale?.serviceId,
+    effectiveDemoConstraints.scale?.currentPods,
+    effectiveDemoConstraints.scale?.newPods,
+  ])
 
   useEffect(() => {
     onServiceSelectionChange?.(serviceId.trim())
@@ -152,10 +185,12 @@ export default function ScenarioForm({
   }, [maxDepth, onDepthChange])
 
   useEffect(() => {
-    if (!allowExperimentalAdd && scenarioType === 'add-service') {
+    const addServiceSupportedInCurrentMode =
+      allowExperimentalAdd && (mode !== 'demo' || effectiveDemoConstraints.addServiceSupported === true)
+    if (!addServiceSupportedInCurrentMode && scenarioType === 'add-service') {
       onScenarioTypeChange('failure')
     }
-  }, [allowExperimentalAdd, onScenarioTypeChange, scenarioType])
+  }, [allowExperimentalAdd, effectiveDemoConstraints.addServiceSupported, mode, onScenarioTypeChange, scenarioType])
 
   // Helper: check if serviceId exists in discovered services (Live mode)
   const isServiceIdInGraph = (): boolean => {
@@ -192,7 +227,18 @@ export default function ScenarioForm({
 
   // Helper: get serviceId validation message for display
   const getServiceIdHint = (): string | null => {
-    if (mode === 'demo') return null
+    if (mode === 'demo') {
+      if (scenarioType === 'failure') {
+        return `Demo failure runs are fixed to ${effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice'}.`
+      }
+      if (scenarioType === 'scale') {
+        const scaleTarget = effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice'
+        const current = effectiveDemoConstraints.scale?.currentPods ?? 2
+        const next = effectiveDemoConstraints.scale?.newPods ?? 5
+        return `Demo scaling runs are fixed to ${scaleTarget} (${current} -> ${next} pods).`
+      }
+      return 'Demo mode supports curated fixtures only.'
+    }
     if (!serviceId.trim()) return null
     if (!isValidLiveServiceId(serviceId)) {
       return 'Format: namespace:name (e.g., default:productcatalog)'
@@ -206,9 +252,23 @@ export default function ScenarioForm({
   // Main validation
   const isValid = (): boolean => {
     if (scenarioType === 'add-service') {
-      return isAddServiceInputsValid()
+      return mode === 'live' && isAddServiceInputsValid()
     }
     if (!serviceId.trim()) return false
+    if (mode === 'demo') {
+      if (scenarioType === 'failure') {
+        const expectedServiceId = effectiveDemoConstraints.failure?.serviceId
+        if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
+      }
+      if (scenarioType === 'scale') {
+        const expectedServiceId = effectiveDemoConstraints.scale?.serviceId
+        if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
+        const expectedCurrentPods = effectiveDemoConstraints.scale?.currentPods
+        if (typeof expectedCurrentPods === 'number' && currentPods !== expectedCurrentPods) return false
+        const expectedNewPods = effectiveDemoConstraints.scale?.newPods
+        if (typeof expectedNewPods === 'number' && newPods !== expectedNewPods) return false
+      }
+    }
     if (mode === 'live' && !isLiveServiceIdValid()) return false
     if (maxDepth < 1 || maxDepth > 3) return false
     if (scenarioType === 'scale' && !isScaleInputsValid()) return false
@@ -228,7 +288,9 @@ export default function ScenarioForm({
         }
         return { value: s.serviceId, label }
       })
-      : []
+      : activeDemoScenarioConstraint
+        ? [{ value: activeDemoScenarioConstraint.serviceId, label: `${activeDemoScenarioConstraint.serviceId} (demo fixture)` }]
+        : []
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -298,8 +360,17 @@ export default function ScenarioForm({
         >
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
-          {allowExperimentalAdd && <option value="add-service">Add New Service (Experimental)</option>}
+          {allowExperimentalAdd && (
+            <option value="add-service" disabled={mode === 'demo' && effectiveDemoConstraints.addServiceSupported !== true}>
+              {mode === 'demo' ? 'Add New Service (Experimental, Live only)' : 'Add New Service (Experimental)'}
+            </option>
+          )}
         </Select>
+        {mode === 'demo' && (
+          <p className="mt-2 text-xs text-[var(--text-muted)]">
+            Demo mode is constrained to curated fixtures for repeatable outputs.
+          </p>
+        )}
       </div>
 
       {/* Time Period (For all simulation types) */}
@@ -501,9 +572,14 @@ export default function ScenarioForm({
                 id="serviceId"
                 value={serviceId}
                 onChange={(e) => setServiceId(normalizeLiveServiceInput(e.target.value))}
+                disabled={mode === 'demo' && Boolean(activeDemoScenarioConstraint?.serviceId)}
                 items={serviceComboboxItems}
                 placeholder={
-                  mode === 'live' ? 'Select or type service...' : 'e.g., productcatalog'
+                  mode === 'live'
+                    ? 'Select or type service...'
+                    : activeDemoScenarioConstraint
+                      ? 'Fixed by demo fixture'
+                      : 'e.g., productcatalog'
                 }
                 className={cn(
                   compactControlClass,
@@ -556,6 +632,7 @@ export default function ScenarioForm({
                     min="1"
                     value={currentPods}
                     onChange={(e) => setCurrentPods(Number(e.target.value))}
+                    disabled={Boolean(demoScaleConstraint)}
                     className={compactControlClass}
                   />
                 </div>
@@ -572,10 +649,17 @@ export default function ScenarioForm({
                     min="1"
                     value={newPods}
                     onChange={(e) => setNewPods(Number(e.target.value))}
+                    disabled={Boolean(demoScaleConstraint)}
                     className={compactControlClass}
                   />
                 </div>
               </div>
+              {demoScaleConstraint && (
+                <p className="text-xs text-[var(--text-muted)]">
+                  Demo scaling fixture is locked to {demoScaleConstraint.serviceId} ({demoScaleConstraint.currentPods ?? 2} -&gt;{' '}
+                  {demoScaleConstraint.newPods ?? 5} pods) to match backend demo validation.
+                </p>
+              )}
 
               <div>
                 <label

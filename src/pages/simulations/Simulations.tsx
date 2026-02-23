@@ -37,12 +37,20 @@ import type {
   ScenarioType,
   ServiceAdditionResponse,
   SimulationCapabilitiesResponse,
+  SimulationDemoConstraints,
   SimulationContextResponse,
 } from '@/lib/types'
 
 type SimulationMode = 'live' | 'demo'
 
 type SimulationResult = FailureResponse | ScaleResponse | ServiceAdditionResponse
+
+const DEFAULT_DEMO_CONSTRAINTS: SimulationDemoConstraints = {
+  note: 'Demo Snapshot Mode uses deterministic fixtures and supports a curated subset of scenarios.',
+  addServiceSupported: false,
+  failure: { serviceId: 'default:checkoutservice' },
+  scale: { serviceId: 'default:recommendationservice', currentPods: 2, newPods: 5 },
+}
 
 function statusBadge(status?: string) {
   const styles: Record<string, string> = {
@@ -88,6 +96,7 @@ export default function Simulations() {
   const [capabilities, setCapabilities] = useState<SimulationCapabilitiesResponse>({
     enabled: ['failure', 'scale'],
     experimental: [],
+    demoConstraints: DEFAULT_DEMO_CONSTRAINTS,
   })
   const [demoSnapshots, setDemoSnapshots] = useState<DemoSnapshot[]>([])
   const [snapshotId, setSnapshotId] = useState('seed-v1')
@@ -174,6 +183,15 @@ export default function Simulations() {
     }),
     [mode, snapshotId]
   )
+
+  const demoConstraints = capabilities.demoConstraints ?? DEFAULT_DEMO_CONSTRAINTS
+  const demoFailureTarget = demoConstraints.failure?.serviceId ?? 'default:checkoutservice'
+  const demoScaleTarget = demoConstraints.scale?.serviceId ?? 'default:recommendationservice'
+  const demoScaleCurrentPods = demoConstraints.scale?.currentPods ?? 2
+  const demoScaleNewPods = demoConstraints.scale?.newPods ?? 5
+  const demoModeSupportSummary =
+    `Supported demo runs: failure on ${demoFailureTarget}; scale on ${demoScaleTarget} (${demoScaleCurrentPods} -> ${demoScaleNewPods} pods). ` +
+    'Add-service remains Live mode only.'
 
   const handleRun = async (scenario: Scenario) => {
     setLoading(true)
@@ -695,17 +713,17 @@ export default function Simulations() {
       <Section title="Run Mode" icon={Settings}>
         {mode === 'demo' && (
           <div className="mb-4 rounded border border-amber-500/55 bg-amber-500/12 p-3 text-xs font-semibold text-[var(--text-primary)]">
-            Demo Snapshot Mode: deterministic outputs for the same input and snapshot.
+            Demo Snapshot Mode: deterministic fixtures for stable reruns. {demoModeSupportSummary}
           </div>
         )}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
             <label htmlFor="simulationMode" className="mb-2 block text-sm font-semibold text-[var(--text-secondary)]">
-              <span className="inline-flex items-center gap-1.5">
-                <span>Source Mode</span>
-                <InfoHint text="Live mode uses current platform data, so numbers reflect the latest state. Demo mode uses fixed sample data, so repeated runs return stable results for presentations." />
-              </span>
-            </label>
+                <span className="inline-flex items-center gap-1.5">
+                  <span>Source Mode</span>
+                  <InfoHint text="Live mode uses current platform data. Demo mode uses deterministic fixtures for repeatable presentation runs, but only a curated subset of scenario/service combinations is supported." />
+                </span>
+              </label>
             <Select
               id="simulationMode"
               value={mode}
@@ -744,7 +762,7 @@ export default function Simulations() {
 
           <div className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-3 text-xs text-[var(--text-muted)]">
             {mode === 'demo'
-              ? 'Using deterministic demo data for stable presentation results.'
+              ? `${demoConstraints.note ?? 'Using deterministic demo data for stable presentation results.'} ${demoModeSupportSummary}`
               : 'Using live graph data. This simulation does not change the running cluster.'}
           </div>
         </div>
@@ -758,6 +776,7 @@ export default function Simulations() {
               loading={loading}
               mode={mode}
               scenarioType={scenarioType}
+              demoConstraints={demoConstraints}
               allowExperimentalAdd={capabilities.experimental.includes('add-service')}
               onScenarioTypeChange={(type) => {
                 setScenarioType(type)

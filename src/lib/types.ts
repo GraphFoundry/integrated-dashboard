@@ -390,9 +390,23 @@ export type DecisionCompareResponse = {
   }
 }
 
+export type DemoScenarioConstraint = {
+  serviceId: string
+  currentPods?: number
+  newPods?: number
+}
+
+export type SimulationDemoConstraints = {
+  note?: string
+  addServiceSupported?: boolean
+  failure?: DemoScenarioConstraint
+  scale?: DemoScenarioConstraint
+}
+
 export type SimulationCapabilitiesResponse = {
   enabled: string[]
   experimental: string[]
+  demoConstraints?: SimulationDemoConstraints
 }
 
 export type SimulationContextNode = {

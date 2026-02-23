@@ -103,7 +103,7 @@ export default function DrillDirector() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-[var(--border)]">
-                                    {history.length === 0 ? (
+                                    {!history || history.length === 0 ? (
                                         <tr>
                                             <td colSpan={7} className="p-12 text-center text-[var(--text-muted)] italic bg-[var(--surface-soft)]/20">
                                                 <div className="flex flex-col items-center gap-2 opacity-50">
@@ -132,8 +132,8 @@ export default function DrillDirector() {
                                                     </Badge>
                                                 </td>
                                                 <td className={tableCellClass}>
-                                                    <Badge 
-                                                        variant={run.verdict === 'Success' ? 'default' : 'destructive'} 
+                                                    <Badge
+                                                        variant={run.verdict === 'Success' ? 'default' : 'destructive'}
                                                         className={cn(
                                                             "text-[10px] font-bold uppercase",
                                                             run.verdict === 'Success' && "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
@@ -146,9 +146,9 @@ export default function DrillDirector() {
                                                     {new Date(run.startTime).toLocaleString()}
                                                 </td>
                                                 <td className={cn(tableCellClass, "text-right")}>
-                                                    <Button 
-                                                        variant="ghost" 
-                                                        size="sm" 
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
                                                         onPress={() => setActiveRun(run)}
                                                         className="text-[10px] font-bold uppercase tracking-widest hover:bg-sky-500/10 hover:text-sky-600"
                                                     >

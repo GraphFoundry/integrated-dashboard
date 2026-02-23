@@ -330,7 +330,14 @@ export default function Metrics() {
           }),
         }
       })
-      .sort((a, b) => b.errorRate - a.errorRate)
+      .sort((a, b) => {
+        const aError = toFiniteNumber(a.errorRate)
+        const bError = toFiniteNumber(b.errorRate)
+        if (aError === null && bError === null) return 0
+        if (aError === null) return 1
+        if (bError === null) return -1
+        return bError - aError
+      })
       .slice(0, 10)
   }, [latestPerService])
 
@@ -697,7 +704,7 @@ export default function Metrics() {
               <TimeSeriesLineChart
                 data={sortedDatapoints.map((d) => ({
                   timestamp: d.timestamp,
-                  value: d.errorRate,
+                  value: toFiniteNumber(d.errorRate),
                 }))}
                 strokeColor="#ef4444"
                 fillColor="#ef4444"
@@ -802,26 +809,48 @@ export default function Metrics() {
                       {formatRps(point.requestRate)}
                     </td>
                     <td className={cn(tableCellClass, 'text-right font-mono')}>
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${point.errorRate <= 1
-                          ? 'bg-emerald-500/12 text-emerald-700'
-                          : point.errorRate <= 5
-                            ? 'bg-amber-500/12 text-amber-700'
-                            : 'bg-rose-500/12 text-rose-700'
-                          }`}
-                      >
-                        {formatPercent(100 - point.errorRate)}
-                      </span>
+                      {(() => {
+                        const errorRate = toFiniteNumber(point.errorRate)
+                        if (errorRate === null) {
+                          return (
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-bold bg-slate-500/12 text-slate-700">
+                              N/A
+                            </span>
+                          )
+                        }
+                        return (
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-bold ${errorRate <= 1
+                              ? 'bg-emerald-500/12 text-emerald-700'
+                              : errorRate <= 5
+                                ? 'bg-amber-500/12 text-amber-700'
+                                : 'bg-rose-500/12 text-rose-700'
+                              }`}
+                          >
+                            {formatPercent(100 - errorRate)}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className={cn(tableCellClass, 'text-right font-mono')}>
-                      <span
-                        className={
-                          point.p95 < 500 ? 'text-[var(--text-primary)]' :
-                            point.p95 < 1000 ? 'text-amber-700' : 'text-rose-700'
-                        }
-                      >
-                        {formatMs(point.p95)}
-                      </span>
+                      {(() => {
+                        const p95 = toFiniteNumber(point.p95)
+                        return (
+                          <span
+                            className={
+                              p95 === null
+                                ? 'text-[var(--text-muted)]'
+                                : p95 < 500
+                                  ? 'text-[var(--text-primary)]'
+                                  : p95 < 1000
+                                    ? 'text-amber-700'
+                                    : 'text-rose-700'
+                            }
+                          >
+                            {formatMs(p95)}
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className={cn(tableCellClass, 'text-right font-mono')}>
                       <span

@@ -10,7 +10,7 @@ import {
 
 interface DataPoint {
   timestamp: string
-  value: number
+  value?: number | null
 }
 
 interface TimeSeriesLineChartProps {
@@ -44,17 +44,22 @@ export default function TimeSeriesLineChart({
     payload,
   }: {
     active?: boolean
-    payload?: Array<{ value: number; payload: DataPoint }>
+    payload?: Array<{ value?: number | null; payload: DataPoint }>
   }) => {
     if (active && payload && payload.length) {
       const data = payload[0]
+      const numericValue = typeof data.value === 'number' && Number.isFinite(data.value)
+        ? data.value
+        : null
       return (
         <div className="rounded-lg border border-[var(--chart-tooltip-border)] bg-[var(--chart-tooltip-bg)] p-3 shadow-lg">
           <p className="mb-1 text-xs text-[var(--text-muted)]">
             {new Date(data.payload.timestamp).toLocaleString()}
           </p>
           <p className="text-sm font-medium text-[var(--text-primary)]">
-            {valueFormatter ? valueFormatter(data.value) : data.value.toFixed(2)}
+            {numericValue !== null
+              ? (valueFormatter ? valueFormatter(numericValue) : numericValue.toFixed(2))
+              : 'N/A'}
           </p>
         </div>
       )

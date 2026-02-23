@@ -756,7 +756,7 @@ export default function Simulations() {
             <ScenarioForm
               onRun={handleRun}
               loading={loading}
-              mode="live"
+              mode={mode}
               scenarioType={scenarioType}
               allowExperimentalAdd={capabilities.experimental.includes('add-service')}
               onScenarioTypeChange={(type) => {

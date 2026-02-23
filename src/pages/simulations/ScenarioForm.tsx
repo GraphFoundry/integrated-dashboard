@@ -12,7 +12,7 @@ import {
 } from '@/components/common/uiClassTokens'
 import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
 
-// Example services for Mock mode (valid format for Live mode reference)
+// Example services for Demo mode (valid format for Live mode reference)
 const EXAMPLE_SERVICES = [
   'default:productcatalog',
   'default:checkoutservice',
@@ -54,7 +54,7 @@ function normalizeLiveServiceInput(rawValue: string): string {
 interface ScenarioFormProps {
   readonly onRun: (scenario: Scenario) => void
   readonly loading: boolean
-  readonly mode: 'mock' | 'live'
+  readonly mode: 'demo' | 'live'
   readonly scenarioType: ScenarioType
   readonly onScenarioTypeChange: (type: ScenarioType) => void
   readonly allowExperimentalAdd?: boolean
@@ -75,8 +75,8 @@ export default function ScenarioForm({
   onServiceSelectionChange,
   onDepthChange,
 }: ScenarioFormProps) {
-  // Mock mode: prefill with a valid service; Live mode: empty for user input
-  const [serviceId, setServiceId] = useState(mode === 'mock' ? 'default:productcatalog' : '')
+  // Demo mode: prefill with a valid service; Live mode: empty for user input
+  const [serviceId, setServiceId] = useState(mode === 'demo' ? 'default:productcatalog' : '')
   const [maxDepth, setMaxDepth] = useState(1)
   const [currentPods, setCurrentPods] = useState(3)
   const [newPods, setNewPods] = useState(5)
@@ -128,7 +128,7 @@ export default function ScenarioForm({
 
   // Reset serviceId and fetch services when mode changes
   useEffect(() => {
-    if (mode === 'mock') {
+    if (mode === 'demo') {
       setServiceId('default:productcatalog')
       setDiscoveredServices(getResilientServices([]))
       setServicesError(null)
@@ -192,7 +192,7 @@ export default function ScenarioForm({
 
   // Helper: get serviceId validation message for display
   const getServiceIdHint = (): string | null => {
-    if (mode === 'mock') return null
+    if (mode === 'demo') return null
     if (!serviceId.trim()) return null
     if (!isValidLiveServiceId(serviceId)) {
       return 'Format: namespace:name (e.g., default:productcatalog)'

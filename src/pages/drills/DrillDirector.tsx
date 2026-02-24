@@ -41,7 +41,7 @@ function getRunStatusBadgeClass(status: string): string {
     case 'Aborted':
       return 'border-orange-400/30 bg-orange-500/10 text-[var(--text-primary)]'
     case 'Failed':
-      return 'border-rose-500/40 bg-rose-500/15 text-[var(--text-primary)]'
+      return 'border-rose-400/50 bg-rose-500/10 text-rose-400'
     default:
       return 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]'
   }
@@ -289,7 +289,7 @@ export default function DrillDirector() {
                               className={cn(
                                 historyChipBaseClass,
                                 isSuccessVerdict && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
-                                isFailureVerdict && 'border-rose-500/20 bg-rose-500/10 text-rose-700',
+                                isFailureVerdict && 'border-rose-400/50 bg-rose-500/10 text-rose-400',
                                 isAbortedVerdict && 'border-orange-500/20 bg-orange-500/10 text-orange-700',
                                 !isSuccessVerdict &&
                                   !isFailureVerdict &&

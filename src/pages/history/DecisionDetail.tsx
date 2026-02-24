@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useNavigate } from 'react-router'
 import { ArrowLeft, CheckCircle, AlertTriangle, Clock } from 'lucide-react'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
+import { pageContainerClass } from '@/components/common/uiClassTokens'
 import { getDecisionById } from '@/lib/api'
 import { formatDate, formatRps, formatMs } from '@/lib/format'
 import type { DecisionRecord, Recommendation, PipelineTrace } from '@/lib/types'
@@ -44,6 +45,7 @@ const getConfidenceBadge = (confidence?: string) => {
 
 export default function DecisionDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [decision, setDecision] = useState<DecisionRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -144,17 +146,20 @@ export default function DecisionDetail() {
   const pipelineTrace = decision.result.pipelineTrace as PipelineTrace | undefined
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center gap-4">
-        <Link to="/history" className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </Link>
-        <div className="flex-1">
-          <PageHeader
-            title="Decision Story"
-            description={formatDate(new Date(decision.timestamp))}
-          />
-        </div>
+    <div className={pageContainerClass}>
+      <div className="space-y-4">
+        <button
+          type="button"
+          onClick={() => navigate('/history')}
+          className="flex items-center gap-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-sm">Back to History</span>
+        </button>
+        <PageHeader
+          title="Decision Story"
+          description={formatDate(new Date(decision.timestamp))}
+        />
       </div>
 
       {/* Summary */}

@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { FlaskConical, CalendarClock, Gauge, Layers, X } from 'lucide-react'
-import type { Scenario, ScenarioType, DiscoveredService, SimulationDemoConstraints, TimeWindow } from '@/lib/types'
+import type {
+  Scenario,
+  ScenarioType,
+  DiscoveredService,
+  SimulationDemoConstraints,
+  TimeWindow,
+} from '@/lib/types'
 import { getResilientServices, getServices } from '@/lib/api'
 import InfoHint from '@/components/common/InfoHint'
 import {
@@ -106,16 +112,23 @@ export default function ScenarioForm({
   const [servicesError, setServicesError] = useState<string | null>(null)
   const [servicesNotice, setServicesNotice] = useState<string | null>(null)
   const [servicesStale, setServicesStale] = useState(false)
+  const allowUnsafeDemoConstraintOverrides =
+    mode === 'demo' &&
+    import.meta.env.DEV &&
+    import.meta.env.VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true'
   const effectiveDemoConstraints = demoConstraints ?? DEFAULT_DEMO_CONSTRAINTS
   const activeDemoScenarioConstraint =
-    mode !== 'demo'
+    mode !== 'demo' || allowUnsafeDemoConstraintOverrides
       ? undefined
       : scenarioType === 'failure'
         ? effectiveDemoConstraints.failure
         : scenarioType === 'scale'
           ? effectiveDemoConstraints.scale
           : undefined
-  const demoScaleConstraint = mode === 'demo' && scenarioType === 'scale' ? effectiveDemoConstraints.scale : undefined
+  const demoScaleConstraint =
+    mode === 'demo' && scenarioType === 'scale' && !allowUnsafeDemoConstraintOverrides
+      ? effectiveDemoConstraints.scale
+      : undefined
 
   // Fetch services from backend when Live mode is active
   const fetchServices = useCallback(async (signal?: AbortSignal) => {
@@ -186,11 +199,18 @@ export default function ScenarioForm({
 
   useEffect(() => {
     const addServiceSupportedInCurrentMode =
-      allowExperimentalAdd && (mode !== 'demo' || effectiveDemoConstraints.addServiceSupported === true)
+      allowExperimentalAdd &&
+      (mode !== 'demo' || effectiveDemoConstraints.addServiceSupported === true)
     if (!addServiceSupportedInCurrentMode && scenarioType === 'add-service') {
       onScenarioTypeChange('failure')
     }
-  }, [allowExperimentalAdd, effectiveDemoConstraints.addServiceSupported, mode, onScenarioTypeChange, scenarioType])
+  }, [
+    allowExperimentalAdd,
+    effectiveDemoConstraints.addServiceSupported,
+    mode,
+    onScenarioTypeChange,
+    scenarioType,
+  ])
 
   // Helper: check if serviceId exists in discovered services (Live mode)
   const isServiceIdInGraph = (): boolean => {
@@ -228,11 +248,15 @@ export default function ScenarioForm({
   // Helper: get serviceId validation message for display
   const getServiceIdHint = (): string | null => {
     if (mode === 'demo') {
+      if (allowUnsafeDemoConstraintOverrides) {
+        return 'Demo override enabled for local testing. Fixture locks are bypassed and backend validation errors may be surfaced.'
+      }
       if (scenarioType === 'failure') {
         return `Demo failure runs are fixed to ${effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice'}.`
       }
       if (scenarioType === 'scale') {
-        const scaleTarget = effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice'
+        const scaleTarget =
+          effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice'
         const current = effectiveDemoConstraints.scale?.currentPods ?? 2
         const next = effectiveDemoConstraints.scale?.newPods ?? 5
         return `Demo scaling runs are fixed to ${scaleTarget} (${current} -> ${next} pods).`
@@ -256,15 +280,16 @@ export default function ScenarioForm({
     }
     if (!serviceId.trim()) return false
     if (mode === 'demo') {
-      if (scenarioType === 'failure') {
+      if (!allowUnsafeDemoConstraintOverrides && scenarioType === 'failure') {
         const expectedServiceId = effectiveDemoConstraints.failure?.serviceId
         if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
       }
-      if (scenarioType === 'scale') {
+      if (!allowUnsafeDemoConstraintOverrides && scenarioType === 'scale') {
         const expectedServiceId = effectiveDemoConstraints.scale?.serviceId
         if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
         const expectedCurrentPods = effectiveDemoConstraints.scale?.currentPods
-        if (typeof expectedCurrentPods === 'number' && currentPods !== expectedCurrentPods) return false
+        if (typeof expectedCurrentPods === 'number' && currentPods !== expectedCurrentPods)
+          return false
         const expectedNewPods = effectiveDemoConstraints.scale?.newPods
         if (typeof expectedNewPods === 'number' && newPods !== expectedNewPods) return false
       }
@@ -279,17 +304,23 @@ export default function ScenarioForm({
   const serviceComboboxItems =
     mode === 'live'
       ? discoveredServices.map((s) => {
-        let label = `${s.name} (${s.namespace})`
-        if (s.podCount !== undefined || s.availability !== undefined) {
-          const details = []
-          if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
-          if (s.availability !== undefined) details.push(`${(s.availability * 100).toFixed(0)}% up`)
-          label += ` - ${details.join(', ')}`
-        }
-        return { value: s.serviceId, label }
-      })
+          let label = `${s.name} (${s.namespace})`
+          if (s.podCount !== undefined || s.availability !== undefined) {
+            const details = []
+            if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
+            if (s.availability !== undefined)
+              details.push(`${(s.availability * 100).toFixed(0)}% up`)
+            label += ` - ${details.join(', ')}`
+          }
+          return { value: s.serviceId, label }
+        })
       : activeDemoScenarioConstraint
-        ? [{ value: activeDemoScenarioConstraint.serviceId, label: `${activeDemoScenarioConstraint.serviceId} (demo fixture)` }]
+        ? [
+            {
+              value: activeDemoScenarioConstraint.serviceId,
+              label: `${activeDemoScenarioConstraint.serviceId} (demo fixture)`,
+            },
+          ]
         : []
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -361,14 +392,21 @@ export default function ScenarioForm({
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
           {allowExperimentalAdd && (
-            <option value="add-service" disabled={mode === 'demo' && effectiveDemoConstraints.addServiceSupported !== true}>
-              {mode === 'demo' ? 'Add New Service (Experimental, Live only)' : 'Add New Service (Experimental)'}
+            <option
+              value="add-service"
+              disabled={mode === 'demo' && effectiveDemoConstraints.addServiceSupported !== true}
+            >
+              {mode === 'demo'
+                ? 'Add New Service (Experimental, Live only)'
+                : 'Add New Service (Experimental)'}
             </option>
           )}
         </Select>
         {mode === 'demo' && (
           <p className="mt-2 text-xs text-[var(--text-muted)]">
-            Demo mode is constrained to curated fixtures for repeatable outputs.
+            {allowUnsafeDemoConstraintOverrides
+              ? 'Demo fixture override is enabled for local testing. Requests may fail backend validation by design.'
+              : 'Demo mode is constrained to curated fixtures for repeatable outputs.'}
           </p>
         )}
       </div>
@@ -396,10 +434,7 @@ export default function ScenarioForm({
         <>
           {/* New Service Fields */}
           <div>
-            <label
-              htmlFor="newServiceName"
-              className={controlLabelClass}
-            >
+            <label htmlFor="newServiceName" className={controlLabelClass}>
               Service Name
             </label>
             <Input
@@ -414,10 +449,7 @@ export default function ScenarioForm({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label
-                htmlFor="minCpu"
-                className={controlLabelClass}
-              >
+              <label htmlFor="minCpu" className={controlLabelClass}>
                 Min CPU (Cores)
               </label>
               <Input
@@ -431,10 +463,7 @@ export default function ScenarioForm({
               />
             </div>
             <div>
-              <label
-                htmlFor="minRam"
-                className={controlLabelClass}
-              >
+              <label htmlFor="minRam" className={controlLabelClass}>
                 Memory Allocation
               </label>
               <Select
@@ -458,10 +487,7 @@ export default function ScenarioForm({
           </div>
 
           <div>
-            <label
-              htmlFor="addReplicas"
-              className={controlLabelClass}
-            >
+            <label htmlFor="addReplicas" className={controlLabelClass}>
               Replicas
             </label>
             <Select
@@ -481,9 +507,7 @@ export default function ScenarioForm({
 
           {/* Dependencies */}
           <div>
-            <label className={controlLabelClass}>
-              Dependencies
-            </label>
+            <label className={controlLabelClass}>Dependencies</label>
             <div className="space-y-2 mb-2">
               {dependencies.map((dep, idx) => (
                 <div key={idx} className="flex gap-2">
@@ -496,15 +520,15 @@ export default function ScenarioForm({
                     <option value="">Select Service...</option>
                     {discoveredServices.length > 0
                       ? discoveredServices.map((s) => (
-                        <option key={s.serviceId} value={s.serviceId}>
-                          {s.name} ({s.namespace})
-                        </option>
-                      ))
+                          <option key={s.serviceId} value={s.serviceId}>
+                            {s.name} ({s.namespace})
+                          </option>
+                        ))
                       : EXAMPLE_SERVICES.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
                   </Select>
                   <button
                     type="button"
@@ -520,7 +544,10 @@ export default function ScenarioForm({
             <button
               type="button"
               onClick={handleAddDependency}
-              className={cn(secondaryButtonClass, 'inline-flex items-center gap-1 px-3 py-2 text-sm')}
+              className={cn(
+                secondaryButtonClass,
+                'inline-flex items-center gap-1 px-3 py-2 text-sm'
+              )}
             >
               + Add Dependency
             </button>
@@ -593,10 +620,7 @@ export default function ScenarioForm({
 
           {/* Max Depth */}
           <div>
-            <label
-              htmlFor="maxDepth"
-              className={controlLabelClass}
-            >
+            <label htmlFor="maxDepth" className={controlLabelClass}>
               Impact Range (hops): {maxDepth}
             </label>
             <Slider
@@ -620,10 +644,7 @@ export default function ScenarioForm({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label
-                    htmlFor="currentPods"
-                    className={controlLabelClass}
-                  >
+                  <label htmlFor="currentPods" className={controlLabelClass}>
                     Current Pods
                   </label>
                   <Input
@@ -637,10 +658,7 @@ export default function ScenarioForm({
                   />
                 </div>
                 <div>
-                  <label
-                    htmlFor="newPods"
-                    className={controlLabelClass}
-                  >
+                  <label htmlFor="newPods" className={controlLabelClass}>
                     New Pods
                   </label>
                   <Input
@@ -656,16 +674,14 @@ export default function ScenarioForm({
               </div>
               {demoScaleConstraint && (
                 <p className="text-xs text-[var(--text-muted)]">
-                  Demo scaling fixture is locked to {demoScaleConstraint.serviceId} ({demoScaleConstraint.currentPods ?? 2} -&gt;{' '}
-                  {demoScaleConstraint.newPods ?? 5} pods) to match backend demo validation.
+                  Demo scaling fixture is locked to {demoScaleConstraint.serviceId} (
+                  {demoScaleConstraint.currentPods ?? 2} -&gt; {demoScaleConstraint.newPods ?? 5}{' '}
+                  pods) to match backend demo validation.
                 </p>
               )}
 
               <div>
-                <label
-                  htmlFor="latencyMetric"
-                  className={controlLabelClass}
-                >
+                <label htmlFor="latencyMetric" className={controlLabelClass}>
                   Latency Metric
                 </label>
                 <Select
@@ -682,10 +698,7 @@ export default function ScenarioForm({
               </div>
 
               <div>
-                <label
-                  htmlFor="topPaths"
-                  className={controlLabelClass}
-                >
+                <label htmlFor="topPaths" className={controlLabelClass}>
                   Top Paths
                 </label>
                 <Select
@@ -718,6 +731,5 @@ export default function ScenarioForm({
         {loading ? 'Running...' : 'Run Simulation'}
       </button>
     </form>
-
   )
 }

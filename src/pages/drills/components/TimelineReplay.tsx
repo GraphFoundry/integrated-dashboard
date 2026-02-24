@@ -213,10 +213,10 @@ export default function TimelineReplay({ run }: { run: DrillRun }) {
                       >
                         <span className="relative flex min-h-[40px] self-stretch items-start justify-center pt-2">
                           {idx > 0 && (
-                            <span className="pointer-events-none absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-[var(--border)]" />
+                            <span className="pointer-events-none absolute -top-2 left-1/2 h-6 w-px -translate-x-1/2 bg-[var(--border)]" />
                           )}
                           {idx < steps.length - 1 && (
-                            <span className="pointer-events-none absolute left-1/2 bottom-0 top-4 w-px -translate-x-1/2 bg-[var(--border)]" />
+                            <span className="pointer-events-none absolute -bottom-2 left-1/2 top-4 w-px -translate-x-1/2 bg-[var(--border)]" />
                           )}
                           <span
                             className={cn(

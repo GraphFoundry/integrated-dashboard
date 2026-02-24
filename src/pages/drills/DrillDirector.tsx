@@ -245,6 +245,7 @@ export default function DrillDirector() {
                       const isSuccessVerdict = run.verdict === 'Success'
                       const isFailureVerdict = /fail|error/i.test(run.verdict)
                       const isAbortedVerdict = /abort/i.test(run.verdict)
+                      const historyChipBaseClass = 'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider'
                       return (
                         <tr
                           key={run.id}
@@ -275,7 +276,7 @@ export default function DrillDirector() {
                             <Badge
                               variant="outline"
                               className={cn(
-                                'text-[10px] font-bold uppercase tracking-wider',
+                                historyChipBaseClass,
                                 getRunStatusBadgeClass(run.status)
                               )}
                             >
@@ -284,9 +285,9 @@ export default function DrillDirector() {
                           </td>
                           <td className={tableCellClass}>
                             <Badge
-                              variant={isSuccessVerdict ? 'default' : 'outline'}
+                              variant="outline"
                               className={cn(
-                                'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                historyChipBaseClass,
                                 isSuccessVerdict && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
                                 isFailureVerdict && 'border-rose-500/20 bg-rose-500/10 text-rose-700',
                                 isAbortedVerdict && 'border-orange-500/20 bg-orange-500/10 text-orange-700',

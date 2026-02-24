@@ -395,9 +395,15 @@ export default function RunPanel({
     try {
       await runDrill(run.id)
       onUpdate({ ...run, status: 'Running' })
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
-      toast.error('Failed to start drill')
+      const status = e?.response?.status
+      const body = e?.response?.data || ''
+      if (status === 412 || (typeof body === 'string' && body.includes('preflight failed'))) {
+        toast.error('Cluster unreachable — open an SSH tunnel to your Kubernetes API server first, then retry.', { duration: 6000 })
+      } else {
+        toast.error('Failed to start drill')
+      }
     }
   }
 

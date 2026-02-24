@@ -110,8 +110,10 @@ const DEFAULT_TARGETED_LOAD_USERS = 10
 
 export default function DrillCatalog({
   onDrillSelect,
+  disabled = false,
 }: {
   onDrillSelect: (run: DrillRun) => void
+  disabled?: boolean
 }) {
   const [selectedDrill, setSelectedDrill] = useState<(typeof DRILLS)[number] | null>(null)
   const [targetService, setTargetService] = useState('')
@@ -214,7 +216,7 @@ export default function DrillCatalog({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-6', disabled && 'pointer-events-none opacity-50')}>
       {DRILLS.map((drill) => (
         <Card
           key={drill.id}

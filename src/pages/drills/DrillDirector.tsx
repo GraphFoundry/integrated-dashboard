@@ -6,7 +6,8 @@ import LiveMetricsStrip from './components/LiveMetricsStrip'
 import TimelineReplay from './components/TimelineReplay'
 import type { DrillRun } from '@/lib/api/drills'
 import { getDrillRun, listDrillHistory } from '@/lib/api/drills'
-import { History, PlayCircle, ShieldCheck, LayoutDashboard, Loader2 } from 'lucide-react'
+import { useK8sHealth } from '@/lib/useK8sHealth'
+import { History, PlayCircle, ShieldCheck, LayoutDashboard, Loader2, WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, Tab, TabPanel } from '@/components/ui/Tabs'
@@ -53,6 +54,9 @@ export default function DrillDirector() {
   const [history, setHistory] = useState<DrillRun[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [reviewingRunId, setReviewingRunId] = useState<string | null>(null)
+  const { status: k8sHealth, isLoading: isK8sProbing, recheck: recheckK8s } = useK8sHealth()
+
+  const isClusterOffline = !isK8sProbing && k8sHealth !== null && !k8sHealth.reachable
 
   useEffect(() => {
     let isMounted = true
@@ -139,6 +143,68 @@ export default function DrillDirector() {
         }
       />
 
+      {/* ── K8s Connectivity Banner ── */}
+      {isK8sProbing && (
+        <div className="mb-6 flex items-center gap-3 rounded-[var(--radius-md)] border border-sky-400/25 bg-sky-500/8 px-5 py-4">
+          <Loader2 className="h-5 w-5 animate-spin text-sky-400" />
+          <p className="text-sm font-medium text-[var(--text-secondary)]">
+            Checking Kubernetes cluster connectivity…
+          </p>
+        </div>
+      )}
+
+      {isClusterOffline && (
+        <div
+          className="mb-6 rounded-[var(--radius-md)] border border-amber-400/30 bg-amber-500/8 px-5 py-4"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 rounded-lg border border-amber-400/20 bg-amber-500/15 p-2">
+              <WifiOff className="h-5 w-5 text-amber-400" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <h4 className="text-sm font-bold tracking-tight text-amber-300">
+                Kubernetes Cluster Unreachable
+              </h4>
+              <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+                {k8sHealth?.hint ||
+                  'The Analysis Engine cannot connect to the Kubernetes API server. All drill operations require a live cluster connection.'}
+              </p>
+              {k8sHealth?.host && (
+                <p className="text-[10px] font-mono text-[var(--text-muted)]">
+                  Target: {k8sHealth.host}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400/70">
+                  Drill operations disabled until connection is restored
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onPress={recheckK8s}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-md border border-amber-400/25 bg-amber-500/10 px-3 text-[10px] font-bold uppercase tracking-widest text-amber-300 hover:bg-amber-500/20"
+                >
+                  <RefreshCw className="h-3 w-3" /> Re-check
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isK8sProbing && k8sHealth?.reachable && (
+        <div className="mb-6 flex items-center gap-3 rounded-[var(--radius-md)] border border-emerald-400/20 bg-emerald-500/6 px-5 py-3">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          <p className="text-xs font-medium text-[var(--text-secondary)]">
+            Cluster connected
+            {k8sHealth.version && <span className="text-[var(--text-muted)]"> · {k8sHealth.version}</span>}
+            {k8sHealth.host && <span className="text-[var(--text-muted)]"> · {k8sHealth.host}</span>}
+          </p>
+        </div>
+      )}
+
       <Tabs
         aria-label="Drill Director Control Panel"
         className="w-full"
@@ -200,7 +266,7 @@ export default function DrillDirector() {
                   </p>
                 </div>
               </div>
-              <DrillCatalog onDrillSelect={setActiveRun} />
+              <DrillCatalog onDrillSelect={setActiveRun} disabled={isClusterOffline} />
             </div>
           )}
         </TabPanel>

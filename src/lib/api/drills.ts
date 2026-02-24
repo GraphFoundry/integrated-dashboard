@@ -1,5 +1,13 @@
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
+export interface K8sHealthResult {
+    reachable: boolean
+    host?: string
+    version?: string
+    error?: string
+    hint?: string
+}
+
 export interface DrillStep {
     id?: number
     runId: string
@@ -62,4 +70,22 @@ export const recoverDrillRun = async (runId: string): Promise<{ status: string }
 export const listDrillHistory = async (): Promise<DrillRun[]> => {
     const response = await predictiveApi.get(`/drills/history`)
     return response.data
+}
+
+export const checkK8sHealth = async (): Promise<K8sHealthResult> => {
+    try {
+        const response = await predictiveApi.get(`/drills/k8s-health`)
+        return response.data
+    } catch (err: any) {
+        // The endpoint returns 503 with a JSON body when unreachable
+        if (err?.response?.data) {
+            return err.response.data as K8sHealthResult
+        }
+        // Network error reaching the analysis engine itself
+        return {
+            reachable: false,
+            error: 'Unable to reach the Analysis Engine',
+            hint: 'Ensure the Analysis Engine is running and accessible.',
+        }
+    }
 }

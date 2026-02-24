@@ -6,7 +6,6 @@ import { Checkbox } from '@/components/ui/Checkbox'
 import { Combobox } from '@/components/ui/Combobox'
 import { Input } from '@/components/ui'
 import {
-  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -230,21 +229,21 @@ export default function DrillCatalog({
         </Card>
       ))}
 
-      <DialogTrigger
-        isOpen={!!selectedDrill}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedDrill(null)
-            setCountdown(0)
-            setIsConfirmed(false)
-            setPlanError(null)
-            setTargetedLoadRate(DEFAULT_TARGETED_LOAD_RATE)
-            setTargetedLoadUsers(DEFAULT_TARGETED_LOAD_USERS)
-          }
-        }}
-      >
-        <Button className="hidden">Trigger</Button>
-        <DialogContent className={modalPanelClass}>
+      {selectedDrill && (
+        <DialogContent
+          isOpen={!!selectedDrill}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedDrill(null)
+              setCountdown(0)
+              setIsConfirmed(false)
+              setPlanError(null)
+              setTargetedLoadRate(DEFAULT_TARGETED_LOAD_RATE)
+              setTargetedLoadUsers(DEFAULT_TARGETED_LOAD_USERS)
+            }
+          }}
+          className={modalPanelClass}
+        >
           <DialogHeader className="space-y-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
@@ -264,8 +263,14 @@ export default function DrillCatalog({
           <div className="py-6 space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className={controlLabelClass}>Target Component</label>
+                <label
+                  htmlFor="drill-target-component"
+                  className={cn(controlLabelClass, 'text-[var(--text-secondary)]')}
+                >
+                  Target Component
+                </label>
                 <Combobox
+                  id="drill-target-component"
                   items={comboItems}
                   value={targetService}
                   onSelectionChange={(val) => setTargetService(val as string)}
@@ -274,8 +279,14 @@ export default function DrillCatalog({
                 />
               </div>
               <div className="space-y-2">
-                <label className={controlLabelClass}>Observation Window</label>
+                <label
+                  htmlFor="drill-observation-window"
+                  className={cn(controlLabelClass, 'text-[var(--text-secondary)]')}
+                >
+                  Observation Window
+                </label>
                 <div
+                  id="drill-observation-window"
                   className={cn(
                     controlInputBaseClass,
                     'flex items-center bg-[var(--surface-soft)]'
@@ -289,8 +300,14 @@ export default function DrillCatalog({
             {selectedDrill?.type === 'TargetedLoad' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className={controlLabelClass}>Load Rate (RATE)</label>
+                  <label
+                    htmlFor="drill-load-rate"
+                    className={cn(controlLabelClass, 'text-[var(--text-secondary)]')}
+                  >
+                    Load Rate (RATE)
+                  </label>
                   <Input
+                    id="drill-load-rate"
                     type="number"
                     min={1}
                     step={1}
@@ -303,8 +320,14 @@ export default function DrillCatalog({
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <label className={controlLabelClass}>Concurrent Users (USERS)</label>
+                  <label
+                    htmlFor="drill-load-users"
+                    className={cn(controlLabelClass, 'text-[var(--text-secondary)]')}
+                  >
+                    Concurrent Users (USERS)
+                  </label>
                   <Input
+                    id="drill-load-users"
                     type="number"
                     min={1}
                     step={1}
@@ -370,8 +393,8 @@ export default function DrillCatalog({
                   Simulation Guardrail
                 </p>
                 <p className="leading-relaxed font-medium opacity-90">
-                  System will automatically restore services after the observation window or upon
-                  manual abort.
+                  Recovery is operator-controlled after observation. A 5-minute failsafe rollback
+                  will activate if no manual recovery is triggered.
                 </p>
               </div>
             </div>
@@ -407,7 +430,7 @@ export default function DrillCatalog({
             </Button>
           </DialogFooter>
         </DialogContent>
-      </DialogTrigger>
+      )}
     </div>
   )
 }

@@ -1,221 +1,643 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, CheckCircle2, XCircle, FileText, Download, RotateCcw, Activity, ShieldCheck, ChevronRight } from 'lucide-react'
-import { type DrillRun, runDrill, abortDrillRun, getDrillRun } from '@/lib/api/drills'
+import {
+  Loader2,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  Download,
+  RotateCcw,
+  Activity,
+  ShieldCheck,
+  ChevronRight,
+  AlertTriangle,
+  TimerReset,
+  Wrench,
+} from 'lucide-react'
+import { type DrillRun, runDrill, abortDrillRun, getDrillRun, recoverDrillRun } from '@/lib/api/drills'
 import { glassPanelClass, cn, primaryButtonClass, secondaryButtonClass } from '@/components/common/uiClassTokens'
 
 const STEPS = [
-    { id: 'Validate', label: 'Validate' },
-    { id: 'Warmup', label: 'Snapshot' },
-    { id: 'Action', label: 'Execute' },
-    { id: 'Observation', label: 'Observe' },
-    { id: 'Recovery', label: 'Recover' },
-    { id: 'Finalize', label: 'Finalize' }
+  { id: 'Validate', label: 'Validate' },
+  { id: 'Warmup', label: 'Snapshot' },
+  { id: 'Action', label: 'Execute' },
+  { id: 'Observation', label: 'Observe' },
+  { id: 'Recovery', label: 'Recover' },
+  { id: 'Finalize', label: 'Finalize' },
 ]
 
-export default function RunPanel({
-    run,
-    onUpdate,
-    onClear
-}: {
-    run: DrillRun
-    onUpdate: (run: DrillRun) => void
-    onClear: () => void
-}) {
-    const [isRunning, setIsRunning] = useState(run.status === 'Running' || run.status === 'Observing' || run.status === 'Recovering')
-
-    useEffect(() => {
-        let interval: number
-        if (isRunning) {
-            interval = window.setInterval(async () => {
-                try {
-                    const updated = await getDrillRun(run.id)
-                    onUpdate(updated)
-                    if (['Completed', 'Aborted', 'Failed'].includes(updated.status)) {
-                        setIsRunning(false)
-                    }
-                } catch (e) {
-                    console.error('Failed to poll run', e)
-                }
-            }, 2000)
-        }
-        return () => clearInterval(interval)
-    }, [run.id, isRunning, onUpdate])
-
-    const handleStart = async () => {
-        try {
-            await runDrill(run.id)
-            setIsRunning(true)
-            onUpdate({ ...run, status: 'Running' })
-        } catch (e) {
-            console.error(e)
-        }
-    }
-
-    const handleAbort = async () => {
-        try {
-            await abortDrillRun(run.id)
-        } catch (e) {
-            console.error(e)
-        }
-    }
-
-    const isCompleted = ['Completed', 'Aborted', 'Failed'].includes(run.status)
-    const currentPhase = run.timeline?.[run.timeline.length - 1]?.phase || 'Pending'
-
-    return (
-        <Card className={cn(glassPanelClass, "h-full relative overflow-hidden flex flex-col")}>
-            {isRunning && <div className="absolute top-0 left-0 w-full h-1 bg-emerald-500 animate-pulse z-20" />}
-
-            <CardHeader className="pb-6 border-b border-[var(--border)] bg-[var(--surface-soft)]/30 px-6 pt-6">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-2 mb-1">
-                            <Activity className="w-3.5 h-3.5 text-emerald-500" />
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Active Sequence</span>
-                        </div>
-                        <CardTitle className="text-xl font-bold tracking-tight text-[var(--text-primary)]">{run.type}</CardTitle>
-                    </div>
-                    <Badge variant={run.status === 'Planned' ? 'secondary' : run.status.includes('Fail') ? 'destructive' : 'default'} className="px-2 py-0.5 text-[10px] font-bold uppercase">
-                        {run.status}
-                    </Badge>
-                </div>
-                <div className="flex items-center justify-between bg-[var(--surface-solid)] p-3 rounded-xl border border-[var(--border)]">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Target</span>
-                        <code className="text-emerald-600 font-mono text-xs font-bold">{run.target}</code>
-                    </div>
-                    <div className="flex flex-col items-end">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Run ID</span>
-                        <span className="text-xs font-bold text-[var(--text-secondary)] font-mono">#{run.id.split('-')[0].toUpperCase()}</span>
-                    </div>
-                </div>
-            </CardHeader>
-
-            <CardContent className="space-y-8 py-8 px-6 flex-1">
-                {/* Stepper */}
-                <div className="relative px-2">
-                    <div className="absolute top-4 left-6 right-6 h-0.5 bg-[var(--border)] z-0" />
-                    <div className="flex justify-between relative z-10">
-                        {STEPS.map((step, idx) => {
-                            const isPast = run.timeline?.some(s => s.phase === step.id)
-                            const isCurrent = currentPhase === step.id
-                            return (
-                                <div key={step.id} className="flex flex-col items-center gap-2">
-                                    <div className={cn(
-                                        "w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-300 bg-[var(--surface-solid)]",
-                                        isPast ? "border-emerald-500 text-emerald-500" : "border-[var(--border)] text-[var(--text-muted)]",
-                                        isCurrent && "border-sky-500 text-sky-500 scale-110 shadow-sm"
-                                    )}>
-                                        {isPast && !isCurrent ? <CheckCircle2 className="w-4 h-4" /> : <span className="text-xs font-bold">{idx + 1}</span>}
-                                    </div>
-                                    <span className={cn(
-                                        "text-[9px] font-bold uppercase tracking-wider",
-                                        isCurrent ? "text-sky-600" : isPast ? "text-emerald-600" : "text-[var(--text-muted)]"
-                                    )}>{step.label}</span>
-                                </div>
-                            )
-                        })}
-                    </div>
-                </div>
-
-                {run.status === 'Planned' && (
-                    <div className="bg-sky-500/5 text-sky-700 p-5 rounded-xl border border-sky-500/10 text-sm animate-in fade-in duration-500">
-                        <h4 className="font-bold text-xs uppercase tracking-wider mb-3 flex items-center gap-2 text-sky-600">
-                            <ShieldCheck className="w-4 h-4" /> Readiness Checklist
-                        </h4>
-                        <ul className="space-y-2.5">
-                            <li className="flex items-center gap-2 text-xs font-medium"><ChevronRight className="w-3 h-3 text-sky-500" /> Action: {run.type === 'ServiceShutdown' ? 'Service Termination' : 'Resource Modification'}</li>
-                            <li className="flex items-center gap-2 text-xs font-medium"><ChevronRight className="w-3 h-3 text-sky-500" /> Automatic Rollback: Verified</li>
-                            <li className="flex items-center gap-2 text-xs font-medium"><ChevronRight className="w-3 h-3 text-sky-500" /> Observation: {run.config.observeTokens ?? 15}s window</li>
-                        </ul>
-                    </div>
-                )}
-
-                {isRunning && (
-                    <div className="flex flex-col items-center justify-center p-8 space-y-4 bg-[var(--surface-soft)]/20 rounded-2xl border border-[var(--border)] border-dashed animate-in zoom-in duration-500">
-                        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                        <div className="text-center">
-                            <span className="text-sm font-bold text-[var(--text-primary)] block uppercase tracking-wider">Sequence Engaged</span>
-                            <span className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-widest">Applying state changes...</span>
-                        </div>
-                    </div>
-                )}
-
-                {isCompleted && (
-                    <div className="space-y-6 animate-in fade-in duration-500">
-                        <div className={cn(
-                            "p-5 rounded-xl border text-sm flex items-start gap-4 shadow-sm",
-                            run.verdict === 'Success' ? "bg-emerald-500/5 border-emerald-500/10 text-emerald-700" : "bg-rose-500/5 border-rose-500/10 text-rose-700"
-                        )}>
-                            <div className={cn(
-                                "p-2 rounded-lg",
-                                run.verdict === 'Success' ? "bg-emerald-500/10" : "bg-rose-500/10"
-                            )}>
-                                {run.verdict === 'Success' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-base uppercase tracking-tight mb-1">Sequence {run.verdict}</h4>
-                                <p className="opacity-80 leading-relaxed font-medium text-xs">The sequence has concluded. System baseline state has been verified and fully restored.</p>
-                            </div>
-                        </div>
-
-                        <div className="bg-[var(--surface-soft)]/50 p-5 rounded-xl border border-[var(--border)] space-y-4">
-                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-2">
-                                <FileText className="w-3.5 h-3.5" /> Evidence Pack
-                            </h4>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div className="bg-[var(--surface-solid)] p-3 rounded-lg border border-[var(--border)]">
-                                    <span className="block text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Duration</span>
-                                    <span className="font-bold text-sm text-[var(--text-primary)]">{(run.config.observeTokens ?? 15) + 5}s</span>
-                                </div>
-                                <div className="bg-[var(--surface-solid)] p-3 rounded-lg border border-[var(--border)]">
-                                    <span className="block text-[9px] font-bold text-[var(--text-muted)] uppercase tracking-wider mb-1">Status</span>
-                                    <span className="font-bold text-sm text-emerald-600 uppercase">Archived</span>
-                                </div>
-                            </div>
-                            <Button variant="outline" size="sm" className="w-full text-[10px] h-10 rounded-lg font-bold uppercase tracking-wider bg-[var(--surface-solid)]">
-                                <Download className="w-3.5 h-3.5 mr-2" /> Download Report
-                            </Button>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-
-            <CardFooter className="flex flex-col gap-3 p-6 border-t border-[var(--border)] bg-[var(--surface-soft)]/20">
-                {run.status === 'Planned' && (
-                    <Button 
-                        onPress={handleStart}
-                        className={cn(primaryButtonClass, "w-full h-12 uppercase tracking-widest text-xs")}
-                    >
-                        Initiate Sequence
-                    </Button>
-                )}
-
-                {isRunning && (
-                    <Button 
-                        onPress={handleAbort}
-                        className="w-full h-12 text-xs font-bold uppercase tracking-widest rounded-lg border border-rose-200 bg-rose-500 text-white hover:bg-rose-600"
-                    >
-                        Emergency Rollback
-                    </Button>
-                )}
-
-                {isCompleted && (
-                    <div className="grid grid-cols-2 gap-3 w-full">
-                        <Button variant="outline" className={secondaryButtonClass} onPress={onClear}>
-                            Exit Room
-                        </Button>
-                        <Button variant="secondary" className={cn(secondaryButtonClass, "flex gap-2")} onPress={() => onUpdate({ ...run, status: 'Planned', verdict: 'Pending', timeline: [] })}>
-                            <RotateCcw className="w-4 h-4" /> Reset
-                        </Button>
-                    </div>
-                )}
-            </CardFooter>
-        </Card>
-    )
+function getStatusBadgeClass(status: string): string {
+  switch (status) {
+    case 'Planned':
+      return 'border-slate-400/30 bg-slate-500/10 text-[var(--text-primary)]'
+    case 'Running':
+      return 'border-sky-400/30 bg-sky-500/10 text-[var(--text-primary)]'
+    case 'Observing':
+      return 'border-amber-400/30 bg-amber-500/10 text-[var(--text-primary)]'
+    case 'AwaitingRecovery':
+      return 'border-rose-400/30 bg-rose-500/10 text-[var(--text-primary)]'
+    case 'Recovering':
+      return 'border-violet-400/30 bg-violet-500/10 text-[var(--text-primary)]'
+    case 'Completed':
+      return 'border-emerald-400/30 bg-emerald-500/10 text-[var(--text-primary)]'
+    case 'Aborted':
+      return 'border-orange-400/30 bg-orange-500/10 text-[var(--text-primary)]'
+    case 'Failed':
+      return 'border-rose-500/40 bg-rose-500/15 text-[var(--text-primary)]'
+    default:
+      return 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]'
+  }
 }
 
+function formatCountdown(msRemaining: number): string {
+  const safeMs = Math.max(0, msRemaining)
+  const totalSeconds = Math.ceil(safeMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${String(seconds).padStart(2, '0')}`
+}
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function getTargetSnapshotMetrics(snapshot: any, target: string) {
+  if (!snapshot || !Array.isArray(snapshot.services)) return null
+  const [namespaceMaybe, serviceMaybe] = String(target).split('/')
+  const hasNamespace = Boolean(serviceMaybe)
+  const serviceName = hasNamespace ? serviceMaybe : namespaceMaybe
+  const namespace = hasNamespace ? namespaceMaybe : undefined
+
+  const service = snapshot.services.find(
+    (item: any) => item?.name === serviceName && (!namespace || item?.namespace === namespace)
+  )
+  if (!service) return null
+
+  const availabilityRaw = service.availability
+  const availabilityValue =
+    typeof availabilityRaw === 'number'
+      ? availabilityRaw
+      : typeof availabilityRaw?.value === 'number'
+        ? availabilityRaw.value
+        : typeof availabilityRaw?.high === 'number'
+          ? availabilityRaw.high
+          : typeof availabilityRaw?.low === 'number'
+            ? availabilityRaw.low
+            : undefined
+
+  return {
+    availability:
+      typeof availabilityValue === 'number' && Number.isFinite(availabilityValue)
+        ? `${(availabilityValue * 100).toFixed(1)}%`
+        : '--',
+    rps: typeof service.rps === 'number' && Number.isFinite(service.rps) ? `${service.rps.toFixed(0)} req/s` : '--',
+    errorRate:
+      typeof service.errorRate === 'number' && Number.isFinite(service.errorRate)
+        ? `${(service.errorRate * 100).toFixed(1)}%`
+        : '--',
+    p95: typeof service.p95 === 'number' && Number.isFinite(service.p95) ? `${service.p95.toFixed(0)}ms` : '--',
+  }
+}
+
+function openEvidencePdfReport(run: DrillRun) {
+  const popup = window.open('', '_blank', 'width=1100,height=900')
+  if (!popup) {
+    toast.error('Pop-up blocked. Allow pop-ups to export the PDF report.')
+    return
+  }
+
+  const preMetrics = getTargetSnapshotMetrics(run.preSnapshot, run.target)
+  const postMetrics = getTargetSnapshotMetrics(run.postSnapshot, run.target)
+  const durationSeconds = (() => {
+    const start = new Date(run.startTime).getTime()
+    const end = run.endTime ? new Date(run.endTime).getTime() : Date.now()
+    if (!Number.isFinite(start) || !Number.isFinite(end)) return '--'
+    return `${Math.max(0, Math.round((end - start) / 1000))}s`
+  })()
+
+  const timelineRows = (run.timeline || [])
+    .map(
+      (step) => `
+      <tr>
+        <td>${escapeHtml(step.phase)}</td>
+        <td>${escapeHtml(new Date(step.timestamp).toLocaleString())}</td>
+        <td>${escapeHtml(step.status)}</td>
+        <td>${escapeHtml(step.message)}</td>
+      </tr>`
+    )
+    .join('')
+
+  const metricRows = [
+    ['Availability', preMetrics?.availability ?? '--', postMetrics?.availability ?? '--'],
+    ['Traffic (RPS)', preMetrics?.rps ?? '--', postMetrics?.rps ?? '--'],
+    ['Error Rate', preMetrics?.errorRate ?? '--', postMetrics?.errorRate ?? '--'],
+    ['P95 Latency', preMetrics?.p95 ?? '--', postMetrics?.p95 ?? '--'],
+  ]
+    .map(
+      ([label, baseline, current]) => `
+      <tr>
+        <td>${escapeHtml(label)}</td>
+        <td>${escapeHtml(baseline)}</td>
+        <td>${escapeHtml(current)}</td>
+      </tr>`
+    )
+    .join('')
+
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Drill Evidence Pack - ${escapeHtml(run.id)}</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, sans-serif; margin: 24px; color: #0f172a; }
+    h1,h2,h3 { margin: 0; }
+    .header { margin-bottom: 20px; padding: 20px; border: 1px solid #cbd5e1; border-radius: 12px; background: #f8fafc; }
+    .meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+    .meta-item { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; background: white; }
+    .label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #475569; margin-bottom: 4px; }
+    .value { font-size: 14px; font-weight: 700; color: #0f172a; }
+    .section { margin-top: 18px; padding: 16px; border: 1px solid #e2e8f0; border-radius: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; font-size: 12px; }
+    th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #334155; }
+    pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow: auto; font-size: 11px; }
+    .pill { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; }
+    .pill.status { background: #e0f2fe; color: #0369a1; }
+    .pill.verdict { background: #dcfce7; color: #166534; }
+    .muted { color: #64748b; font-size: 12px; }
+    @media print { body { margin: 12mm; } .no-print { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+      <div>
+        <div class="muted">Drill Director Evidence Pack</div>
+        <h1 style="margin-top:4px; font-size: 28px;">${escapeHtml(run.type)}</h1>
+        <div class="muted" style="margin-top:6px;">Run #${escapeHtml(run.id.split('-')[0].toUpperCase())} • Target ${escapeHtml(run.target)}</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+        <span class="pill status">${escapeHtml(run.status)}</span>
+        <span class="pill verdict">${escapeHtml(run.verdict)}</span>
+      </div>
+    </div>
+    <div class="meta">
+      <div class="meta-item"><span class="label">Start Time</span><span class="value">${escapeHtml(new Date(run.startTime).toLocaleString())}</span></div>
+      <div class="meta-item"><span class="label">End Time</span><span class="value">${escapeHtml(run.endTime ? new Date(run.endTime).toLocaleString() : '--')}</span></div>
+      <div class="meta-item"><span class="label">Duration</span><span class="value">${escapeHtml(durationSeconds)}</span></div>
+      <div class="meta-item"><span class="label">Recovery Source</span><span class="value">${escapeHtml(run.recoverySource ?? 'n/a')}</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 style="font-size: 16px;">Impact Summary</h2>
+    <p class="muted">Baseline vs final snapshot for the target component.</p>
+    <table>
+      <thead><tr><th>Metric</th><th>Baseline</th><th>Final</th></tr></thead>
+      <tbody>${metricRows}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 style="font-size: 16px;">Sequence Timeline</h2>
+    <table>
+      <thead><tr><th>Phase</th><th>Timestamp</th><th>Status</th><th>Message</th></tr></thead>
+      <tbody>${timelineRows || '<tr><td colspan="4">No timeline events recorded.</td></tr>'}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 style="font-size: 16px;">Snapshots (JSON)</h2>
+    <details open>
+      <summary style="font-weight:700; margin: 8px 0;">Pre-Snapshot</summary>
+      <pre>${escapeHtml(JSON.stringify(run.preSnapshot ?? null, null, 2))}</pre>
+    </details>
+    <details>
+      <summary style="font-weight:700; margin: 8px 0;">Post-Snapshot</summary>
+      <pre>${escapeHtml(JSON.stringify(run.postSnapshot ?? null, null, 2))}</pre>
+    </details>
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => window.print(), 120)
+    })
+  </script>
+</body>
+</html>`
+
+  popup.document.open()
+  popup.document.write(html)
+  popup.document.close()
+}
+
+export default function RunPanel({
+  run,
+  onUpdate,
+  onClear,
+}: {
+  run: DrillRun
+  onUpdate: (run: DrillRun) => void
+  onClear: () => void
+}) {
+  const [isRecoverSubmitting, setIsRecoverSubmitting] = useState(false)
+  const [countdownNow, setCountdownNow] = useState(Date.now())
+
+  const isTerminal = ['Completed', 'Aborted', 'Failed'].includes(run.status)
+  const isAwaitingRecovery = run.status === 'AwaitingRecovery'
+  const isActiveLifecycle = ['Running', 'Observing', 'AwaitingRecovery', 'Recovering'].includes(run.status)
+  const isBusyVisual = ['Running', 'Observing', 'Recovering'].includes(run.status)
+  const currentPhase = run.timeline?.[run.timeline.length - 1]?.phase || 'Pending'
+  const observeSeconds = Number(run.config?.observeTokens ?? 15)
+
+  useEffect(() => {
+    if (!isActiveLifecycle) {
+      return
+    }
+
+    let interval = 0
+    const pollRun = async () => {
+      try {
+        const updated = await getDrillRun(run.id)
+        onUpdate(updated)
+      } catch (e) {
+        console.error('Failed to poll run', e)
+      }
+    }
+
+    interval = window.setInterval(() => {
+      void pollRun()
+    }, 2000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [isActiveLifecycle, onUpdate, run.id])
+
+  useEffect(() => {
+    if (!isAwaitingRecovery || !run.recoveryDeadline) {
+      return
+    }
+
+    setCountdownNow(Date.now())
+    const interval = window.setInterval(() => {
+      setCountdownNow(Date.now())
+    }, 1000)
+
+    return () => {
+      clearInterval(interval)
+    }
+  }, [isAwaitingRecovery, run.recoveryDeadline])
+
+  const handleStart = async () => {
+    try {
+      await runDrill(run.id)
+      onUpdate({ ...run, status: 'Running' })
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to start drill')
+    }
+  }
+
+  const handleAbort = async () => {
+    try {
+      await abortDrillRun(run.id)
+      if (run.status === 'AwaitingRecovery') {
+        onUpdate({ ...run, status: 'Recovering', canRecover: false, recoverySource: 'abort' })
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to trigger emergency rollback')
+    }
+  }
+
+  const handleRecover = async () => {
+    setIsRecoverSubmitting(true)
+    try {
+      await recoverDrillRun(run.id)
+      onUpdate({ ...run, status: 'Recovering', canRecover: false, recoverySource: 'manual' })
+    } catch (e) {
+      console.error(e)
+      toast.error(e instanceof Error ? e.message : 'Failed to start recovery')
+    } finally {
+      setIsRecoverSubmitting(false)
+    }
+  }
+
+  const handleLocalReset = () => {
+    onUpdate({
+      ...run,
+      status: 'Planned',
+      verdict: 'Pending',
+      timeline: [],
+      endTime: undefined,
+      postSnapshot: undefined,
+      canRecover: false,
+      recoveryDeadline: undefined,
+      recoverySource: undefined,
+    })
+  }
+
+  const recoveryDeadlineMs = run.recoveryDeadline ? new Date(run.recoveryDeadline).getTime() : NaN
+  const hasRecoveryDeadline = Number.isFinite(recoveryDeadlineMs)
+  const remainingRecoveryMs = hasRecoveryDeadline ? recoveryDeadlineMs - countdownNow : 0
+
+  return (
+    <Card className={cn(glassPanelClass, 'relative flex h-full min-h-[720px] flex-col overflow-hidden')}>
+      {isActiveLifecycle && (
+        <div
+          className={cn(
+            'absolute left-0 top-0 z-20 h-1 w-full animate-pulse',
+            isAwaitingRecovery ? 'bg-rose-500' : 'bg-emerald-500'
+          )}
+        />
+      )}
+
+      <CardHeader className="border-b border-[var(--border)] bg-[var(--surface-soft)]/30 px-6 pb-6 pt-6">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <div className="mb-1 flex items-center gap-2">
+              <Activity className="h-3.5 w-3.5 text-emerald-500" />
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Active Sequence
+              </span>
+            </div>
+            <CardTitle className="text-xl font-bold tracking-tight text-[var(--text-primary)]">
+              {run.type}
+            </CardTitle>
+          </div>
+          <Badge
+            variant="outline"
+            className={cn('px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider', getStatusBadgeClass(run.status))}
+          >
+            {run.status}
+          </Badge>
+        </div>
+        <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-3">
+          <div className="flex min-w-0 flex-col">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Target
+            </span>
+            <code className="truncate font-mono text-xs font-bold text-emerald-600">{run.target}</code>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Run ID
+            </span>
+            <span className="font-mono text-xs font-bold text-[var(--text-secondary)]">
+              #{run.id.split('-')[0].toUpperCase()}
+            </span>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="flex-1 space-y-6 overflow-y-auto px-6 py-7">
+        <div className="mt-2 rounded-2xl border border-[var(--border)]/70 bg-[var(--surface-soft)]/15 p-4 pt-6">
+          <div className="relative px-2">
+            <div className="absolute left-6 right-6 top-4 h-0.5 bg-[var(--border)]" />
+            <div className="relative z-10 flex justify-between gap-2">
+              {STEPS.map((step, idx) => {
+                const isPast = run.timeline?.some((s) => s.phase === step.id)
+                const isCurrent = currentPhase === step.id
+                return (
+                  <div key={step.id} className="flex min-w-0 flex-1 flex-col items-center gap-2 text-center">
+                    <div
+                      className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-full border-2 bg-[var(--surface-solid)] transition-all duration-300',
+                        isPast ? 'border-emerald-500 text-emerald-400' : 'border-[var(--border)] text-[var(--text-muted)]',
+                        isCurrent && 'scale-110 border-sky-500 text-sky-400 shadow-sm'
+                      )}
+                    >
+                      {isPast && !isCurrent ? (
+                        <CheckCircle2 className="h-4 w-4" />
+                      ) : (
+                        <span className="text-xs font-bold">{idx + 1}</span>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        'text-[9px] font-bold uppercase tracking-wider leading-tight',
+                        isCurrent
+                          ? 'text-sky-600'
+                          : isPast
+                            ? 'text-emerald-600'
+                            : 'text-[var(--text-muted)]'
+                      )}
+                    >
+                      {step.label}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {run.status === 'Planned' && (
+          <div className="animate-in fade-in rounded-xl border border-sky-500/10 bg-sky-500/5 p-5 text-sm text-[var(--text-secondary)] duration-500">
+            <h4 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-sky-700">
+              <ShieldCheck className="h-4 w-4" /> Readiness Checklist
+            </h4>
+            <ul className="space-y-2.5 text-[var(--text-secondary)]">
+              <li className="flex items-center gap-2 text-xs font-medium">
+                <ChevronRight className="h-3 w-3 text-sky-400" /> Action:{' '}
+                {run.type === 'ServiceShutdown' ? 'Service Termination' : 'Resource Modification'}
+              </li>
+              <li className="flex items-center gap-2 text-xs font-medium">
+                <ChevronRight className="h-3 w-3 text-sky-400" /> Recovery: Operator controlled (5m failsafe)
+              </li>
+              <li className="flex items-center gap-2 text-xs font-medium">
+                <ChevronRight className="h-3 w-3 text-sky-400" /> Observation: {observeSeconds}s window
+              </li>
+            </ul>
+          </div>
+        )}
+
+        {isBusyVisual && (
+          <div className="animate-in zoom-in rounded-2xl border border-[var(--border)] border-dashed bg-[var(--surface-soft)]/20 p-8 duration-500">
+            <div className="flex flex-col items-center justify-center space-y-4 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
+              <div>
+                <span className="block text-sm font-bold uppercase tracking-wider text-[var(--text-primary)]">
+                  {run.status === 'Recovering' ? 'Rollback In Progress' : 'Sequence Engaged'}
+                </span>
+                <span className="text-[10px] font-medium uppercase tracking-widest text-[var(--text-muted)]">
+                  {run.status === 'Recovering'
+                    ? 'Restoring target state and capturing final snapshot...'
+                    : 'Applying state changes and collecting telemetry...'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isAwaitingRecovery && (
+          <div className="animate-in fade-in space-y-4 rounded-2xl border border-rose-500/20 bg-rose-500/8 p-5 duration-500">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 p-2">
+                <AlertTriangle className="h-5 w-5 text-rose-400" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700">
+                  Recovery Decision Required
+                </h4>
+                <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+                  The drill observation window has ended. The target may remain impacted until you
+                  recover it or the failsafe timer expires.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-rose-500/15 bg-[var(--surface-solid)]/60 p-3">
+                <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  Recovery Mode
+                </span>
+                <span className="text-sm font-bold text-[var(--text-primary)]">Manual + 5m Failsafe</span>
+              </div>
+              <div className="rounded-xl border border-rose-500/15 bg-[var(--surface-solid)]/60 p-3">
+                <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  Failsafe Countdown
+                </span>
+                <span className="inline-flex items-center gap-2 text-sm font-bold text-[var(--text-primary)]">
+                  <TimerReset className="h-4 w-4 text-rose-600" />
+                  {hasRecoveryDeadline ? formatCountdown(remainingRecoveryMs) : '--:--'}
+                </span>
+              </div>
+            </div>
+
+            <Button
+              onPress={handleRecover}
+              isDisabled={isRecoverSubmitting}
+              className="h-11 w-full rounded-lg border border-emerald-300/20 bg-gradient-to-r from-emerald-500 to-green-500 text-xs font-bold uppercase tracking-widest text-white"
+            >
+              {isRecoverSubmitting ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Starting Recovery
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <Wrench className="h-4 w-4" /> Recover Service
+                </span>
+              )}
+            </Button>
+          </div>
+        )}
+
+        {isTerminal && (
+          <div className="animate-in fade-in space-y-6 duration-500">
+            <div
+              className={cn(
+                'flex items-start gap-4 rounded-xl border p-5 text-sm shadow-sm',
+                run.verdict === 'Success'
+                  ? 'border-emerald-500/10 bg-emerald-500/5 text-[var(--text-secondary)]'
+                  : 'border-rose-500/10 bg-rose-500/5 text-[var(--text-secondary)]'
+              )}
+            >
+              <div
+                className={cn(
+                  'rounded-lg p-2',
+                  run.verdict === 'Success' ? 'bg-emerald-500/10' : 'bg-rose-500/10'
+                )}
+              >
+                {run.verdict === 'Success' ? (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-rose-400" />
+                )}
+              </div>
+              <div>
+                <h4 className="mb-1 text-base font-bold uppercase tracking-tight">
+                  Sequence {run.verdict}
+                </h4>
+                <p className="text-xs font-medium leading-relaxed opacity-90">
+                  The drill sequence has concluded. Recovery source:{' '}
+                  <strong className="uppercase">{run.recoverySource ?? 'n/a'}</strong>. Final state
+                  verification and evidence snapshots are available below.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)]/50 p-5">
+              <h4 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                <FileText className="h-3.5 w-3.5" /> Evidence Pack
+              </h4>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-3">
+                  <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Observation Window
+                  </span>
+                  <span className="text-sm font-bold text-[var(--text-primary)]">{observeSeconds}s</span>
+                </div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-3">
+                  <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Export Status
+                  </span>
+                  <span className="text-sm font-bold uppercase text-emerald-400">Ready</span>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-full rounded-lg bg-[var(--surface-solid)] text-[10px] font-bold uppercase tracking-wider"
+                onPress={() => openEvidencePdfReport(run)}
+              >
+                <Download className="mr-2 h-3.5 w-3.5" /> Export PDF Report
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+
+      <CardFooter className="mt-auto flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--surface-soft)]/20 p-6 pt-5">
+        {run.status === 'Planned' && (
+          <Button onPress={handleStart} className={cn(primaryButtonClass, 'h-12 w-full text-xs uppercase tracking-widest')}>
+            Initiate Sequence
+          </Button>
+        )}
+
+        {(run.status === 'Running' || run.status === 'Observing') && (
+          <Button
+            onPress={handleAbort}
+            className="h-12 w-full rounded-lg border border-rose-200 bg-rose-500 text-xs font-bold uppercase tracking-widest text-white hover:bg-rose-600"
+          >
+            Abort Observation & Recover
+          </Button>
+        )}
+
+        {isAwaitingRecovery && (
+          <Button
+            onPress={handleAbort}
+            variant="outline"
+            className="h-11 w-full rounded-lg border border-rose-500/20 bg-rose-500/5 text-xs font-bold uppercase tracking-widest text-rose-700 hover:bg-rose-500/10"
+          >
+            Emergency Recover (Abort)
+          </Button>
+        )}
+
+        {isTerminal && (
+          <div className="grid w-full grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
+            <Button variant="outline" className={secondaryButtonClass} onPress={onClear}>
+              Exit Room
+            </Button>
+            <Button
+              variant="secondary"
+              className={cn(secondaryButtonClass, 'flex gap-2')}
+              onPress={handleLocalReset}
+            >
+              <RotateCcw className="h-4 w-4" /> Reset
+            </Button>
+          </div>
+        )}
+      </CardFooter>
+    </Card>
+  )
+}

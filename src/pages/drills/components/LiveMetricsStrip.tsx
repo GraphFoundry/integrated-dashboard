@@ -1,162 +1,271 @@
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
-import { Activity, ArrowDownRight, ArrowUpRight, CheckCircle, Info, Zap, ShieldAlert, BarChart3 } from 'lucide-react'
-import type { DrillRun } from '@/lib/api/drills'
 import { useState } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import {
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  CheckCircle,
+  Info,
+  Zap,
+  ShieldAlert,
+  BarChart3,
+} from 'lucide-react'
+import type { DrillRun } from '@/lib/api/drills'
 import { Switch } from '@/components/ui/Switch'
 import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
 
-export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
-    const [isExplainMode, setIsExplainMode] = useState(true)
-    const isRunning = run.status === 'Observing'
-    const isCompleted = run.status === 'Completed'
-
-    // Extract metrics from snapshots if available
-    const getMetricsForService = (snapshot: any, serviceTag: string) => {
-        if (!snapshot || !snapshot.services) return null
-        const parts = serviceTag.split('/')
-        const name = parts.length > 1 ? parts[1] : parts[0]
-        const ns = parts.length > 1 ? parts[0] : null
-        return snapshot.services.find((s: any) => s.name === name && (!ns || s.namespace === ns))
-    }
-
-    const baseline = getMetricsForService(run.preSnapshot, run.target)
-    const current = isCompleted ? getMetricsForService(run.postSnapshot, run.target) : (isRunning ? null : baseline)
-
-    const metrics = [
-        {
-            label: 'Availability',
-            icon: <ShieldAlert className="w-3.5 h-3.5" />,
-            baseline: baseline ? (baseline.availability.value * 100).toFixed(1) + '%' : '99.9%',
-            current: isRunning ? '0.0%' : (current ? (current.availability.value * 100).toFixed(1) + '%' : '99.9%'),
-            isDegraded: isRunning || (current && current.availability.value < 0.95),
-            explanation: "Measures the percentage of successful health checks. Drops to zero during total service failure."
-        },
-        {
-            label: 'Traffic (RPS)',
-            icon: <Activity className="w-3.5 h-3.5" />,
-            baseline: baseline ? baseline.rps.toFixed(0) + ' req/s' : '450 req/s',
-            current: isRunning ? '0 req/s' : (current ? current.rps.toFixed(0) + ' req/s' : '450 req/s'),
-            isDegraded: isRunning,
-            explanation: "Requests Per Second. Confirms if the component is still receiving or processing incoming demand."
-        },
-        {
-            label: 'Error Rate',
-            icon: <Zap className="w-3.5 h-3.5" />,
-            baseline: baseline ? (baseline.errorRate * 100).toFixed(1) + '%' : '0.1%',
-            current: isRunning ? '100%' : (current ? (current.errorRate * 100).toFixed(1) + '%' : '0.1%'),
-            isDegraded: isRunning || (current && current.errorRate > 0.05),
-            explanation: "Percentage of failed requests. 100% indicates that all upstream dependencies are being rejected."
-        },
-        {
-            label: 'P95 Latency',
-            icon: <BarChart3 className="w-3.5 h-3.5" />,
-            baseline: baseline ? baseline.p95.toFixed(0) + 'ms' : '45ms',
-            current: isRunning ? '∞' : (current ? current.p95.toFixed(0) + 'ms' : '45ms'),
-            isDegraded: isRunning,
-            explanation: "Tail response time. ∞ suggests that connection attempts are timing out or being actively refused."
-        }
-    ]
-
-    return (
-        <Card className={cn(glassSurfaceClass, "relative overflow-hidden bg-[var(--surface-contrast)]/30 backdrop-blur-xl rounded-[var(--radius-lg)]")}>
-            {isRunning && <div className="absolute top-0 left-0 w-full h-1 bg-rose-500 animate-pulse z-20" />}
-            
-            <CardHeader className="pb-6 flex flex-row items-center justify-between border-b border-[var(--border)] bg-[var(--surface-soft)]/20 px-6 py-6">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shadow-sm">
-                        <Activity className="w-5 h-5 text-emerald-500" />
-                    </div>
-                    <div>
-                        <CardTitle className="text-lg font-bold tracking-tight text-[var(--text-primary)]">Impact Analysis</CardTitle>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] mt-0.5">Real-time Telemetry Delta</p>
-                    </div>
-                </div>
-                <div className="flex items-center space-x-3 bg-[var(--surface-solid)] px-3 py-1.5 rounded-xl border border-[var(--border)] shadow-inner">
-                    <Switch
-                        id="explain-mode"
-                        checked={isExplainMode}
-                        onChange={() => setIsExplainMode(!isExplainMode)}
-                        label={<span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">Explain Mode</span>}
-                    />
-                </div>
-            </CardHeader>
-
-            <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {metrics.map((m, i) => (
-                        <div key={i} className="flex flex-col gap-3">
-                            <div className={cn(
-                                "flex flex-col gap-1 p-4 rounded-xl border transition-all duration-300",
-                                m.isDegraded 
-                                    ? "bg-rose-500/5 border-rose-500/20 shadow-sm" 
-                                    : "bg-[var(--surface-soft)]/50 border-[var(--border)] hover:border-emerald-500/30"
-                            )}>
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center gap-1.5">
-                                        {m.icon} {m.label}
-                                    </span>
-                                </div>
-                                <div className="flex items-end justify-between">
-                                    <div className="flex flex-col">
-                                        <span className="text-[9px] font-bold text-[var(--text-dim)] uppercase tracking-tighter opacity-50">Baseline</span>
-                                        <span className="text-xs font-mono font-bold text-[var(--text-secondary)] line-through opacity-40">{m.baseline}</span>
-                                    </div>
-                                    <div className="flex flex-col items-end">
-                                        <span className="text-[9px] font-bold text-[var(--text-dim)] uppercase tracking-tighter opacity-50">Current</span>
-                                        <span className={cn(
-                                            "text-xl font-bold font-mono flex items-center gap-1 tabular-nums tracking-tighter",
-                                            m.isDegraded ? "text-rose-500" : "text-emerald-500"
-                                        )}>
-                                            {m.current}
-                                            {m.isDegraded ? (
-                                                <ArrowDownRight className="w-4 h-4 animate-bounce" />
-                                            ) : m.current === '∞' ? null : (
-                                                run.status === 'Completed' ? <CheckCircle className="w-4 h-4 opacity-60" /> : <ArrowUpRight className="w-4 h-4 opacity-40" />
-                                            )}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                            {isExplainMode && (
-                                <div className="px-2 text-[10px] leading-relaxed text-[var(--text-muted)] italic flex gap-2 animate-in fade-in duration-500 font-medium">
-                                    <Info className="w-3 h-3 shrink-0 text-sky-500 mt-0.5" />
-                                    {m.explanation}
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                {isRunning && (
-                    <div className="mt-6 p-5 bg-rose-500/5 border border-rose-500/10 text-rose-600 text-xs rounded-xl flex gap-4 animate-in fade-in duration-700 shadow-sm">
-                        <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 shrink-0 h-fit">
-                            <Activity className="w-5 h-5 text-rose-500 animate-pulse" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs uppercase tracking-wider text-rose-500 mb-1">Critical Anomaly Manifested</p>
-                            <p className="leading-relaxed opacity-90 font-medium">
-                                Total service degradation observed in <strong>{run.target}</strong>. Upstream components are reporting 503-Service Unavailable errors.
-                            </p>
-                        </div>
-                    </div>
-                )}
-
-                {isCompleted && run.verdict === 'Success' && (
-                    <div className="mt-6 p-5 bg-emerald-500/5 border border-emerald-500/10 text-emerald-600 text-xs rounded-xl flex gap-4 animate-in fade-in duration-700 shadow-sm">
-                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 shrink-0 h-fit">
-                            <CheckCircle className="w-5 h-5 text-emerald-500" />
-                        </div>
-                        <div>
-                            <p className="font-bold text-xs uppercase tracking-wider text-emerald-500 mb-1">System Equilibrium Restored</p>
-                            <p className="leading-relaxed opacity-90 font-medium">
-                                Sequence finalized with automatic state restoration. All metrics for <strong>{run.target}</strong> have realigned with the historical baseline.
-                            </p>
-                        </div>
-                    </div>
-                )}
-            </CardContent>
-        </Card>
-    )
+type ServiceMetricSnapshot = {
+  availability?: number
+  rps?: number
+  errorRate?: number
+  p95?: number
 }
 
+function getAvailabilityValue(raw: any): number | undefined {
+  if (typeof raw === 'number' && Number.isFinite(raw)) {
+    return raw
+  }
+  if (typeof raw?.value === 'number' && Number.isFinite(raw.value)) {
+    return raw.value
+  }
+  if (typeof raw?.high === 'number' && Number.isFinite(raw.high)) {
+    return raw.high
+  }
+  if (typeof raw?.low === 'number' && Number.isFinite(raw.low)) {
+    return raw.low
+  }
+  return undefined
+}
 
+function getNumberValue(raw: any): number | undefined {
+  return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined
+}
+
+function getMetricsForService(snapshot: any, serviceTag: string): ServiceMetricSnapshot | null {
+  if (!snapshot || !Array.isArray(snapshot.services)) return null
+
+  const [namespaceMaybe, nameMaybe] = String(serviceTag).split('/')
+  const namespace = nameMaybe ? namespaceMaybe : undefined
+  const name = nameMaybe ?? namespaceMaybe
+
+  const service = snapshot.services.find(
+    (s: any) => s?.name === name && (!namespace || s?.namespace === namespace)
+  )
+  if (!service) return null
+
+  return {
+    availability: getAvailabilityValue(service.availability),
+    rps: getNumberValue(service.rps),
+    errorRate: getNumberValue(service.errorRate),
+    p95: getNumberValue(service.p95),
+  }
+}
+
+function formatPercent(value?: number): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : '--'
+}
+
+function formatReq(value?: number): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(0)} req/s` : '--'
+}
+
+function formatMs(value?: number): string {
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(0)}ms` : '--'
+}
+
+export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
+  const [isExplainMode, setIsExplainMode] = useState(true)
+
+  const isObservingImpact = ['Observing', 'AwaitingRecovery', 'Recovering'].includes(run.status)
+  const isCompleted = ['Completed', 'Aborted'].includes(run.status)
+
+  const baseline = getMetricsForService(run.preSnapshot, run.target)
+  const recovered = getMetricsForService(run.postSnapshot, run.target)
+
+  const metrics = [
+    {
+      label: 'Availability',
+      icon: <ShieldAlert className="h-3.5 w-3.5" />,
+      baseline: formatPercent(baseline?.availability),
+      current: isObservingImpact ? '0.0%' : formatPercent(isCompleted ? recovered?.availability : baseline?.availability),
+      degraded: isObservingImpact || (typeof recovered?.availability === 'number' && recovered.availability < 0.95),
+      explanation:
+        'Measures the percentage of successful health checks. Drops toward zero during total service failure.',
+      trendInfinite: false,
+    },
+    {
+      label: 'Traffic (RPS)',
+      icon: <Activity className="h-3.5 w-3.5" />,
+      baseline: formatReq(baseline?.rps),
+      current: isObservingImpact ? '0 req/s' : formatReq(isCompleted ? recovered?.rps : baseline?.rps),
+      degraded: isObservingImpact,
+      explanation:
+        'Requests per second. Confirms whether the component is still receiving or processing incoming demand.',
+      trendInfinite: false,
+    },
+    {
+      label: 'Error Rate',
+      icon: <Zap className="h-3.5 w-3.5" />,
+      baseline: formatPercent(baseline?.errorRate),
+      current: isObservingImpact ? '100.0%' : formatPercent(isCompleted ? recovered?.errorRate : baseline?.errorRate),
+      degraded: isObservingImpact || (typeof recovered?.errorRate === 'number' && recovered.errorRate > 0.05),
+      explanation:
+        'Percentage of failed requests. 100% indicates upstream dependencies are fully rejecting traffic.',
+      trendInfinite: false,
+    },
+    {
+      label: 'P95 Latency',
+      icon: <BarChart3 className="h-3.5 w-3.5" />,
+      baseline: formatMs(baseline?.p95),
+      current: isObservingImpact ? '∞' : formatMs(isCompleted ? recovered?.p95 : baseline?.p95),
+      degraded: isObservingImpact,
+      explanation:
+        'Tail response time. Infinity suggests connection attempts are timing out or being actively refused.',
+      trendInfinite: true,
+    },
+  ]
+
+  return (
+    <Card
+      className={cn(
+        glassSurfaceClass,
+        'relative overflow-hidden rounded-[var(--radius-lg)] bg-[var(--surface-contrast)]/30 backdrop-blur-xl'
+      )}
+    >
+      {isObservingImpact && <div className="absolute left-0 top-0 z-20 h-1 w-full animate-pulse bg-rose-500" />}
+
+      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-[var(--border)] bg-[var(--surface-soft)]/20 px-6 py-6 pb-6">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2 shadow-sm">
+            <Activity className="h-5 w-5 text-emerald-500" />
+          </div>
+          <div>
+            <CardTitle className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
+              Impact Analysis
+            </CardTitle>
+            <p className="mt-0.5 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+              Real-time Telemetry Delta
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] px-3 py-1.5 shadow-inner">
+          <Switch
+            id="explain-mode"
+            checked={isExplainMode}
+            onChange={() => setIsExplainMode(!isExplainMode)}
+            label={
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
+                Explain Mode
+              </span>
+            }
+          />
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => (
+            <article key={metric.label} className="flex h-full min-h-[188px] flex-col gap-3">
+              <div
+                className={cn(
+                  'flex flex-1 flex-col gap-3 rounded-xl border p-4 transition-all duration-300',
+                  metric.degraded
+                    ? 'border-rose-500/20 bg-rose-500/5 shadow-sm'
+                    : 'border-[var(--border)] bg-[var(--surface-soft)]/50 hover:border-emerald-500/20'
+                )}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wider',
+                      metric.degraded
+                        ? 'border-rose-400/20 bg-rose-500/8 text-[var(--text-secondary)]'
+                        : 'border-emerald-400/15 bg-emerald-500/5 text-[var(--text-secondary)]'
+                    )}
+                  >
+                    {metric.icon}
+                    {metric.label}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="min-w-0 rounded-lg border border-[var(--border)]/70 bg-[var(--surface-solid)]/40 p-2.5">
+                    <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      Baseline
+                    </span>
+                    <span className="block truncate font-mono text-xs font-bold tabular-nums text-[var(--text-secondary)]">
+                      {metric.baseline}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 rounded-lg border border-[var(--border)]/70 bg-[var(--surface-solid)]/40 p-2.5">
+                    <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      Current
+                    </span>
+                    <span
+                      className={cn(
+                        'inline-flex max-w-full items-center gap-1 truncate font-mono text-lg font-bold tabular-nums tracking-tight',
+                        metric.degraded ? 'text-rose-600' : 'text-emerald-600'
+                      )}
+                    >
+                      <span className="truncate">{metric.current}</span>
+                      {metric.degraded ? (
+                        <ArrowDownRight className="h-4 w-4 shrink-0" />
+                      ) : metric.current === '--' || (metric.trendInfinite && metric.current === '∞') ? null : isCompleted ? (
+                        <CheckCircle className="h-4 w-4 shrink-0 opacity-70" />
+                      ) : (
+                        <ArrowUpRight className="h-4 w-4 shrink-0 opacity-40" />
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {isExplainMode && (
+                <div className="flex min-h-[52px] items-start gap-2 px-2 text-[10px] font-medium italic leading-relaxed text-[var(--text-muted)] animate-in fade-in duration-300">
+                  <Info className="mt-0.5 h-3 w-3 shrink-0 text-sky-400" />
+                  <span className="break-words">{metric.explanation}</span>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+
+        {isObservingImpact && (
+          <div className="mt-6 flex gap-4 rounded-xl border border-rose-500/10 bg-rose-500/5 p-5 text-xs text-[var(--text-secondary)] shadow-sm animate-in fade-in duration-700">
+            <div className="h-fit shrink-0 rounded-lg border border-rose-500/20 bg-rose-500/10 p-2">
+              <Activity className="h-5 w-5 animate-pulse text-rose-400" />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-wider text-rose-600">
+                Active Fault Window
+              </p>
+              <p className="leading-relaxed opacity-90">
+                Drill impact is still active on <strong>{run.target}</strong>. Recover the service when
+                you are ready, or the failsafe timer will initiate rollback automatically.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {isCompleted && run.verdict === 'Success' && (
+          <div className="mt-6 flex gap-4 rounded-xl border border-emerald-500/10 bg-emerald-500/5 p-5 text-xs text-[var(--text-secondary)] shadow-sm animate-in fade-in duration-700">
+            <div className="h-fit shrink-0 rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2">
+              <CheckCircle className="h-5 w-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-bold uppercase tracking-wider text-emerald-600">
+                System Equilibrium Restored
+              </p>
+              <p className="leading-relaxed opacity-90">
+                Recovery completed for <strong>{run.target}</strong>. Final metrics are shown against the
+                captured baseline snapshot.
+              </p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}

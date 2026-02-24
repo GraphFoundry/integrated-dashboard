@@ -18,6 +18,7 @@ import {
   tableHeaderCellClass,
   tableBodyRowClass,
   tableCellClass,
+  tableActionLinkClass,
   cn,
 } from '@/components/common/uiClassTokens'
 
@@ -285,7 +286,7 @@ export default function DrillDirector() {
                             <Badge
                               variant={isSuccessVerdict ? 'default' : 'outline'}
                               className={cn(
-                                'text-[10px] font-bold uppercase',
+                                'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
                                 isSuccessVerdict && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
                                 isFailureVerdict && 'border-rose-500/20 bg-rose-500/10 text-rose-700',
                                 isAbortedVerdict && 'border-orange-500/20 bg-orange-500/10 text-orange-700',
@@ -307,7 +308,10 @@ export default function DrillDirector() {
                               size="sm"
                               onClick={(event) => event.stopPropagation()}
                               onPress={() => void openRunReview(run.id)}
-                              className="text-[10px] font-bold uppercase tracking-widest hover:bg-sky-500/10 hover:text-sky-500"
+                              className={cn(
+                                tableActionLinkClass,
+                                'border-sky-500/25 bg-sky-500/6 text-[10px] font-bold uppercase tracking-widest text-sky-700 hover:bg-sky-500/12 hover:text-sky-800'
+                              )}
                               isDisabled={isReviewing}
                             >
                               {isReviewing ? (

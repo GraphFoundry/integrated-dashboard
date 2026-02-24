@@ -40,7 +40,7 @@ const DRILLS = [
   },
   {
     id: 'service-brownout',
-    type: 'ScaleStress',
+    type: 'ServiceBrownout',
     title: 'Service Brownout',
     description:
       'Scales the target down to a constrained replica count (1) to validate degradation behavior before full outage.',
@@ -72,7 +72,7 @@ const DRILLS = [
   },
   {
     id: 'network-cut-extended',
-    type: 'NetworkCut',
+    type: 'ExtendedNetworkCut',
     title: 'Extended Network Cut',
     description:
       'Longer observation network partition drill to inspect retries, timeouts, and cascading recovery behavior.',
@@ -94,7 +94,7 @@ const DRILLS = [
   },
   {
     id: 'traffic-spike',
-    type: 'TargetedLoad',
+    type: 'TrafficSpike',
     title: 'Traffic Spike',
     description:
       'Applies a stronger burst profile to pressure autoscaling and downstream dependency protections.',
@@ -122,6 +122,7 @@ export default function DrillCatalog({
   const [planError, setPlanError] = useState<string | null>(null)
   const [targetedLoadRate, setTargetedLoadRate] = useState(DEFAULT_TARGETED_LOAD_RATE)
   const [targetedLoadUsers, setTargetedLoadUsers] = useState(DEFAULT_TARGETED_LOAD_USERS)
+  const isTargetedLoadScenario = selectedDrill?.type === 'TargetedLoad' || selectedDrill?.type === 'TrafficSpike'
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -144,7 +145,7 @@ export default function DrillCatalog({
     setPlanError(null)
     setIsPlanning(true)
     const plannedConfig =
-      selectedDrill.type === 'TargetedLoad'
+      (selectedDrill.type === 'TargetedLoad' || selectedDrill.type === 'TrafficSpike')
         ? {
             ...selectedDrill.baseConfig,
             rps: targetedLoadRate,
@@ -196,7 +197,7 @@ export default function DrillCatalog({
     value: `${s.namespace}/${s.name}`,
   }))
   const targetedLoadProfileInvalid =
-    selectedDrill?.type === 'TargetedLoad' && (targetedLoadRate < 1 || targetedLoadUsers < 1)
+    isTargetedLoadScenario && (targetedLoadRate < 1 || targetedLoadUsers < 1)
 
   const handleSelectDrill = (drill: (typeof DRILLS)[number]) => {
     setSelectedDrill(drill)
@@ -204,7 +205,7 @@ export default function DrillCatalog({
     setCountdown(0)
     setIsConfirmed(false)
 
-    if (drill.type === 'TargetedLoad') {
+    if (drill.type === 'TargetedLoad' || drill.type === 'TrafficSpike') {
       const presetRate = Number((drill.baseConfig as { rps?: number }).rps ?? 100)
       const presetUsers = Number((drill.baseConfig as { users?: number }).users ?? DEFAULT_TARGETED_LOAD_USERS)
       setTargetedLoadRate(presetRate > 0 ? presetRate : DEFAULT_TARGETED_LOAD_RATE)
@@ -348,7 +349,7 @@ export default function DrillCatalog({
               </div>
             </div>
 
-            {selectedDrill?.type === 'TargetedLoad' && (
+            {isTargetedLoadScenario && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label

@@ -174,6 +174,24 @@ function openEvidencePdfReport(run: DrillRun) {
     )
     .join('')
 
+  const statusPillClass = /fail|error/i.test(run.status)
+    ? 'status-fail'
+    : /abort/i.test(run.status)
+      ? 'status-abort'
+      : /awaiting|observ/i.test(run.status)
+        ? 'status-watch'
+        : /recover/i.test(run.status)
+          ? 'status-recover'
+          : 'status-ok'
+
+  const verdictPillClass = /fail|error/i.test(run.verdict)
+    ? 'verdict-fail'
+    : /abort/i.test(run.verdict)
+      ? 'verdict-abort'
+      : /success/i.test(run.verdict)
+        ? 'verdict-success'
+        : 'verdict-neutral'
+
   const executiveFindings = [
     `Drill type: ${run.type} executed against ${run.target}.`,
     `Run completed with status ${run.status} and verdict ${run.verdict}.`,
@@ -211,8 +229,15 @@ function openEvidencePdfReport(run: DrillRun) {
     th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; font-size: 12px; }
     th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #334155; }
     .pill { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; }
-    .pill.status { background: #e0f2fe; color: #0369a1; }
-    .pill.verdict { background: #dcfce7; color: #166534; }
+    .pill.status-ok { background: #dcfce7; color: #166534; }
+    .pill.status-watch { background: #fef3c7; color: #92400e; }
+    .pill.status-recover { background: #ede9fe; color: #5b21b6; }
+    .pill.status-abort { background: #ffedd5; color: #c2410c; }
+    .pill.status-fail { background: #fee2e2; color: #b91c1c; }
+    .pill.verdict-success { background: #dcfce7; color: #166534; }
+    .pill.verdict-abort { background: #ffedd5; color: #c2410c; }
+    .pill.verdict-fail { background: #fee2e2; color: #b91c1c; }
+    .pill.verdict-neutral { background: #e2e8f0; color: #334155; }
     .muted { color: #64748b; font-size: 12px; }
     .two-col { display:grid; grid-template-columns: 1.1fr 1fr; gap:16px; }
     .list { margin: 10px 0 0; padding-left: 18px; }
@@ -234,8 +259,8 @@ function openEvidencePdfReport(run: DrillRun) {
         <div class="muted" style="margin-top:6px;">Run #${escapeHtml(run.id.split('-')[0].toUpperCase())} • Target ${escapeHtml(run.target)}</div>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
-        <span class="pill status">${escapeHtml(run.status)}</span>
-        <span class="pill verdict">${escapeHtml(run.verdict)}</span>
+        <span class="pill ${statusPillClass}">${escapeHtml(run.status)}</span>
+        <span class="pill ${verdictPillClass}">${escapeHtml(run.verdict)}</span>
       </div>
     </div>
     <div class="meta">

@@ -193,8 +193,6 @@ export default function TimelineReplay({ run }: { run: DrillRun }) {
 
             <div className="lg:col-span-7">
               <div className="relative max-h-[260px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-soft)]/20 p-3 pr-2">
-                <div className="pointer-events-none absolute bottom-3 left-[34px] top-3 w-px bg-[var(--border)]" />
-
                 <div className="space-y-2">
                   {steps.map((step, idx) => {
                     const selected = idx === boundedIndex
@@ -203,7 +201,7 @@ export default function TimelineReplay({ run }: { run: DrillRun }) {
                         key={`${step.timestamp}-${idx}`}
                         type="button"
                         className={cn(
-                          'grid w-full grid-cols-[28px_minmax(0,1fr)] items-start gap-3 rounded-lg p-2 text-left transition-all duration-200',
+                          'grid w-full grid-cols-[28px_minmax(0,1fr)] items-stretch gap-3 rounded-lg p-2 text-left transition-all duration-200',
                           selected
                             ? 'bg-sky-500/8 ring-1 ring-sky-500/20'
                             : 'hover:bg-[var(--surface-soft)]/60'
@@ -213,7 +211,13 @@ export default function TimelineReplay({ run }: { run: DrillRun }) {
                           setScrubIndex(idx)
                         }}
                       >
-                        <span className="relative flex h-5 items-center justify-center">
+                        <span className="relative flex min-h-[40px] self-stretch items-start justify-center pt-2">
+                          {idx > 0 && (
+                            <span className="pointer-events-none absolute left-1/2 top-0 h-4 w-px -translate-x-1/2 bg-[var(--border)]" />
+                          )}
+                          {idx < steps.length - 1 && (
+                            <span className="pointer-events-none absolute left-1/2 bottom-0 top-4 w-px -translate-x-1/2 bg-[var(--border)]" />
+                          )}
                           <span
                             className={cn(
                               'z-10 flex h-4 w-4 items-center justify-center rounded-full border bg-[var(--surface-solid)] transition-all',

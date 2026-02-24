@@ -28,6 +28,7 @@ import {
 
 const DRILLS = [
   {
+    id: 'service-shutdown',
     type: 'ServiceShutdown',
     title: 'Service Shutdown',
     description:
@@ -38,6 +39,18 @@ const DRILLS = [
     tone: 'rose',
   },
   {
+    id: 'service-brownout',
+    type: 'ScaleStress',
+    title: 'Service Brownout',
+    description:
+      'Scales the target down to a constrained replica count (1) to validate degradation behavior before full outage.',
+    icon: <Activity className="w-5 h-5 text-orange-400" />,
+    risk: 'Medium',
+    baseConfig: { replicas: 1, observeTokens: 30 },
+    tone: 'amber',
+  },
+  {
+    id: 'scale-stress',
     type: 'ScaleStress',
     title: 'Scale Stress',
     description:
@@ -48,6 +61,7 @@ const DRILLS = [
     tone: 'sky',
   },
   {
+    id: 'network-cut',
     type: 'NetworkCut',
     title: 'Network Cut',
     description: 'Simulates a severed connection between two dependent services via NetworkPolicy.',
@@ -57,6 +71,18 @@ const DRILLS = [
     tone: 'amber',
   },
   {
+    id: 'network-cut-extended',
+    type: 'NetworkCut',
+    title: 'Extended Network Cut',
+    description:
+      'Longer observation network partition drill to inspect retries, timeouts, and cascading recovery behavior.',
+    icon: <Network className="w-5 h-5 text-amber-400" />,
+    risk: 'High',
+    baseConfig: { observeTokens: 45 },
+    tone: 'amber',
+  },
+  {
+    id: 'targeted-load',
     type: 'TargetedLoad',
     title: 'Targeted Load',
     description:
@@ -64,6 +90,17 @@ const DRILLS = [
     icon: <Zap className="w-5 h-5 text-emerald-400" />,
     risk: 'Low',
     baseConfig: { rps: 100, observeTokens: 15 },
+    tone: 'emerald',
+  },
+  {
+    id: 'traffic-spike',
+    type: 'TargetedLoad',
+    title: 'Traffic Spike',
+    description:
+      'Applies a stronger burst profile to pressure autoscaling and downstream dependency protections.',
+    icon: <Zap className="w-5 h-5 text-emerald-400" />,
+    risk: 'Medium',
+    baseConfig: { rps: 300, users: 30, observeTokens: 30 },
     tone: 'emerald',
   },
 ]
@@ -76,7 +113,7 @@ export default function DrillCatalog({
 }: {
   onDrillSelect: (run: DrillRun) => void
 }) {
-  const [selectedDrill, setSelectedDrill] = useState<(typeof DRILLS)[0] | null>(null)
+  const [selectedDrill, setSelectedDrill] = useState<(typeof DRILLS)[number] | null>(null)
   const [targetService, setTargetService] = useState('')
   const [isPlanning, setIsPlanning] = useState(false)
   const [services, setServices] = useState<any[]>([])
@@ -161,18 +198,32 @@ export default function DrillCatalog({
   const targetedLoadProfileInvalid =
     selectedDrill?.type === 'TargetedLoad' && (targetedLoadRate < 1 || targetedLoadUsers < 1)
 
+  const handleSelectDrill = (drill: (typeof DRILLS)[number]) => {
+    setSelectedDrill(drill)
+    setPlanError(null)
+    setCountdown(0)
+    setIsConfirmed(false)
+
+    if (drill.type === 'TargetedLoad') {
+      const presetRate = Number((drill.baseConfig as { rps?: number }).rps ?? 100)
+      const presetUsers = Number((drill.baseConfig as { users?: number }).users ?? DEFAULT_TARGETED_LOAD_USERS)
+      setTargetedLoadRate(presetRate > 0 ? presetRate : DEFAULT_TARGETED_LOAD_RATE)
+      setTargetedLoadUsers(presetUsers > 0 ? presetUsers : DEFAULT_TARGETED_LOAD_USERS)
+    }
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {DRILLS.map((drill) => (
         <Card
-          key={drill.type}
+          key={drill.id}
           className={cn(
             glassInteractiveCardClass,
             'group relative flex flex-col justify-between cursor-pointer',
-            selectedDrill?.type === drill.type &&
+            selectedDrill?.id === drill.id &&
               'ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-[var(--background)]'
           )}
-          onClick={() => setSelectedDrill(drill)}
+          onClick={() => handleSelectDrill(drill)}
         >
           <div className="flex flex-col h-full space-y-4">
             <div className="flex items-start justify-between">

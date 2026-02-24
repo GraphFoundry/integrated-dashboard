@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DrillRun } from '@/lib/api/drills'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Clock, CheckCircle2, XCircle, History, Play, FastForward, Info, Pause } from 'lucide-react'
@@ -10,11 +10,40 @@ export default function TimelineReplay({ run }: { run: DrillRun }) {
   const steps = run.timeline || []
   const [scrubIndex, setScrubIndex] = useState(steps.length > 0 ? steps.length - 1 : 0)
   const [isPlaying, setIsPlaying] = useState(false)
+  const prevRunIdRef = useRef(run.id)
+  const prevStepsLengthRef = useRef(steps.length)
+
+  useEffect(() => {
+    const previousLength = prevStepsLengthRef.current
+    prevStepsLengthRef.current = steps.length
+
+    if (steps.length <= 0) {
+      setScrubIndex(0)
+      setIsPlaying(false)
+      return
+    }
+
+    setScrubIndex((current) => {
+      const maxIndex = steps.length - 1
+      if (current > maxIndex) {
+        return maxIndex
+      }
+
+      const wasAtTail = current >= Math.max(0, previousLength - 1)
+      if (!isPlaying && steps.length > previousLength && wasAtTail) {
+        return maxIndex
+      }
+
+      return current
+    })
+  }, [isPlaying, steps.length])
 
   useEffect(() => {
     setScrubIndex(steps.length > 0 ? steps.length - 1 : 0)
     setIsPlaying(false)
-  }, [run.id, steps.length])
+    prevRunIdRef.current = run.id
+    prevStepsLengthRef.current = steps.length
+  }, [run.id])
 
   useEffect(() => {
     if (!isPlaying || steps.length <= 1) {
@@ -164,7 +193,7 @@ export default function TimelineReplay({ run }: { run: DrillRun }) {
 
             <div className="lg:col-span-7">
               <div className="relative max-h-[260px] overflow-y-auto rounded-xl border border-[var(--border)] bg-[var(--surface-soft)]/20 p-3 pr-2">
-                <div className="pointer-events-none absolute bottom-3 left-[21px] top-3 w-px bg-[var(--border)]" />
+                <div className="pointer-events-none absolute bottom-3 left-[34px] top-3 w-px bg-[var(--border)]" />
 
                 <div className="space-y-2">
                   {steps.map((step, idx) => {

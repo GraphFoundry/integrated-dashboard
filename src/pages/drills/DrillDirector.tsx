@@ -241,6 +241,9 @@ export default function DrillDirector() {
                   ) : (
                     history.map((run) => {
                       const isReviewing = reviewingRunId === run.id
+                      const isSuccessVerdict = run.verdict === 'Success'
+                      const isFailureVerdict = /fail|error/i.test(run.verdict)
+                      const isAbortedVerdict = /abort/i.test(run.verdict)
                       return (
                         <tr
                           key={run.id}
@@ -280,11 +283,16 @@ export default function DrillDirector() {
                           </td>
                           <td className={tableCellClass}>
                             <Badge
-                              variant={run.verdict === 'Success' ? 'default' : 'destructive'}
+                              variant={isSuccessVerdict ? 'default' : 'outline'}
                               className={cn(
                                 'text-[10px] font-bold uppercase',
-                                run.verdict === 'Success' &&
-                                  'border-emerald-500/20 bg-emerald-500/10 text-emerald-600'
+                                isSuccessVerdict && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+                                isFailureVerdict && 'border-rose-500/20 bg-rose-500/10 text-rose-700',
+                                isAbortedVerdict && 'border-orange-500/20 bg-orange-500/10 text-orange-700',
+                                !isSuccessVerdict &&
+                                  !isFailureVerdict &&
+                                  !isAbortedVerdict &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-primary)]'
                               )}
                             >
                               {run.verdict}

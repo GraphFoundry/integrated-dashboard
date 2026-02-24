@@ -123,7 +123,8 @@ function openEvidencePdfReport(run: DrillRun) {
     return `${Math.max(0, Math.round((end - start) / 1000))}s`
   })()
 
-  const timelineRows = (run.timeline || [])
+  const timeline = run.timeline || []
+  const timelineRows = timeline
     .map(
       (step) => `
       <tr>
@@ -133,6 +134,28 @@ function openEvidencePdfReport(run: DrillRun) {
         <td>${escapeHtml(step.message)}</td>
       </tr>`
     )
+    .join('')
+
+  const errorStepCount = timeline.filter((step) => String(step.status).toLowerCase() === 'error').length
+  const warningStepCount = timeline.filter((step) => String(step.status).toLowerCase() === 'warn').length
+
+  const phaseDurationRows = timeline
+    .map((step, index) => {
+      const currentTs = new Date(step.timestamp).getTime()
+      const nextTs = timeline[index + 1] ? new Date(timeline[index + 1].timestamp).getTime() : NaN
+      const durationLabel =
+        Number.isFinite(currentTs) && Number.isFinite(nextTs)
+          ? `${Math.max(0, Math.round((nextTs - currentTs) / 1000))}s`
+          : 'Terminal/Current'
+      return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${escapeHtml(step.phase)}</td>
+        <td>${escapeHtml(new Date(step.timestamp).toLocaleTimeString())}</td>
+        <td>${escapeHtml(durationLabel)}</td>
+        <td>${escapeHtml(step.status)}</td>
+      </tr>`
+    })
     .join('')
 
   const metricRows = [
@@ -149,6 +172,25 @@ function openEvidencePdfReport(run: DrillRun) {
         <td>${escapeHtml(current)}</td>
       </tr>`
     )
+    .join('')
+
+  const executiveFindings = [
+    `Drill type: ${run.type} executed against ${run.target}.`,
+    `Run completed with status ${run.status} and verdict ${run.verdict}.`,
+    `Recovery path: ${run.recoverySource ?? 'not recorded'}${run.recoverySource === 'manual' ? ' (operator-triggered)' : ''}.`,
+    `Timeline recorded ${timeline.length} events with ${warningStepCount} warnings and ${errorStepCount} errors.`,
+    `Observation window configured for ${Number(run.config?.observeTokens ?? 15)} seconds.`,
+  ]
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join('')
+
+  const recommendations = [
+    'Confirm alerts fired during Observation and were cleared after Recovery.',
+    'Check dependent services for retry storms, queue buildup, and saturation.',
+    'Compare final latency/error metrics with baseline to validate full recovery.',
+    'If manual recovery was delayed, review operator runbook timing and approvals.',
+  ]
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join('')
 
   const html = `<!doctype html>
@@ -168,11 +210,18 @@ function openEvidencePdfReport(run: DrillRun) {
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; font-size: 12px; }
     th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #334155; }
-    pre { white-space: pre-wrap; word-break: break-word; background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 10px; overflow: auto; font-size: 11px; }
     .pill { display: inline-block; border-radius: 999px; padding: 4px 10px; font-size: 11px; font-weight: 700; }
     .pill.status { background: #e0f2fe; color: #0369a1; }
     .pill.verdict { background: #dcfce7; color: #166534; }
     .muted { color: #64748b; font-size: 12px; }
+    .two-col { display:grid; grid-template-columns: 1.1fr 1fr; gap:16px; }
+    .list { margin: 10px 0 0; padding-left: 18px; }
+    .list li { margin: 6px 0; font-size: 12px; line-height: 1.45; }
+    .kpi-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+    .kpi { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background:#fff; }
+    .kpi .k { font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color:#64748b; font-weight: 700; }
+    .kpi .v { margin-top:4px; font-size: 13px; color:#0f172a; font-weight: 700; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media print { body { margin: 12mm; } .no-print { display: none; } }
   </style>
 </head>
@@ -198,6 +247,24 @@ function openEvidencePdfReport(run: DrillRun) {
   </div>
 
   <div class="section">
+    <h2 style="font-size: 16px;">Executive Summary</h2>
+    <div class="two-col">
+      <div>
+        <p class="muted">High-level findings for operators and reviewers.</p>
+        <ul class="list">${executiveFindings}</ul>
+      </div>
+      <div>
+        <div class="kpi-grid">
+          <div class="kpi"><div class="k">Timeline Events</div><div class="v">${escapeHtml(String(timeline.length))}</div></div>
+          <div class="kpi"><div class="k">Warnings</div><div class="v">${escapeHtml(String(warningStepCount))}</div></div>
+          <div class="kpi"><div class="k">Errors</div><div class="v">${escapeHtml(String(errorStepCount))}</div></div>
+          <div class="kpi"><div class="k">Recovery Source</div><div class="v">${escapeHtml(run.recoverySource ?? 'n/a')}</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
     <h2 style="font-size: 16px;">Impact Summary</h2>
     <p class="muted">Baseline vs final snapshot for the target component.</p>
     <table>
@@ -207,7 +274,16 @@ function openEvidencePdfReport(run: DrillRun) {
   </div>
 
   <div class="section">
-    <h2 style="font-size: 16px;">Sequence Timeline</h2>
+    <h2 style="font-size: 16px;">Phase Timing Breakdown</h2>
+    <p class="muted">Elapsed time to the next phase (or terminal marker for the final step).</p>
+    <table>
+      <thead><tr><th>#</th><th>Phase</th><th>Start</th><th>Duration</th><th>Status</th></tr></thead>
+      <tbody>${phaseDurationRows || '<tr><td colspan="5">No phase data recorded.</td></tr>'}</tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2 style="font-size: 16px;">Detailed Timeline</h2>
     <table>
       <thead><tr><th>Phase</th><th>Timestamp</th><th>Status</th><th>Message</th></tr></thead>
       <tbody>${timelineRows || '<tr><td colspan="4">No timeline events recorded.</td></tr>'}</tbody>
@@ -215,15 +291,8 @@ function openEvidencePdfReport(run: DrillRun) {
   </div>
 
   <div class="section">
-    <h2 style="font-size: 16px;">Snapshots (JSON)</h2>
-    <details open>
-      <summary style="font-weight:700; margin: 8px 0;">Pre-Snapshot</summary>
-      <pre>${escapeHtml(JSON.stringify(run.preSnapshot ?? null, null, 2))}</pre>
-    </details>
-    <details>
-      <summary style="font-weight:700; margin: 8px 0;">Post-Snapshot</summary>
-      <pre>${escapeHtml(JSON.stringify(run.postSnapshot ?? null, null, 2))}</pre>
-    </details>
+    <h2 style="font-size: 16px;">Recommended Follow-ups</h2>
+    <ul class="list">${recommendations}</ul>
   </div>
 
   <script>

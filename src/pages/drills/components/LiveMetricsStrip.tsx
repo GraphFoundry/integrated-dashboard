@@ -164,12 +164,12 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
       </CardHeader>
 
       <CardContent className="p-6">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid auto-rows-fr grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {metrics.map((metric) => (
-            <article key={metric.label} className="flex h-full min-h-[188px] flex-col gap-3">
+            <article key={metric.label} className="flex h-full min-h-[248px] flex-col gap-3">
               <div
                 className={cn(
-                  'flex flex-1 flex-col gap-3 rounded-xl border p-4 transition-all duration-300',
+                  'flex flex-1 flex-col gap-4 rounded-xl border p-5 transition-all duration-300',
                   metric.degraded
                     ? 'border-rose-500/20 bg-rose-500/5 shadow-sm'
                     : 'border-[var(--border)] bg-[var(--surface-soft)]/50 hover:border-emerald-500/20'
@@ -189,23 +189,23 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="min-w-0 rounded-lg border border-[var(--border)]/70 bg-[var(--surface-solid)]/40 p-2.5">
-                    <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                <div className="flex flex-1 flex-col gap-2.5">
+                  <div className="flex items-center justify-between gap-4 rounded-lg border border-[var(--border)]/70 bg-[var(--surface-solid)]/40 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                       Baseline
                     </span>
-                    <span className="block truncate font-mono text-xs font-bold tabular-nums text-[var(--text-secondary)]">
+                    <span className="truncate font-mono text-sm font-bold tabular-nums text-[var(--text-secondary)]">
                       {metric.baseline}
                     </span>
                   </div>
 
-                  <div className="min-w-0 rounded-lg border border-[var(--border)]/70 bg-[var(--surface-solid)]/40 p-2.5">
-                    <span className="mb-1 block text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  <div className="flex items-center justify-between gap-4 rounded-lg border border-[var(--border)]/70 bg-[var(--surface-solid)]/40 p-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
                       Current
                     </span>
                     <span
                       className={cn(
-                        'inline-flex max-w-full items-center gap-1 truncate font-mono text-lg font-bold tabular-nums tracking-tight',
+                        'inline-flex max-w-[70%] items-center justify-end gap-1 truncate font-mono text-xl font-bold tabular-nums tracking-tight',
                         metric.degraded ? 'text-rose-600' : 'text-emerald-600'
                       )}
                     >
@@ -223,7 +223,7 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
               </div>
 
               {isExplainMode && (
-                <div className="flex min-h-[52px] items-start gap-2 px-2 text-[10px] font-medium italic leading-relaxed text-[var(--text-muted)] animate-in fade-in duration-300">
+                <div className="flex min-h-[68px] items-start gap-2 px-2 text-[10px] font-medium italic leading-relaxed text-[var(--text-muted)] animate-in fade-in duration-300">
                   <Info className="mt-0.5 h-3 w-3 shrink-0 text-sky-400" />
                   <span className="break-words">{metric.explanation}</span>
                 </div>

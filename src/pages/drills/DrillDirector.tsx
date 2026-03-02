@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, Tab, TabPanel } from '@/components/ui/Tabs'
 import PageHeader from '@/components/layout/PageHeader'
+import ClusterTopologyMap from '@/pages/overview/ClusterTopologyMap'
 import {
   pageContainerClass,
   tableShellClass,
@@ -204,6 +205,11 @@ export default function DrillDirector() {
           </p>
         </div>
       )}
+
+      {/* Cluster Topology — Nodes / Services / Pods */}
+      <div className="w-full mb-6">
+        <ClusterTopologyMap />
+      </div>
 
       <Tabs
         aria-label="Drill Director Control Panel"

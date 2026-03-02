@@ -20,6 +20,7 @@ import {
 } from '@/components/common/uiClassTokens'
 import { Checkbox, Select } from '@/components/ui'
 import ScenarioForm from '@/pages/simulations/ScenarioForm'
+import ClusterTopologyMap from '@/pages/overview/ClusterTopologyMap'
 import {
   getDemoSnapshots,
   getSimulationCapabilities,
@@ -767,6 +768,11 @@ export default function Simulations() {
           </div>
         </div>
       </Section>
+
+      {/* Cluster Topology — Nodes / Services / Pods */}
+      <div className="w-full">
+        <ClusterTopologyMap />
+      </div>
 
       <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-3">
         <div className="lg:col-span-1">

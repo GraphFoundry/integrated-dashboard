@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import {
   GraphCanvas,
   GraphNode as ReagraphNode,
@@ -1058,11 +1058,30 @@ export default function ClusterTopologyMap() {
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   const [isNodeHovered, setIsNodeHovered] = useState(false)
   const [selections, setSelections] = useState<string[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '')
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [inspectedNode, setInspectedNode] = useState<ReagraphNode | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
-  const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS)
+
+  /* ---- Shareable URL: sync filters ↔ search params ---- */
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [filters, setFilters] = useState<TopologyFilters>(() => ({
+    namespace: searchParams.get('ns') ?? '',
+    health: (searchParams.get('health') as HealthFilter) || 'all',
+    depthOrigin: searchParams.get('depthOrigin') ?? null,
+    depthHops: parseInt(searchParams.get('depthHops') ?? '0', 10) || 0,
+  }))
+
+  /* Write filter state back to URL (replaces, no history push) */
+  useEffect(() => {
+    const p = new URLSearchParams()
+    if (filters.namespace) p.set('ns', filters.namespace)
+    if (filters.health !== 'all') p.set('health', filters.health)
+    if (filters.depthOrigin) p.set('depthOrigin', filters.depthOrigin)
+    if (filters.depthHops > 0) p.set('depthHops', String(filters.depthHops))
+    if (searchQuery.trim()) p.set('q', searchQuery.trim())
+    setSearchParams(p, { replace: true })
+  }, [filters, searchQuery, setSearchParams])
 
   /* Path tracing: select two service nodes to highlight shortest path */
   const [pathTraceMode, setPathTraceMode] = useState(false)

@@ -18,6 +18,8 @@ import {
   LocateFixed,
   Network,
   ArrowRightLeft,
+  Search,
+  X,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -216,6 +218,10 @@ function Legend() {
       <span className="flex items-center gap-1.5">
         <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#B589D6' }} />
         Pod
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
+        Search match
       </span>
       <span className="flex items-center gap-1.5">
         <ArrowRightLeft className="h-3 w-3" />
@@ -435,6 +441,8 @@ export default function ClusterTopologyMap() {
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   const [isNodeHovered, setIsNodeHovered] = useState(false)
   const [selections, setSelections] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement | null>(null)
 
   /* Auto-zoom to fit all nodes on initial load */
   const hasAutoZoomed = useRef(false)
@@ -455,6 +463,32 @@ export default function ClusterTopologyMap() {
     () => buildTopologyGraph(services, allNodes, dependencyEdges),
     [services, allNodes, dependencyEdges]
   )
+
+  /* Search: compute matched IDs, then override fill to amber for matches */
+  const searchMatchIds = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return new Set<string>()
+    const matched = new Set<string>()
+    gNodes.forEach((n) => {
+      const name: string = n.data?.name ?? n.label ?? ''
+      if (name.toLowerCase().includes(q)) matched.add(n.id)
+    })
+    return matched
+  }, [searchQuery, gNodes])
+
+  const displayNodes = useMemo(() => {
+    if (searchMatchIds.size === 0) return gNodes
+    return gNodes.map((n) =>
+      searchMatchIds.has(n.id) ? { ...n, fill: '#FBBF24' } : n
+    )
+  }, [gNodes, searchMatchIds])
+
+  const activeSelections = useMemo(() => {
+    // Hover neighborhood takes priority; else show search matches
+    if (isNodeHovered) return selections
+    if (searchMatchIds.size > 0) return Array.from(searchMatchIds)
+    return []
+  }, [isNodeHovered, selections, searchMatchIds])
 
   /* Summary counts */
   const summary = useMemo(() => {
@@ -519,12 +553,46 @@ export default function ClusterTopologyMap() {
   return (
     <TopologyShell>
       {/* Header */}
-      <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]">
-        <div className="flex items-center gap-2">
+      <div className="px-4 py-3 border-b border-[var(--border)] flex flex-wrap items-center gap-3 bg-[var(--surface-soft)]">
+        {/* Title */}
+        <div className="flex items-center gap-2 shrink-0">
           <Network className="w-5 h-5 text-[var(--color-emerald-300)]" />
           <h3 className="text-lg font-medium text-[var(--text-primary)]">Cluster Topology</h3>
         </div>
-        <div className="text-xs text-[var(--text-dim)] flex items-center gap-3">
+
+        {/* Search input */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-muted)]" />
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search nodes, services, pods…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] py-1.5 pl-8 pr-8 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-muted)] outline-none focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)]"
+            aria-label="Search topology"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); searchInputRef.current?.focus() }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Match badge */}
+        {searchQuery.trim() && (
+          <span className="shrink-0 rounded-full bg-amber-400/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
+            {searchMatchIds.size} match{searchMatchIds.size !== 1 ? 'es' : ''}
+          </span>
+        )}
+
+        {/* Stats */}
+        <div className="ml-auto text-xs text-[var(--text-dim)] flex items-center gap-3 shrink-0">
           <span>{summary.k8sNodes} nodes</span>
           <span className="text-[var(--border)]">·</span>
           <span>{summary.svcs} services</span>
@@ -557,9 +625,9 @@ export default function ClusterTopologyMap() {
 
             <GraphCanvas
               ref={graphRef}
-              nodes={gNodes}
+              nodes={displayNodes}
               edges={gEdges}
-              selections={selections}
+              selections={activeSelections}
               layoutType="forceDirected2d"
               labelType="all"
               theme={graphTheme}
@@ -568,6 +636,7 @@ export default function ClusterTopologyMap() {
               onCanvasClick={() => {
                 setSelections([])
                 setIsNodeHovered(false)
+                if (!searchQuery) setSelections([])
               }}
               minZoom={0.05}
               maxZoom={6}

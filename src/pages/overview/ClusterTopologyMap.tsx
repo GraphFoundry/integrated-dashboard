@@ -34,6 +34,8 @@ import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
 import { cn } from '@/components/common/uiClassTokens'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
+import { bffApi } from '@/lib/bffApiClient'
+import type { ServiceRollup } from '@/lib/bffApiClient'
 import { useTheme } from '@/theme/useTheme'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
@@ -126,6 +128,7 @@ function buildTopologyGraph(
   dependencyEdges: DependencyEdge[],
   filters: TopologyFilters = DEFAULT_FILTERS,
   serviceMetrics?: ServiceMetricsMap,
+  alertRollups?: Map<string, ServiceRollup>,
 ) {
   const nodes: ReagraphNode[] = []
   const edges: ReagraphEdge[] = []
@@ -194,6 +197,7 @@ function buildTopologyGraph(
 
         const metrics = serviceMetrics?.get(svc.name)
         const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
+        const alertData = alertRollups?.get(svc.name)
 
         nodes.push({
           id: svcId(svc.name),
@@ -210,6 +214,9 @@ function buildTopologyGraph(
             errorRate: metrics?.errorRate,
             p95: metrics?.p95,
             highErrorRate,
+            openIncidents: alertData?.open_incidents ?? 0,
+            criticalAlerts: alertData?.critical_count ?? 0,
+            highAlerts: alertData?.high_count ?? 0,
           },
         })
       }
@@ -548,6 +555,17 @@ function TopologyTooltip({
                 </span>
               </div>
             )}
+            {node.data.openIncidents > 0 && (
+              <div className="flex items-center gap-2 mt-1 pt-1 border-t border-[var(--border)]">
+                <span className={cn(
+                  'font-mono font-semibold',
+                  node.data.criticalAlerts > 0 ? 'text-red-400' : 'text-amber-400'
+                )}>
+                  ⚠ {node.data.openIncidents} open alert{node.data.openIncidents > 1 ? 's' : ''}
+                  {node.data.criticalAlerts > 0 ? ` (${node.data.criticalAlerts} critical)` : ''}
+                </span>
+              </div>
+            )}
           </>
         )}
 
@@ -842,6 +860,12 @@ function TopologyDetailsDrawer({
               {node.data?.rps != null && <DrawerRow label="RPS" value={node.data.rps.toFixed(1)} />}
               {node.data?.errorRate != null && <DrawerRow label="Error rate" value={`${(node.data.errorRate * 100).toFixed(2)}%`} highlight={node.data.errorRate > 0.05} />}
               {node.data?.p95 != null && <DrawerRow label="p95 latency" value={`${node.data.p95.toFixed(0)} ms`} />}
+              {node.data?.openIncidents > 0 && (
+                <DrawerRow label="Open alerts" value={node.data.openIncidents} highlight={node.data.criticalAlerts > 0} />
+              )}
+              {node.data?.criticalAlerts > 0 && (
+                <DrawerRow label="Critical" value={node.data.criticalAlerts} highlight />
+              )}
             </>
           )}
           {kind === 'pod' && (
@@ -935,6 +959,25 @@ export default function ClusterTopologyMap() {
     serviceMetrics,
   } = useServicesWithPlacement()
 
+  /* Fetch open alerts grouped by service (lightweight polling every 30 s) */
+  const [alertRollups, setAlertRollups] = useState<Map<string, ServiceRollup>>(new Map())
+  useEffect(() => {
+    let active = true
+    const fetch = () => {
+      bffApi.getServices()
+        .then(({ services: svcRollups }) => {
+          if (!active) return
+          const map = new Map<string, ServiceRollup>()
+          svcRollups.forEach((r) => map.set(r.service, r))
+          setAlertRollups(map)
+        })
+        .catch(() => { /* ignore — alerts are non-critical */ })
+    }
+    fetch()
+    const timer = setInterval(fetch, 30_000)
+    return () => { active = false; clearInterval(timer) }
+  }, [])
+
   const graphRef = useRef<GraphCanvasRef | null>(null)
   const [hoveredNode, setHoveredNode] = useState<ReagraphNode | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
@@ -984,8 +1027,8 @@ export default function ClusterTopologyMap() {
   const graphTheme = useMemo(() => createTopologyTheme(), [resolvedTheme]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { nodes: gNodes, edges: gEdges } = useMemo(
-    () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics),
-    [services, allNodes, dependencyEdges, filters, serviceMetrics]
+    () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups),
+    [services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups]
   )
 
   /** BFS shortest path between two node IDs across all edges */
@@ -1071,6 +1114,15 @@ export default function ClusterTopologyMap() {
       /* Pulse animation: oscillate size for high-error-rate services */
       if (n.data?.highErrorRate) {
         patched = { ...patched, size: pulseTick ? 48 : 40 }
+      }
+      /* Alert badge: add subLabel count and flashing ring for critical alerts */
+      if (n.data?.openIncidents > 0) {
+        const badgeText = `⚠ ${n.data.openIncidents} alert${n.data.openIncidents > 1 ? 's' : ''}`
+        patched = { ...patched, subLabel: badgeText }
+        if (n.data.criticalAlerts > 0) {
+          // Flash the fill between original and red
+          patched = { ...patched, fill: pulseTick ? '#ef4444' : (patched.fill as string) }
+        }
       }
       return patched
     })

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router'
 import {
   GraphCanvas,
   GraphNode as ReagraphNode,
@@ -23,6 +24,11 @@ import {
   ChevronDown,
   Filter,
   SlidersHorizontal,
+  ExternalLink,
+  Zap,
+  FlaskConical,
+  FileText,
+  EyeIcon,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -650,6 +656,109 @@ function createTopologyTheme() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Right-click context menu                                          */
+/* ------------------------------------------------------------------ */
+
+interface ContextMenuState {
+  node: ReagraphNode
+  x: number
+  y: number
+}
+
+function TopologyContextMenu({
+  state,
+  onClose,
+  onInspect,
+  navigate,
+}: {
+  state: ContextMenuState
+  onClose: () => void
+  onInspect: (node: ReagraphNode) => void
+  navigate: ReturnType<typeof useNavigate>
+}) {
+  const kind: EntityKind = state.node.data?.kind ?? 'service'
+  const name = state.node.data?.name ?? state.node.label ?? ''
+  const namespace = state.node.data?.namespace ?? ''
+
+  /* Close on outside click */
+  useEffect(() => {
+    const handler = () => onClose()
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [onClose])
+
+  const items: { icon: typeof EyeIcon; label: string; action: () => void }[] = [
+    {
+      icon: EyeIcon,
+      label: 'Inspect',
+      action: () => { onInspect(state.node); onClose() },
+    },
+  ]
+
+  if (kind === 'service') {
+    items.push(
+      {
+        icon: ExternalLink,
+        label: 'View service details',
+        action: () => { navigate(`/services/${namespace}:${name}`); onClose() },
+      },
+      {
+        icon: Zap,
+        label: 'Simulate failure',
+        action: () => { navigate(`/simulations?service=${encodeURIComponent(name)}`); onClose() },
+      },
+      {
+        icon: FlaskConical,
+        label: 'Run drill',
+        action: () => { navigate(`/drills?service=${encodeURIComponent(name)}`); onClose() },
+      },
+    )
+  }
+
+  if (kind === 'pod') {
+    items.push({
+      icon: FileText,
+      label: 'View logs',
+      action: () => { navigate(`/telemetry?pod=${encodeURIComponent(name)}`); onClose() },
+    })
+  }
+
+  /* Position: ensure menu stays within viewport */
+  const menuWidth = 200
+  const menuHeight = items.length * 36 + 16
+  let left = state.x
+  let top = state.y
+  if (left + menuWidth > window.innerWidth) left = state.x - menuWidth
+  if (top + menuHeight > window.innerHeight) top = state.y - menuHeight
+  if (left < 4) left = 4
+  if (top < 4) top = 4
+
+  return (
+    <div
+      className="fixed z-50 bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl py-1 animate-in fade-in zoom-in-95 duration-100"
+      style={{ left, top, minWidth: menuWidth }}
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] truncate">
+        {name}
+      </div>
+      {items.map((item) => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={item.action}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-primary)] hover:bg-[var(--surface-soft)] transition-colors text-left"
+        >
+          <item.icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+          {item.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Topology Details Drawer (click-to-inspect)                        */
 /* ------------------------------------------------------------------ */
 
@@ -817,6 +926,7 @@ function DrawerRow({
 
 export default function ClusterTopologyMap() {
   const { resolvedTheme } = useTheme()
+  const navigate = useNavigate()
   const {
     services,
     allNodes,
@@ -833,6 +943,7 @@ export default function ClusterTopologyMap() {
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [inspectedNode, setInspectedNode] = useState<ReagraphNode | null>(null)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS)
 
   /* Pulse tick — toggles every 800 ms for high-error-rate node animation */
@@ -1048,6 +1159,12 @@ export default function ClusterTopologyMap() {
           <div
             className={`absolute inset-0 ${isNodeHovered ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
             onMouseMove={(e) => setMousePosition({ x: e.clientX, y: e.clientY })}
+            onContextMenu={(e) => {
+              if (hoveredNode) {
+                e.preventDefault()
+                setContextMenu({ node: hoveredNode, x: e.clientX, y: e.clientY })
+              }
+            }}
             role="presentation"
           >
             {/* Zoom controls */}
@@ -1073,6 +1190,7 @@ export default function ClusterTopologyMap() {
                 setSelections([])
                 setIsNodeHovered(false)
                 setInspectedNode(null)
+                setContextMenu(null)
                 if (!searchQuery) setSelections([])
               }}
               minZoom={0.05}
@@ -1091,6 +1209,16 @@ export default function ClusterTopologyMap() {
                 edges={gEdges}
                 allGraphNodes={gNodes}
                 onClose={() => setInspectedNode(null)}
+              />
+            )}
+
+            {/* Context menu */}
+            {contextMenu && (
+              <TopologyContextMenu
+                state={contextMenu}
+                onClose={() => setContextMenu(null)}
+                onInspect={(node) => setInspectedNode(node)}
+                navigate={navigate}
               />
             )}
           </div>

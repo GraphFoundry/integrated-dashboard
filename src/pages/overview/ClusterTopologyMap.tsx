@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import {
   GraphCanvas,
   GraphNode as ReagraphNode,
@@ -20,6 +20,9 @@ import {
   ArrowRightLeft,
   Search,
   X,
+  ChevronDown,
+  Filter,
+  SlidersHorizontal,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -56,6 +59,7 @@ function formatUptime(seconds?: number): string {
 }
 
 type EntityKind = 'node' | 'service' | 'pod'
+type HealthFilter = 'all' | 'degraded' | 'critical'
 
 /* Prefixes ensure globally unique ids */
 const nodeId = (n: string) => `node::${n}`
@@ -66,10 +70,25 @@ const podId = (p: string) => `pod::${p}`
 /*  Graph data builder                                                */
 /* ------------------------------------------------------------------ */
 
+interface TopologyFilters {
+  namespace: string          // '' = all namespaces
+  health: HealthFilter
+  depthOrigin: string | null // id of origin node for depth control
+  depthHops: number          // max hops from origin (0 = unlimited)
+}
+
+const DEFAULT_FILTERS: TopologyFilters = {
+  namespace: '',
+  health: 'all',
+  depthOrigin: null,
+  depthHops: 0,
+}
+
 function buildTopologyGraph(
   services: ServiceWithPlacement[],
   allNodes: NodeWithResources[],
-  dependencyEdges: { source: string; target: string }[]
+  dependencyEdges: { source: string; target: string }[],
+  filters: TopologyFilters = DEFAULT_FILTERS
 ) {
   const nodes: ReagraphNode[] = []
   const edges: ReagraphEdge[] = []
@@ -111,7 +130,18 @@ function buildTopologyGraph(
   /* ---------- 3. Service & Pod graph-nodes + placement edges -------- */
   const addedServices = new Set<string>()
 
-  services.forEach((svc) => {
+  /* Apply namespace & health filters */
+  const filteredServices = services.filter((svc) => {
+    if (filters.namespace && svc.namespace !== filters.namespace) return false
+    if (filters.health !== 'all') {
+      const avail = typeof svc.availability === 'number' ? svc.availability : 1
+      if (filters.health === 'critical' && avail >= 0.8) return false
+      if (filters.health === 'degraded' && avail >= 0.95) return false
+    }
+    return true
+  })
+
+  filteredServices.forEach((svc) => {
     if (!svc.placement?.nodes || svc.placement.nodes.length === 0) return
 
     svc.placement.nodes.forEach((np) => {
@@ -189,7 +219,126 @@ function buildTopologyGraph(
     })
   })
 
+  /* ---------- 5. Depth filtering (BFS from origin) ------------------ */
+  if (filters.depthOrigin && filters.depthHops > 0) {
+    const allowed = new Set<string>()
+    const queue: [string, number][] = [[filters.depthOrigin, 0]]
+    while (queue.length > 0) {
+      const [current, depth] = queue.shift()!
+      if (allowed.has(current) || depth > filters.depthHops) continue
+      allowed.add(current)
+      edges.forEach((e) => {
+        if (e.source === current && !allowed.has(typeof e.target === 'string' ? e.target : ''))
+          queue.push([typeof e.target === 'string' ? e.target : '', depth + 1])
+        if (e.target === current && !allowed.has(typeof e.source === 'string' ? e.source : ''))
+          queue.push([typeof e.source === 'string' ? e.source : '', depth + 1])
+      })
+    }
+    const filteredNodes = nodes.filter((n) => allowed.has(n.id))
+    const filteredEdges = edges.filter(
+      (e) => allowed.has(typeof e.source === 'string' ? e.source : '') && allowed.has(typeof e.target === 'string' ? e.target : '')
+    )
+    return { nodes: filteredNodes, edges: filteredEdges }
+  }
+
   return { nodes, edges }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Filter Bar                                                        */
+/* ------------------------------------------------------------------ */
+
+function FilterBar({
+  namespaces,
+  filters,
+  onFilterChange,
+}: {
+  namespaces: string[]
+  filters: TopologyFilters
+  onFilterChange: (patch: Partial<TopologyFilters>) => void
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3 px-4 py-2 bg-[var(--surface-subtle)] border-b border-[var(--border)]">
+      <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
+        <Filter className="h-3 w-3" />
+        <span className="font-medium">Filters</span>
+      </div>
+
+      {/* Namespace dropdown */}
+      <div className="relative">
+        <select
+          value={filters.namespace}
+          onChange={(e) => onFilterChange({ namespace: e.target.value })}
+          className="appearance-none rounded-md border border-[var(--border)] bg-[var(--surface-solid)] py-1 pl-2 pr-7 text-[11px] text-[var(--text-primary)] outline-none focus:border-[var(--ring)] focus:ring-1 focus:ring-[var(--ring)] cursor-pointer"
+          aria-label="Filter by namespace"
+        >
+          <option value="">All namespaces</option>
+          {namespaces.map((ns) => (
+            <option key={ns} value={ns}>{ns}</option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 h-3 w-3 text-[var(--text-muted)]" />
+      </div>
+
+      {/* Health filter */}
+      <div className="flex items-center gap-1 rounded-md border border-[var(--border)] bg-[var(--surface-solid)] p-0.5">
+        {(['all', 'degraded', 'critical'] as HealthFilter[]).map((h) => (
+          <button
+            key={h}
+            type="button"
+            onClick={() => onFilterChange({ health: h })}
+            className={cn(
+              'rounded px-2 py-0.5 text-[11px] font-medium transition-colors',
+              filters.health === h
+                ? 'bg-[var(--ring)] text-white'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            {h === 'all' ? 'All' : h === 'degraded' ? 'Degraded' : 'Critical'}
+          </button>
+        ))}
+      </div>
+
+      {/* Depth control */}
+      {filters.depthOrigin && (
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="h-3 w-3 text-[var(--text-muted)]" />
+          <span className="text-[11px] text-[var(--text-muted)]">Depth:</span>
+          <input
+            type="range"
+            min={0}
+            max={10}
+            value={filters.depthHops}
+            onChange={(e) => onFilterChange({ depthHops: parseInt(e.target.value, 10) })}
+            className="w-20 h-1 accent-[var(--ring)] cursor-pointer"
+            aria-label="Depth hops"
+          />
+          <span className="text-[11px] font-mono text-[var(--text-primary)]">
+            {filters.depthHops === 0 ? '∞' : filters.depthHops}
+          </span>
+          <button
+            type="button"
+            onClick={() => onFilterChange({ depthOrigin: null, depthHops: 0 })}
+            className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-primary)] underline"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
+      {/* Active filter indicator */}
+      {(filters.namespace || filters.health !== 'all' || filters.depthOrigin) && (
+        <button
+          type="button"
+          onClick={() => onFilterChange({ namespace: '', health: 'all', depthOrigin: null, depthHops: 0 })}
+          className="ml-auto text-[11px] text-amber-400 hover:text-amber-300 flex items-center gap-1"
+        >
+          <X className="h-3 w-3" />
+          Clear all
+        </button>
+      )}
+    </div>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -443,6 +592,18 @@ export default function ClusterTopologyMap() {
   const [selections, setSelections] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS)
+
+  const handleFilterChange = useCallback((patch: Partial<TopologyFilters>) => {
+    setFilters((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  /* Compute unique namespaces */
+  const namespaces = useMemo(() => {
+    const ns = new Set<string>()
+    services.forEach((svc) => { if (svc.namespace) ns.add(svc.namespace) })
+    return Array.from(ns).sort()
+  }, [services])
 
   /* Auto-zoom to fit all nodes on initial load */
   const hasAutoZoomed = useRef(false)
@@ -460,8 +621,8 @@ export default function ClusterTopologyMap() {
   const graphTheme = useMemo(() => createTopologyTheme(), [resolvedTheme]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { nodes: gNodes, edges: gEdges } = useMemo(
-    () => buildTopologyGraph(services, allNodes, dependencyEdges),
-    [services, allNodes, dependencyEdges]
+    () => buildTopologyGraph(services, allNodes, dependencyEdges, filters),
+    [services, allNodes, dependencyEdges, filters]
   )
 
   /* Search: compute matched IDs, then override fill to amber for matches */
@@ -526,6 +687,15 @@ export default function ClusterTopologyMap() {
     setIsNodeHovered(false)
     setSelections([])
   }
+
+  /* Double-click to set depth origin */
+  const handleNodeDoubleClick = useCallback((node: ReagraphNode) => {
+    setFilters((prev) => ({
+      ...prev,
+      depthOrigin: node.id,
+      depthHops: prev.depthHops || 3,
+    }))
+  }, [])
 
   /* ---- Loading skeleton ---- */
   if (loading && gNodes.length === 0) {
@@ -608,6 +778,9 @@ export default function ClusterTopologyMap() {
         <Legend />
       </div>
 
+      {/* Filter Bar */}
+      <FilterBar namespaces={namespaces} filters={filters} onFilterChange={handleFilterChange} />
+
       {/* Canvas */}
       <div className="flex-1 relative">
         {hasData ? (
@@ -633,6 +806,7 @@ export default function ClusterTopologyMap() {
               theme={graphTheme}
               onNodePointerOver={handlePointerOver}
               onNodePointerOut={handlePointerOut}
+              onNodeDoubleClick={handleNodeDoubleClick}
               onCanvasClick={() => {
                 setSelections([])
                 setIsNodeHovered(false)

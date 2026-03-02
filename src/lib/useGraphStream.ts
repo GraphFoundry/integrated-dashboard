@@ -325,7 +325,21 @@ export function useServicesWithPlacement() {
       (graphData?.metricsSnapshot?.edges || []).map((e) => ({
         source: e.from,
         target: e.to,
+        rps: e.rps,
+        errorRate: e.errorRate,
       })),
+    [graphData]
+  )
+
+  /** Per-service live metrics (rps, errorRate, p95) keyed by service name */
+  const serviceMetrics = useMemo(
+    () =>
+      new Map(
+        (graphData?.metricsSnapshot?.services || []).map((s) => [
+          s.name,
+          { rps: s.rps, errorRate: s.errorRate, p95: s.p95 },
+        ])
+      ),
     [graphData]
   )
 
@@ -393,7 +407,9 @@ export function useServicesWithPlacement() {
     allNodes,
     loading: loading && fallbackLoading,
     lastUpdated,
-    // Expose dependency edges from the snapshot
+    // Expose dependency edges from the snapshot (now includes rps / errorRate)
     dependencyEdges,
+    // Per-service live metrics map
+    serviceMetrics,
   }
 }

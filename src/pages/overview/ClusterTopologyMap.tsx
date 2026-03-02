@@ -31,6 +31,16 @@ import { useServicesWithPlacement } from '@/lib/useGraphStream'
 import { useTheme } from '@/theme/useTheme'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
+/** Live per-service metrics map exposed by useServicesWithPlacement */
+type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: number }>
+
+/** Dependency edge with optional live traffic data */
+interface DependencyEdge {
+  source: string
+  target: string
+  rps?: number
+  errorRate?: number
+}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                           */
@@ -59,6 +69,26 @@ function formatUptime(seconds?: number): string {
 }
 
 type EntityKind = 'node' | 'service' | 'pod'
+
+/**
+ * Interpolate a pod fill colour from lavender (#B589D6) → red (#ef4444)
+ * based on CPU usage.  0 % → lavender, 100 % → red.
+ */
+function podCpuFill(cpuPct: number | undefined | null): string {
+  if (cpuPct == null || cpuPct <= 0) return '#B589D6'
+  const t = Math.min(cpuPct / 100, 1)
+  // lerp RGB:  lavender (181,137,214) → red (239,68,68)
+  const r = Math.round(181 + t * (239 - 181))
+  const g = Math.round(137 + t * (68 - 137))
+  const b = Math.round(214 + t * (68 - 214))
+  return `rgb(${r},${g},${b})`
+}
+
+/** Clamp edge size between 1 and 8 based on RPS relative to the max in the graph */
+function edgeSizeFromRps(rps: number | undefined, maxRps: number): number {
+  if (!rps || maxRps <= 0) return 1
+  return 1 + (Math.min(rps / maxRps, 1) * 7)
+}
 type HealthFilter = 'all' | 'degraded' | 'critical'
 
 /* Prefixes ensure globally unique ids */
@@ -87,8 +117,9 @@ const DEFAULT_FILTERS: TopologyFilters = {
 function buildTopologyGraph(
   services: ServiceWithPlacement[],
   allNodes: NodeWithResources[],
-  dependencyEdges: { source: string; target: string }[],
-  filters: TopologyFilters = DEFAULT_FILTERS
+  dependencyEdges: DependencyEdge[],
+  filters: TopologyFilters = DEFAULT_FILTERS,
+  serviceMetrics?: ServiceMetricsMap,
 ) {
   const nodes: ReagraphNode[] = []
   const edges: ReagraphEdge[] = []
@@ -155,6 +186,9 @@ function buildTopologyGraph(
         if (avail >= 0.95) fill = '#10b981'
         else if (avail >= 0.8) fill = '#f59e0b'
 
+        const metrics = serviceMetrics?.get(svc.name)
+        const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
+
         nodes.push({
           id: svcId(svc.name),
           label: svc.name,
@@ -166,6 +200,10 @@ function buildTopologyGraph(
             namespace: svc.namespace,
             podCount: svc.podCount,
             availability: avail,
+            rps: metrics?.rps,
+            errorRate: metrics?.errorRate,
+            p95: metrics?.p95,
+            highErrorRate,
           },
         })
       }
@@ -185,7 +223,7 @@ function buildTopologyGraph(
           nodes.push({
             id: pid,
             label: pod.name.replace(/^.*?-([a-z0-9]{5,10}-[a-z0-9]{4,5})$/, '...$1'),
-            fill: '#B589D6', // lavender — distinct pod color
+            fill: podCpuFill(pod.cpuUsagePercent), // heatmap: lavender → red
             size: 20,
             data: {
               kind: 'pod' as EntityKind,
@@ -209,13 +247,18 @@ function buildTopologyGraph(
   })
 
   /* ---------- 4. Service → Service dependency edges ----------------- */
+  /* Pre-compute max RPS so edge thickness can be relative */
+  const maxRps = dependencyEdges.reduce((m, e) => Math.max(m, e.rps ?? 0), 0)
+
   dependencyEdges.forEach((de, idx) => {
     if (!addedServices.has(de.source) || !addedServices.has(de.target)) return
     edges.push({
       id: `dep::${idx}::${de.source}->${de.target}`,
       source: svcId(de.source),
       target: svcId(de.target),
-      label: '',
+      label: de.rps != null ? `${de.rps.toFixed(0)} rps` : '',
+      size: edgeSizeFromRps(de.rps, maxRps),
+      data: { rps: de.rps, errorRate: de.errorRate },
     })
   })
 
@@ -365,8 +408,11 @@ function Legend() {
         Service (critical)
       </span>
       <span className="flex items-center gap-1.5">
-        <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: '#B589D6' }} />
-        Pod
+        <span
+          className="inline-block h-2.5 w-2.5 rounded-full"
+          style={{ background: 'linear-gradient(135deg, #B589D6, #ef4444)' }}
+        />
+        Pod (CPU heatmap)
       </span>
       <span className="flex items-center gap-1.5">
         <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-400" />
@@ -374,7 +420,11 @@ function Legend() {
       </span>
       <span className="flex items-center gap-1.5">
         <ArrowRightLeft className="h-3 w-3" />
-        Dependency
+        Dependency (thick = high RPS)
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse" />
+        High error rate
       </span>
     </div>
   )
@@ -465,6 +515,33 @@ function TopologyTooltip({
                 {((node.data.availability ?? 0) * 100).toFixed(1)}%
               </span>
             </div>
+            {node.data.rps != null && (
+              <div className="flex items-center gap-2">
+                <Network className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[var(--text-muted)]">RPS:</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">
+                  {node.data.rps.toFixed(1)}
+                </span>
+              </div>
+            )}
+            {node.data.errorRate != null && (
+              <div className="flex items-center gap-2">
+                <TrendingUp className={cn('w-3.5 h-3.5', node.data.errorRate > 0.05 ? 'text-red-400' : 'text-green-400')} />
+                <span className="text-[var(--text-muted)]">Error rate:</span>
+                <span className={cn('font-mono font-semibold', node.data.errorRate > 0.05 ? 'text-red-400' : 'text-[var(--text-primary)]')}>
+                  {(node.data.errorRate * 100).toFixed(2)}%
+                </span>
+              </div>
+            )}
+            {node.data.p95 != null && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[var(--text-muted)]">p95:</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">
+                  {node.data.p95.toFixed(0)} ms
+                </span>
+              </div>
+            )}
           </>
         )}
 
@@ -583,6 +660,7 @@ export default function ClusterTopologyMap() {
     allNodes,
     loading,
     dependencyEdges,
+    serviceMetrics,
   } = useServicesWithPlacement()
 
   const graphRef = useRef<GraphCanvasRef | null>(null)
@@ -593,6 +671,13 @@ export default function ClusterTopologyMap() {
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS)
+
+  /* Pulse tick — toggles every 800 ms for high-error-rate node animation */
+  const [pulseTick, setPulseTick] = useState(false)
+  useEffect(() => {
+    const id = setInterval(() => setPulseTick((t) => !t), 800)
+    return () => clearInterval(id)
+  }, [])
 
   const handleFilterChange = useCallback((patch: Partial<TopologyFilters>) => {
     setFilters((prev) => ({ ...prev, ...patch }))
@@ -621,8 +706,8 @@ export default function ClusterTopologyMap() {
   const graphTheme = useMemo(() => createTopologyTheme(), [resolvedTheme]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const { nodes: gNodes, edges: gEdges } = useMemo(
-    () => buildTopologyGraph(services, allNodes, dependencyEdges, filters),
-    [services, allNodes, dependencyEdges, filters]
+    () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics),
+    [services, allNodes, dependencyEdges, filters, serviceMetrics]
   )
 
   /* Search: compute matched IDs, then override fill to amber for matches */
@@ -638,11 +723,19 @@ export default function ClusterTopologyMap() {
   }, [searchQuery, gNodes])
 
   const displayNodes = useMemo(() => {
-    if (searchMatchIds.size === 0) return gNodes
-    return gNodes.map((n) =>
-      searchMatchIds.has(n.id) ? { ...n, fill: '#FBBF24' } : n
-    )
-  }, [gNodes, searchMatchIds])
+    return gNodes.map((n) => {
+      let patched = n
+      /* Search highlight */
+      if (searchMatchIds.size > 0 && searchMatchIds.has(n.id)) {
+        patched = { ...patched, fill: '#FBBF24' }
+      }
+      /* Pulse animation: oscillate size for high-error-rate services */
+      if (n.data?.highErrorRate) {
+        patched = { ...patched, size: pulseTick ? 48 : 40 }
+      }
+      return patched
+    })
+  }, [gNodes, searchMatchIds, pulseTick])
 
   const activeSelections = useMemo(() => {
     // Hover neighborhood takes priority; else show search matches

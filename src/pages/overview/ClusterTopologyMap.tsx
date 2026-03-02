@@ -29,6 +29,8 @@ import {
   FlaskConical,
   FileText,
   EyeIcon,
+  ClipboardCopy,
+  Image,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -37,6 +39,7 @@ import { useServicesWithPlacement } from '@/lib/useGraphStream'
 import { bffApi } from '@/lib/bffApiClient'
 import type { ServiceRollup } from '@/lib/bffApiClient'
 import { useTheme } from '@/theme/useTheme'
+import toast from 'react-hot-toast'
 import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
 /** Live per-service metrics map exposed by useServicesWithPlacement */
@@ -945,6 +948,77 @@ function DrawerRow({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Export helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+/** Export the canvas as a PNG by extracting the underlying <canvas> element */
+function exportCanvasAsPng(containerRef: React.RefObject<HTMLDivElement | null>) {
+  const container = containerRef.current
+  if (!container) { toast.error('Canvas not available'); return }
+  const canvas = container.querySelector('canvas')
+  if (!canvas) { toast.error('No canvas element found'); return }
+
+  try {
+    const dataUrl = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.download = `cluster-topology-${new Date().toISOString().slice(0, 10)}.png`
+    link.href = dataUrl
+    link.click()
+    toast.success('PNG exported')
+  } catch {
+    toast.error('Export failed — canvas may be tainted')
+  }
+}
+
+/** Generate YAML representation of the current topology and copy to clipboard */
+function copyTopologyYaml(
+  nodes: ReagraphNode[],
+  edges: ReagraphEdge[],
+) {
+  const lines: string[] = ['# Cluster Topology Snapshot', `# Generated: ${new Date().toISOString()}`, '']
+
+  // Nodes grouped by kind
+  const byKind = new Map<string, ReagraphNode[]>()
+  nodes.forEach((n) => {
+    const k = n.data?.kind ?? 'unknown'
+    if (!byKind.has(k)) byKind.set(k, [])
+    byKind.get(k)!.push(n)
+  })
+
+  for (const [kind, kNodes] of byKind) {
+    lines.push(`${kind}s:`)
+    kNodes.forEach((n) => {
+      lines.push(`  - name: ${n.data?.name ?? n.label}`)
+      if (n.data?.namespace) lines.push(`    namespace: ${n.data.namespace}`)
+      if (n.data?.availability != null) lines.push(`    availability: ${(n.data.availability * 100).toFixed(1)}%`)
+      if (n.data?.podCount != null) lines.push(`    podCount: ${n.data.podCount}`)
+      if (n.data?.rps != null) lines.push(`    rps: ${n.data.rps.toFixed(1)}`)
+      if (n.data?.errorRate != null) lines.push(`    errorRate: ${(n.data.errorRate * 100).toFixed(2)}%`)
+      if (n.data?.openIncidents > 0) lines.push(`    openIncidents: ${n.data.openIncidents}`)
+    })
+    lines.push('')
+  }
+
+  // Dependency edges
+  const depEdges = edges.filter((e) => e.id.startsWith('dep::'))
+  if (depEdges.length > 0) {
+    lines.push('dependencies:')
+    depEdges.forEach((e) => {
+      const src = typeof e.source === 'string' ? e.source.replace('svc::', '') : ''
+      const tgt = typeof e.target === 'string' ? e.target.replace('svc::', '') : ''
+      const rps = e.data?.rps != null ? ` # ${e.data.rps.toFixed(0)} rps` : ''
+      lines.push(`  - ${src} -> ${tgt}${rps}`)
+    })
+    lines.push('')
+  }
+
+  const yaml = lines.join('\n')
+  navigator.clipboard.writeText(yaml)
+    .then(() => toast.success('Topology YAML copied to clipboard'))
+    .catch(() => toast.error('Failed to copy to clipboard'))
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Component                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -979,6 +1053,7 @@ export default function ClusterTopologyMap() {
   }, [])
 
   const graphRef = useRef<GraphCanvasRef | null>(null)
+  const canvasContainerRef = useRef<HTMLDivElement | null>(null)
   const [hoveredNode, setHoveredNode] = useState<ReagraphNode | null>(null)
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number } | null>(null)
   const [isNodeHovered, setIsNodeHovered] = useState(false)
@@ -1290,6 +1365,7 @@ export default function ClusterTopologyMap() {
       <div className="flex-1 relative">
         {hasData ? (
           <div
+            ref={canvasContainerRef}
             className={`absolute inset-0 ${isNodeHovered ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing'}`}
             onMouseMove={(e) => setMousePosition({ x: e.clientX, y: e.clientY })}
             onContextMenu={(e) => {
@@ -1322,6 +1398,9 @@ export default function ClusterTopologyMap() {
               <ZoomButton icon={Minus} label="Zoom out" onClick={() => graphRef.current?.zoomOut?.()} />
               <ZoomButton icon={Plus} label="Zoom in" onClick={() => graphRef.current?.zoomIn?.()} />
               <ZoomButton icon={LocateFixed} label="Fit graph" onClick={() => graphRef.current?.fitNodesInView?.()} />
+              <span className="w-px h-5 bg-[var(--border)]" />
+              <ZoomButton icon={Image} label="Export PNG" onClick={() => exportCanvasAsPng(canvasContainerRef)} />
+              <ZoomButton icon={ClipboardCopy} label="Copy YAML" onClick={() => copyTopologyYaml(gNodes, gEdges)} />
             </div>
 
             {/* Path-trace status bar */}

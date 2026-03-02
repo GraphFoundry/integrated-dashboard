@@ -946,6 +946,10 @@ export default function ClusterTopologyMap() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS)
 
+  /* Path tracing: select two service nodes to highlight shortest path */
+  const [pathTraceMode, setPathTraceMode] = useState(false)
+  const [pathTraceNodes, setPathTraceNodes] = useState<[string | null, string | null]>([null, null])
+
   /* Pulse tick — toggles every 800 ms for high-error-rate node animation */
   const [pulseTick, setPulseTick] = useState(false)
   useEffect(() => {
@@ -984,6 +988,63 @@ export default function ClusterTopologyMap() {
     [services, allNodes, dependencyEdges, filters, serviceMetrics]
   )
 
+  /** BFS shortest path between two node IDs across all edges */
+  const tracedPath = useMemo(() => {
+    const [startId, endId] = pathTraceNodes
+    if (!startId || !endId) return new Set<string>()
+
+    const adj = new Map<string, string[]>()
+    gEdges.forEach((e) => {
+      const s = typeof e.source === 'string' ? e.source : ''
+      const t = typeof e.target === 'string' ? e.target : ''
+      if (!adj.has(s)) adj.set(s, [])
+      if (!adj.has(t)) adj.set(t, [])
+      adj.get(s)!.push(t)
+      adj.get(t)!.push(s)
+    })
+
+    const visited = new Set<string>()
+    const parent = new Map<string, string | null>()
+    const queue = [startId]
+    visited.add(startId)
+    parent.set(startId, null)
+    let found = false
+
+    while (queue.length > 0 && !found) {
+      const cur = queue.shift()!
+      for (const neighbor of adj.get(cur) ?? []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor)
+          parent.set(neighbor, cur)
+          if (neighbor === endId) { found = true; break }
+          queue.push(neighbor)
+        }
+      }
+    }
+
+    if (!found) return new Set<string>()
+
+    const pathIds = new Set<string>()
+    let cur: string | null = endId
+    while (cur != null) {
+      pathIds.add(cur)
+      cur = parent.get(cur) ?? null
+    }
+    return pathIds
+  }, [pathTraceNodes, gEdges])
+
+  /** Edge IDs on the traced path */
+  const tracedEdgeIds = useMemo(() => {
+    if (tracedPath.size < 2) return new Set<string>()
+    const edgeIds = new Set<string>()
+    gEdges.forEach((e) => {
+      const s = typeof e.source === 'string' ? e.source : ''
+      const t = typeof e.target === 'string' ? e.target : ''
+      if (tracedPath.has(s) && tracedPath.has(t)) edgeIds.add(e.id)
+    })
+    return edgeIds
+  }, [tracedPath, gEdges])
+
   /* Search: compute matched IDs, then override fill to amber for matches */
   const searchMatchIds = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -1003,20 +1064,32 @@ export default function ClusterTopologyMap() {
       if (searchMatchIds.size > 0 && searchMatchIds.has(n.id)) {
         patched = { ...patched, fill: '#FBBF24' }
       }
+      /* Path-trace highlight: cyan for nodes on traced path */
+      if (tracedPath.size > 0 && tracedPath.has(n.id)) {
+        patched = { ...patched, fill: '#22d3ee' } // cyan-400
+      }
       /* Pulse animation: oscillate size for high-error-rate services */
       if (n.data?.highErrorRate) {
         patched = { ...patched, size: pulseTick ? 48 : 40 }
       }
       return patched
     })
-  }, [gNodes, searchMatchIds, pulseTick])
+  }, [gNodes, searchMatchIds, pulseTick, tracedPath])
+
+  const displayEdges = useMemo(() => {
+    if (tracedEdgeIds.size === 0) return gEdges
+    return gEdges.map((e) =>
+      tracedEdgeIds.has(e.id) ? { ...e, fill: '#22d3ee', size: (e.size ?? 1) + 3 } : e
+    )
+  }, [gEdges, tracedEdgeIds])
 
   const activeSelections = useMemo(() => {
-    // Hover neighborhood takes priority; else show search matches
+    // Hover neighborhood takes priority; else path trace; else search matches
     if (isNodeHovered) return selections
+    if (tracedPath.size > 0) return Array.from(tracedPath)
     if (searchMatchIds.size > 0) return Array.from(searchMatchIds)
     return []
-  }, [isNodeHovered, selections, searchMatchIds])
+  }, [isNodeHovered, selections, searchMatchIds, tracedPath])
 
   /* Summary counts */
   const summary = useMemo(() => {
@@ -1064,10 +1137,18 @@ export default function ClusterTopologyMap() {
     }))
   }, [])
 
-  /* Single-click to open inspect drawer */
+  /* Single-click to open inspect drawer (or pick path-trace endpoint) */
   const handleNodeClick = useCallback((node: ReagraphNode) => {
-    setInspectedNode(node)
-  }, [])
+    if (pathTraceMode) {
+      setPathTraceNodes((prev) => {
+        if (!prev[0]) return [node.id, null]
+        if (prev[0] && !prev[1]) return [prev[0], node.id]
+        return [node.id, null] // reset if both already set
+      })
+    } else {
+      setInspectedNode(node)
+    }
+  }, [pathTraceMode])
 
   /* ---- Loading skeleton ---- */
   if (loading && gNodes.length === 0) {
@@ -1167,17 +1248,57 @@ export default function ClusterTopologyMap() {
             }}
             role="presentation"
           >
-            {/* Zoom controls */}
+            {/* Zoom controls & path-trace toggle */}
             <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPathTraceMode((m) => !m)
+                  setPathTraceNodes([null, null])
+                }}
+                className={cn(
+                  'neon-focus-ring interactive-soft rounded-md border p-2 text-[var(--text-secondary)]',
+                  pathTraceMode
+                    ? 'border-cyan-400 bg-cyan-400/10 text-cyan-400'
+                    : 'border-[var(--border)] bg-[var(--surface-subtle)] hover:border-[var(--ring)] hover:text-[var(--text-primary)]'
+                )}
+                aria-label="Toggle path tracing"
+                title="Path tracing — click two nodes to find shortest path"
+              >
+                <ArrowRightLeft className="h-4 w-4" />
+              </button>
               <ZoomButton icon={Minus} label="Zoom out" onClick={() => graphRef.current?.zoomOut?.()} />
               <ZoomButton icon={Plus} label="Zoom in" onClick={() => graphRef.current?.zoomIn?.()} />
               <ZoomButton icon={LocateFixed} label="Fit graph" onClick={() => graphRef.current?.fitNodesInView?.()} />
             </div>
 
+            {/* Path-trace status bar */}
+            {pathTraceMode && (
+              <div className="absolute left-4 top-4 z-20 rounded-lg bg-cyan-900/80 border border-cyan-400/50 px-3 py-2 text-xs text-cyan-200 flex items-center gap-2">
+                <ArrowRightLeft className="h-3.5 w-3.5 text-cyan-400" />
+                {!pathTraceNodes[0]
+                  ? 'Click source node…'
+                  : !pathTraceNodes[1]
+                    ? 'Click target node…'
+                    : tracedPath.size > 0
+                      ? `Path found: ${tracedPath.size} hops`
+                      : 'No path found'}
+                {(pathTraceNodes[0] || pathTraceNodes[1]) && (
+                  <button
+                    type="button"
+                    onClick={() => setPathTraceNodes([null, null])}
+                    className="ml-1 underline hover:text-white"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
+
             <GraphCanvas
               ref={graphRef}
               nodes={displayNodes}
-              edges={gEdges}
+              edges={displayEdges}
               selections={activeSelections}
               layoutType="forceDirected2d"
               labelType="all"

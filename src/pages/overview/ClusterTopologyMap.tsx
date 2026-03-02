@@ -5,6 +5,7 @@ import {
   GraphNode as ReagraphNode,
   GraphEdge as ReagraphEdge,
   type GraphCanvasRef,
+  type InternalGraphNode,
 } from 'reagraph'
 import {
   Server,
@@ -12,7 +13,6 @@ import {
   Box,
   Cpu,
   HardDrive,
-  TrendingUp,
   Clock,
   Plus,
   Minus,
@@ -33,6 +33,17 @@ import {
   Image,
   Sun,
   Moon,
+  ArrowUp,
+  ArrowDown,
+  AlertTriangle,
+  CheckCircle,
+  Activity,
+  Loader2,
+  Move,
+  Shield,
+  Heart,
+  Wifi,
+  CircleDot,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -42,7 +53,9 @@ import { bffApi } from '@/lib/bffApiClient'
 import type { ServiceRollup } from '@/lib/bffApiClient'
 import { useTheme } from '@/theme/useTheme'
 import toast from 'react-hot-toast'
-import type { ServiceWithPlacement, NodeWithResources } from '@/lib/types'
+import type { ServiceWithPlacement, NodeWithResources, FailureResponse, ScaleResponse } from '@/lib/types'
+import { simulateFailure, simulateScale } from '@/lib/api'
+import { planDrill, runDrill } from '@/lib/api/drills'
 
 /** Live per-service metrics map exposed by useServicesWithPlacement */
 type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: number }>
@@ -104,6 +117,60 @@ function edgeSizeFromRps(rps: number | undefined, maxRps: number): number {
 }
 type HealthFilter = 'all' | 'degraded' | 'critical'
 
+/* ---- Friendly label helpers for tooltips ---- */
+
+function friendlyNodeHealth(cpuPct: number, ramPct: number): { label: string; color: string } {
+  const worst = Math.max(cpuPct, ramPct)
+  if (worst < 60) return { label: 'Healthy', color: 'text-green-400' }
+  if (worst < 85) return { label: 'Under Load', color: 'text-yellow-400' }
+  return { label: 'Stressed', color: 'text-red-400' }
+}
+
+function friendlyTrafficLabel(rps?: number): { label: string; color: string } {
+  if (rps == null || rps < 1) return { label: 'No traffic', color: 'text-gray-400' }
+  if (rps < 10) return { label: 'Very low', color: 'text-blue-300' }
+  if (rps < 100) return { label: 'Low', color: 'text-blue-400' }
+  if (rps < 500) return { label: 'Moderate', color: 'text-green-400' }
+  if (rps < 2000) return { label: 'High', color: 'text-yellow-400' }
+  return { label: 'Very high', color: 'text-orange-400' }
+}
+
+function friendlySpeedLabel(p95?: number): { label: string; color: string } {
+  if (p95 == null) return { label: 'Unknown', color: 'text-gray-400' }
+  if (p95 < 50) return { label: 'Very fast', color: 'text-green-400' }
+  if (p95 < 200) return { label: 'Fast', color: 'text-green-300' }
+  if (p95 < 500) return { label: 'Normal', color: 'text-yellow-400' }
+  if (p95 < 1000) return { label: 'Slow', color: 'text-orange-400' }
+  return { label: 'Very slow', color: 'text-red-400' }
+}
+
+function friendlyErrorLabel(rate?: number): { label: string; color: string } {
+  if (rate == null || rate < 0.001) return { label: 'No errors', color: 'text-green-400' }
+  if (rate < 0.01) return { label: 'Very few errors', color: 'text-green-300' }
+  if (rate < 0.05) return { label: 'Some errors', color: 'text-yellow-400' }
+  return { label: 'Many errors', color: 'text-red-400' }
+}
+
+function friendlyAvailability(avail: number): { label: string; color: string } {
+  if (avail >= 0.99) return { label: 'Excellent', color: 'text-green-400' }
+  if (avail >= 0.95) return { label: 'Good', color: 'text-green-300' }
+  if (avail >= 0.8) return { label: 'Degraded', color: 'text-yellow-400' }
+  return { label: 'Critical', color: 'text-red-400' }
+}
+
+function friendlyPodHealth(cpuPct?: number): { label: string; color: string } {
+  if (cpuPct == null) return { label: 'Unknown', color: 'text-gray-400' }
+  if (cpuPct < 60) return { label: 'Running smoothly', color: 'text-green-400' }
+  if (cpuPct < 85) return { label: 'Working hard', color: 'text-yellow-400' }
+  return { label: 'Struggling', color: 'text-red-400' }
+}
+
+function friendlyMemory(mb?: number): string {
+  if (mb == null) return 'Unknown'
+  if (mb < 100) return `${mb.toFixed(0)} MB`
+  return `${(mb / 1024).toFixed(1)} GB`
+}
+
 /* Prefixes ensure globally unique ids */
 const nodeId = (n: string) => `node::${n}`
 const svcId = (s: string) => `svc::${s}`
@@ -149,6 +216,16 @@ function buildTopologyGraph(
   /* Lookup maps for node resources */
   const infraNodeMap = new Map(allNodes.map((n) => [n.name, n]))
 
+  /* Pre-scan: count services and pods per K8s node */
+  const svcCountPerNode = new Map<string, number>()
+  const podCountPerNode = new Map<string, number>()
+  services.forEach((svc) => {
+    svc.placement?.nodes?.forEach((np) => {
+      svcCountPerNode.set(np.node, (svcCountPerNode.get(np.node) ?? 0) + 1)
+      podCountPerNode.set(np.node, (podCountPerNode.get(np.node) ?? 0) + (np.pods?.length ?? 0))
+    })
+  })
+
   /* ---------- 2. K8s-node graph-nodes (skip control plane) ---------- */
   const visibleK8sNodes = Array.from(k8sNodeNames).filter(
     (name) => !isControlPlaneNode(name)
@@ -169,6 +246,8 @@ function buildTopologyGraph(
         name,
         cpu: infra?.resources?.cpu,
         ram: infra?.resources?.ram,
+        serviceCount: svcCountPerNode.get(name) ?? 0,
+        totalPodCount: podCountPerNode.get(name) ?? 0,
       },
     })
   })
@@ -463,8 +542,8 @@ function TopologyTooltip({
   position: { x: number; y: number }
 }) {
   const kind: EntityKind = node.data?.kind ?? 'service'
-  const tooltipWidth = 260
-  const tooltipHeight = 200
+  const tooltipWidth = 280
+  const tooltipHeight = 260
   const vw = window.innerWidth
   const vh = window.innerHeight
 
@@ -482,143 +561,207 @@ function TopologyTooltip({
     >
       <div className="p-3 space-y-2 text-xs">
         {/* K8s Node tooltip */}
-        {kind === 'node' && (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Server className="w-4 h-4 text-blue-400" />
-              <span className="font-semibold text-sm text-[var(--text-primary)]">{node.data.name}</span>
-            </div>
-            {node.data.cpu && (
+        {kind === 'node' && (() => {
+          const cpuPct = node.data.cpu?.usagePercent ?? 0
+          const ramPct = node.data.ram ? (node.data.ram.usedMB / node.data.ram.totalMB) * 100 : 0
+          const health = friendlyNodeHealth(cpuPct, ramPct)
+          return (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <Server className="w-4 h-4 text-blue-400" />
+                <span className="font-semibold text-sm text-[var(--text-primary)]">{node.data.name}</span>
+              </div>
+              {/* Overall health status */}
               <div className="flex items-center gap-2">
-                <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                <span className="text-[var(--text-muted)]">CPU:</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">
-                  {node.data.cpu.usagePercent?.toFixed?.(1) ?? 'N/A'}% — {node.data.cpu.cores ?? '?'} cores
+                <Heart className="w-3.5 h-3.5 text-pink-400" />
+                <span className="text-[var(--text-muted)]">Health:</span>
+                <span className={cn('font-semibold', health.color)}>{health.label}</span>
+              </div>
+              {/* CPU bar */}
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[var(--text-muted)]">CPU:</span>
+                  <span className="font-mono font-semibold text-[var(--text-primary)]">
+                    {cpuPct.toFixed(0)}% used ({node.data.cpu?.cores ?? '?'} cores)
+                  </span>
+                </div>
+                <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(cpuPct, 100)}%`, backgroundColor: cpuPct < 60 ? '#10b981' : cpuPct < 85 ? '#f59e0b' : '#ef4444' }} />
+                </div>
+              </div>
+              {/* RAM bar */}
+              {node.data.ram && (
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-[var(--text-muted)]">Memory:</span>
+                    <span className="font-mono font-semibold text-[var(--text-primary)]">
+                      {friendlyMemory(node.data.ram.usedMB)} / {friendlyMemory(node.data.ram.totalMB)}
+                    </span>
+                  </div>
+                  <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
+                    <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(ramPct, 100)}%`, backgroundColor: ramPct < 60 ? '#10b981' : ramPct < 85 ? '#f59e0b' : '#ef4444' }} />
+                  </div>
+                </div>
+              )}
+              {/* Services & Pods hosted */}
+              <div className="flex items-center gap-2">
+                <Package className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-[var(--text-muted)]">Running:</span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {node.data.serviceCount ?? 0} services, {node.data.totalPodCount ?? 0} pods
                 </span>
               </div>
-            )}
-            {node.data.ram && (
-              <div className="flex items-center gap-2">
-                <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-[var(--text-muted)]">RAM:</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">
-                  {(node.data.ram.usedMB / 1024).toFixed(1)} / {(node.data.ram.totalMB / 1024).toFixed(1)} GB
-                </span>
+              {/* Summary sentence */}
+              <div className="mt-2 pt-2 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] italic">
+                {cpuPct < 50 && ramPct < 50
+                  ? 'This machine has plenty of room for more work.'
+                  : cpuPct < 80 && ramPct < 80
+                    ? 'This machine is doing okay but getting busier.'
+                    : 'This machine is under heavy load — consider moving some workloads.'}
               </div>
-            )}
-          </>
-        )}
+            </>
+          )
+        })()}
 
         {/* Service tooltip */}
-        {kind === 'service' && (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Package className="w-4 h-4 text-purple-400" />
-              <div>
-                <div className="font-semibold text-sm text-[var(--text-primary)]">{node.data.name}</div>
-                <div className="text-[10px] text-[var(--text-muted)]">{node.data.namespace}</div>
+        {kind === 'service' && (() => {
+          const avail = node.data.availability ?? 0
+          const availLabel = friendlyAvailability(avail)
+          const traffic = friendlyTrafficLabel(node.data.rps)
+          const speed = friendlySpeedLabel(node.data.p95)
+          const errors = friendlyErrorLabel(node.data.errorRate)
+          return (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <Package className="w-4 h-4 text-purple-400" />
+                <div>
+                  <div className="font-semibold text-sm text-[var(--text-primary)]">{node.data.name}</div>
+                  <div className="text-[10px] text-[var(--text-muted)]">{node.data.namespace}</div>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Box className="w-3.5 h-3.5 text-indigo-400" />
-              <span className="text-[var(--text-muted)]">Pods:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">{node.data.podCount ?? 0}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <TrendingUp
-                className={cn(
-                  'w-3.5 h-3.5',
-                  (node.data.availability ?? 0) >= 0.95 ? 'text-green-400' : 'text-red-400'
-                )}
-              />
-              <span className="text-[var(--text-muted)]">Availability:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">
-                {((node.data.availability ?? 0) * 100).toFixed(1)}%
-              </span>
-            </div>
-            {node.data.rps != null && (
+              {/* Status */}
               <div className="flex items-center gap-2">
-                <Network className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-[var(--text-muted)]">RPS:</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">
-                  {node.data.rps.toFixed(1)}
-                </span>
+                <Shield className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[var(--text-muted)]">Status:</span>
+                <span className={cn('font-semibold', availLabel.color)}>{availLabel.label}</span>
+                <span className="text-[var(--text-dim)] text-[10px]">({(avail * 100).toFixed(1)}%)</span>
               </div>
-            )}
-            {node.data.errorRate != null && (
+              {/* Running pods */}
               <div className="flex items-center gap-2">
-                <TrendingUp className={cn('w-3.5 h-3.5', node.data.errorRate > 0.05 ? 'text-red-400' : 'text-green-400')} />
-                <span className="text-[var(--text-muted)]">Error rate:</span>
-                <span className={cn('font-mono font-semibold', node.data.errorRate > 0.05 ? 'text-red-400' : 'text-[var(--text-primary)]')}>
-                  {(node.data.errorRate * 100).toFixed(2)}%
-                </span>
+                <Box className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="text-[var(--text-muted)]">Pods running:</span>
+                <span className="font-semibold text-[var(--text-primary)]">{node.data.podCount ?? 0}</span>
               </div>
-            )}
-            {node.data.p95 != null && (
+              {/* Traffic */}
               <div className="flex items-center gap-2">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[var(--text-muted)]">p95:</span>
-                <span className="font-mono font-semibold text-[var(--text-primary)]">
-                  {node.data.p95.toFixed(0)} ms
+                <Wifi className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[var(--text-muted)]">Traffic:</span>
+                <span className={cn('font-semibold', traffic.color)}>
+                  {traffic.label}
+                  {node.data.rps != null && <span className="text-[var(--text-dim)] text-[10px] ml-1">({node.data.rps.toFixed(0)} req/s)</span>}
                 </span>
               </div>
-            )}
-            {node.data.openIncidents > 0 && (
-              <div className="flex items-center gap-2 mt-1 pt-1 border-t border-[var(--border)]">
-                <span className={cn(
-                  'font-mono font-semibold',
-                  node.data.criticalAlerts > 0 ? 'text-red-400' : 'text-amber-400'
-                )}>
-                  ⚠ {node.data.openIncidents} open alert{node.data.openIncidents > 1 ? 's' : ''}
-                  {node.data.criticalAlerts > 0 ? ` (${node.data.criticalAlerts} critical)` : ''}
+              {/* Speed */}
+              <div className="flex items-center gap-2">
+                <Activity className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[var(--text-muted)]">Response speed:</span>
+                <span className={cn('font-semibold', speed.color)}>
+                  {speed.label}
+                  {node.data.p95 != null && <span className="text-[var(--text-dim)] text-[10px] ml-1">({node.data.p95.toFixed(0)}ms)</span>}
                 </span>
               </div>
-            )}
-          </>
-        )}
+              {/* Errors */}
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                <span className="text-[var(--text-muted)]">Errors:</span>
+                <span className={cn('font-semibold', errors.color)}>{errors.label}</span>
+              </div>
+              {/* Alerts */}
+              {node.data.openIncidents > 0 && (
+                <div className="flex items-center gap-2 mt-1 pt-1 border-t border-[var(--border)]">
+                  <span className={cn(
+                    'font-semibold',
+                    node.data.criticalAlerts > 0 ? 'text-red-400' : 'text-amber-400'
+                  )}>
+                    {node.data.criticalAlerts > 0 ? '🔴' : '⚠️'} {node.data.openIncidents} open alert{node.data.openIncidents > 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
+            </>
+          )
+        })()}
 
         {/* Pod tooltip */}
-        {kind === 'pod' && (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Box className="w-4 h-4 text-teal-400" />
-              <span className="font-semibold text-sm text-[var(--text-primary)] break-all leading-tight">
-                {node.data.name}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Server className="w-3.5 h-3.5 text-blue-400" />
-              <span className="text-[var(--text-muted)]">Node:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">{node.data.nodeName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Package className="w-3.5 h-3.5 text-purple-400" />
-              <span className="text-[var(--text-muted)]">Service:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">{node.data.serviceName}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-[var(--text-muted)]">CPU:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">
-                {node.data.cpuUsagePercent?.toFixed?.(1) ?? 'N/A'}%
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-[var(--text-muted)]">RAM:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">
-                {node.data.ramUsedMB != null ? `${(node.data.ramUsedMB / 1024).toFixed(2)} GB` : 'N/A'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
-              <span className="text-[var(--text-muted)]">Uptime:</span>
-              <span className="font-mono font-semibold text-[var(--text-primary)]">
-                {formatUptime(node.data.uptimeSeconds)}
-              </span>
-            </div>
-          </>
-        )}
+        {kind === 'pod' && (() => {
+          const podHealth = friendlyPodHealth(node.data.cpuUsagePercent)
+          const cpuPct = node.data.cpuUsagePercent ?? 0
+          return (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <CircleDot className="w-4 h-4 text-teal-400" />
+                <span className="font-semibold text-sm text-[var(--text-primary)] break-all leading-tight">
+                  {node.data.name}
+                </span>
+              </div>
+              {/* Health */}
+              <div className="flex items-center gap-2">
+                <Heart className="w-3.5 h-3.5 text-pink-400" />
+                <span className="text-[var(--text-muted)]">Health:</span>
+                <span className={cn('font-semibold', podHealth.color)}>{podHealth.label}</span>
+              </div>
+              {/* Belongs to */}
+              <div className="flex items-center gap-2">
+                <Package className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-[var(--text-muted)]">Service:</span>
+                <span className="font-semibold text-[var(--text-primary)]">{node.data.serviceName}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Server className="w-3.5 h-3.5 text-blue-400" />
+                <span className="text-[var(--text-muted)]">Running on:</span>
+                <span className="font-semibold text-[var(--text-primary)]">{node.data.nodeName}</span>
+              </div>
+              {/* CPU bar */}
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Cpu className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-[var(--text-muted)]">CPU:</span>
+                  <span className="font-mono font-semibold text-[var(--text-primary)]">
+                    {cpuPct.toFixed(0)}% used
+                  </span>
+                </div>
+                <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(cpuPct, 100)}%`, backgroundColor: cpuPct < 60 ? '#10b981' : cpuPct < 85 ? '#f59e0b' : '#ef4444' }} />
+                </div>
+              </div>
+              {/* Memory */}
+              <div className="flex items-center gap-2">
+                <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[var(--text-muted)]">Memory:</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">
+                  {friendlyMemory(node.data.ramUsedMB)}
+                </span>
+              </div>
+              {/* Uptime */}
+              <div className="flex items-center gap-2">
+                <Clock className="w-3.5 h-3.5 text-[var(--text-muted)]" />
+                <span className="text-[var(--text-muted)]">Running for:</span>
+                <span className="font-mono font-semibold text-[var(--text-primary)]">
+                  {formatUptime(node.data.uptimeSeconds)}
+                </span>
+              </div>
+              {/* Summary */}
+              <div className="mt-2 pt-2 border-t border-[var(--border)] text-[10px] text-[var(--text-muted)] italic">
+                {cpuPct < 50
+                  ? 'This pod is running fine with low resource usage.'
+                  : cpuPct < 80
+                    ? 'This pod is fairly busy but still within normal range.'
+                    : 'This pod is using a lot of resources — it may need attention.'}
+              </div>
+            </>
+          )
+        })()}
       </div>
     </div>
   )
@@ -735,11 +878,19 @@ function TopologyContextMenu({
   onClose,
   onInspect,
   navigate,
+  onSimulateFailure,
+  onRunDrill,
+  onScaleService,
+  onMigrateService,
 }: {
   state: ContextMenuState
   onClose: () => void
   onInspect: (node: ReagraphNode) => void
   navigate: ReturnType<typeof useNavigate>
+  onSimulateFailure: (serviceName: string) => void
+  onRunDrill: (serviceName: string) => void
+  onScaleService: (serviceName: string, direction: 'up' | 'down', currentPods: number) => void
+  onMigrateService: (serviceName: string, namespace: string) => void
 }) {
   const kind: EntityKind = state.node.data?.kind ?? 'service'
   const name = state.node.data?.name ?? state.node.label ?? ''
@@ -752,7 +903,7 @@ function TopologyContextMenu({
     return () => window.removeEventListener('click', handler)
   }, [onClose])
 
-  const items: { icon: typeof EyeIcon; label: string; action: () => void }[] = [
+  const items: { icon: typeof EyeIcon; label: string; action: () => void; destructive?: boolean }[] = [
     {
       icon: EyeIcon,
       label: 'Inspect',
@@ -770,26 +921,65 @@ function TopologyContextMenu({
       {
         icon: Zap,
         label: 'Simulate failure',
-        action: () => { navigate(`/simulations?service=${encodeURIComponent(name)}`); onClose() },
+        destructive: true,
+        action: () => { onSimulateFailure(name); onClose() },
       },
       {
         icon: FlaskConical,
-        label: 'Run drill',
-        action: () => { navigate(`/drills?service=${encodeURIComponent(name)}`); onClose() },
+        label: 'Run chaos drill',
+        destructive: true,
+        action: () => { onRunDrill(name); onClose() },
+      },
+      {
+        icon: ArrowUp,
+        label: 'Scale up (+1 pod)',
+        action: () => { onScaleService(name, 'up', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: ArrowDown,
+        label: 'Scale down (-1 pod)',
+        action: () => { onScaleService(name, 'down', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: Move,
+        label: 'Migrate to another node…',
+        action: () => { onMigrateService(name, namespace); onClose() },
       },
     )
   }
 
   if (kind === 'pod') {
-    items.push({
-      icon: FileText,
-      label: 'View logs',
-      action: () => { navigate(`/telemetry?pod=${encodeURIComponent(name)}`); onClose() },
-    })
+    const svcName = state.node.data?.serviceName ?? ''
+    const podNamespace = state.node.data?.namespace || namespace
+    items.push(
+      {
+        icon: FileText,
+        label: 'View pod service details',
+        action: () => {
+          // Navigate to the service page for this pod's service (not global metrics)
+          if (svcName) {
+            navigate(`/services/${podNamespace || 'default'}:${svcName}`)
+          } else {
+            navigate(`/metrics`)
+          }
+          onClose()
+        },
+      },
+      {
+        icon: ArrowUp,
+        label: 'Scale up service (+1 pod)',
+        action: () => { if (svcName) onScaleService(svcName, 'up', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: ArrowDown,
+        label: 'Scale down service (-1 pod)',
+        action: () => { if (svcName) onScaleService(svcName, 'down', state.node.data?.podCount ?? 1); onClose() },
+      },
+    )
   }
 
   /* Position: ensure menu stays within viewport */
-  const menuWidth = 200
+  const menuWidth = 220
   const menuHeight = items.length * 36 + 16
   let left = state.x
   let top = state.y
@@ -813,9 +1003,14 @@ function TopologyContextMenu({
           key={item.label}
           type="button"
           onClick={item.action}
-          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-primary)] hover:bg-[var(--surface-soft)] transition-colors text-left"
+          className={cn(
+            'w-full flex items-center gap-2 px-3 py-1.5 text-xs transition-colors text-left',
+            item.destructive
+              ? 'text-red-400 hover:bg-red-500/10'
+              : 'text-[var(--text-primary)] hover:bg-[var(--surface-soft)]'
+          )}
         >
-          <item.icon className="h-3.5 w-3.5 text-[var(--text-muted)]" />
+          <item.icon className={cn('h-3.5 w-3.5', item.destructive ? 'text-red-400' : 'text-[var(--text-muted)]')} />
           {item.label}
         </button>
       ))}
@@ -992,6 +1187,297 @@ function DrawerRow({
 }
 
 /* ------------------------------------------------------------------ */
+/*  Simulation Results Drawer                                        */
+/* ------------------------------------------------------------------ */
+
+interface SimulationResultState {
+  type: 'failure' | 'scale' | 'migration'
+  serviceName: string
+  loading: boolean
+  failureResult?: FailureResponse | null
+  scaleResult?: ScaleResponse | null
+  scaleDirection?: 'up' | 'down'
+  migrationTarget?: string
+  migrationFeasible?: boolean
+  migrationReason?: string
+  drillRunId?: string
+  drillStatus?: string
+  error?: string
+}
+
+function SimulationResultsDrawer({
+  state,
+  onClose,
+  onRunDrill,
+}: {
+  state: SimulationResultState
+  onClose: () => void
+  onRunDrill?: (serviceName: string) => void
+}) {
+  return (
+    <div className="absolute top-4 left-4 z-30 w-96 bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-left duration-200">
+      {/* Header */}
+      <div className="p-3 border-b border-[var(--border)] flex justify-between items-start gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {state.type === 'failure' && <Zap className="w-4 h-4 text-red-400 shrink-0" />}
+          {state.type === 'scale' && (state.scaleDirection === 'up' ? <ArrowUp className="w-4 h-4 text-green-400 shrink-0" /> : <ArrowDown className="w-4 h-4 text-amber-400 shrink-0" />)}
+          {state.type === 'migration' && <Move className="w-4 h-4 text-cyan-400 shrink-0" />}
+          <div className="min-w-0">
+            <div className="font-semibold text-sm text-[var(--text-primary)] truncate">
+              {state.type === 'failure' && 'Failure Simulation'}
+              {state.type === 'scale' && `Scale ${state.scaleDirection === 'up' ? 'Up' : 'Down'} Simulation`}
+              {state.type === 'migration' && 'Migration Simulation'}
+            </div>
+            <div className="text-[10px] text-[var(--text-muted)]">{state.serviceName}</div>
+          </div>
+        </div>
+        <button type="button" onClick={onClose} className="shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Close">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="overflow-y-auto flex-1 p-3 space-y-3 text-xs">
+        {/* Loading */}
+        {state.loading && (
+          <div className="flex items-center gap-2 py-8 justify-center text-[var(--text-muted)]">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Running simulation…</span>
+          </div>
+        )}
+
+        {/* Error */}
+        {state.error && (
+          <div className="rounded-md bg-red-500/10 border border-red-500/30 p-3 text-red-400">
+            <div className="flex items-center gap-2 mb-1">
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span className="font-semibold">Simulation failed</span>
+            </div>
+            <p className="text-[11px]">{state.error}</p>
+          </div>
+        )}
+
+        {/* Failure results */}
+        {state.type === 'failure' && state.failureResult && !state.loading && (
+          <>
+            <div className="rounded-md bg-red-500/10 border border-red-500/30 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
+                <span className="font-semibold text-red-400">Impact Summary</span>
+              </div>
+              <div className="space-y-1.5">
+                <DrawerRow
+                  label="Traffic lost"
+                  value={state.failureResult.totalLostTrafficRps != null
+                    ? `${state.failureResult.totalLostTrafficRps.toFixed(1)} req/s`
+                    : 'Unknown'}
+                  highlight={!!state.failureResult.totalLostTrafficRps && state.failureResult.totalLostTrafficRps > 0}
+                />
+                <DrawerRow
+                  label="Services affected"
+                  value={
+                    ((state.failureResult.affectedCallers?.length ?? 0) +
+                    (state.failureResult.affectedDownstream?.length ?? 0)) || 'None'
+                  }
+                />
+                <DrawerRow
+                  label="Unreachable services"
+                  value={state.failureResult.unreachableServices?.length ?? 0}
+                  highlight={(state.failureResult.unreachableServices?.length ?? 0) > 0}
+                />
+                <DrawerRow label="Confidence" value={state.failureResult.confidence ?? 'N/A'} />
+              </div>
+            </div>
+
+            {state.failureResult.explanation && (
+              <div className="text-[11px] text-[var(--text-muted)] bg-[var(--surface-soft)] rounded-md p-2">
+                {state.failureResult.explanation}
+              </div>
+            )}
+
+            {(state.failureResult.affectedCallers?.length ?? 0) > 0 && (
+              <section>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-1">Affected Services</h4>
+                <ul className="space-y-0.5">
+                  {state.failureResult.affectedCallers!.slice(0, 8).map((c, i) => (
+                    <li key={i} className="flex items-center justify-between text-[11px]">
+                      <span className="text-[var(--text-primary)]">{c.serviceId ?? c.name ?? 'Unknown'}</span>
+                      <span className="text-red-400 font-mono">{c.lostTrafficRps != null ? `-${c.lostTrafficRps.toFixed(1)} rps` : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {(state.failureResult.recommendations?.length ?? 0) > 0 && (
+              <section>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-1">Recommendations</h4>
+                <ul className="space-y-1">
+                  {state.failureResult.recommendations!.slice(0, 5).map((r, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-[11px]">
+                      <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />
+                      <span className="text-[var(--text-primary)]">{r.action ?? r.description ?? String(r)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {/* Run drill button */}
+            {onRunDrill && (
+              <button
+                type="button"
+                onClick={() => onRunDrill(state.serviceName)}
+                className="w-full mt-2 rounded-md bg-red-500/20 border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                Run Chaos Drill on {state.serviceName}
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Scale results */}
+        {state.type === 'scale' && state.scaleResult && !state.loading && (
+          <>
+            <div className={cn(
+              'rounded-md p-3 border',
+              state.scaleDirection === 'up'
+                ? 'bg-green-500/10 border-green-500/30'
+                : 'bg-amber-500/10 border-amber-500/30'
+            )}>
+              <div className="flex items-center gap-2 mb-2">
+                {state.scaleDirection === 'up'
+                  ? <ArrowUp className="w-3.5 h-3.5 text-green-400" />
+                  : <ArrowDown className="w-3.5 h-3.5 text-amber-400" />}
+                <span className={cn('font-semibold', state.scaleDirection === 'up' ? 'text-green-400' : 'text-amber-400')}>
+                  Scale {state.scaleDirection === 'up' ? 'Up' : 'Down'} Impact
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <DrawerRow label="Direction" value={state.scaleResult.scalingDirection ?? state.scaleDirection} />
+                {state.scaleResult.latencyEstimate && (
+                  <>
+                    <DrawerRow label="Current speed" value={state.scaleResult.latencyEstimate.baselineMs != null ? `${state.scaleResult.latencyEstimate.baselineMs.toFixed(0)}ms` : 'N/A'} />
+                    <DrawerRow label="Projected speed" value={state.scaleResult.latencyEstimate.projectedMs != null ? `${state.scaleResult.latencyEstimate.projectedMs.toFixed(0)}ms` : 'N/A'} />
+                    <DrawerRow
+                      label="Change"
+                      value={state.scaleResult.latencyEstimate.deltaMs != null ? `${state.scaleResult.latencyEstimate.deltaMs > 0 ? '+' : ''}${state.scaleResult.latencyEstimate.deltaMs.toFixed(0)}ms` : 'N/A'}
+                      highlight={state.scaleResult.latencyEstimate.deltaMs != null && state.scaleResult.latencyEstimate.deltaMs > 0}
+                    />
+                  </>
+                )}
+                <DrawerRow label="Confidence" value={state.scaleResult.confidence ?? 'N/A'} />
+              </div>
+            </div>
+
+            {state.scaleResult.explanation && (
+              <div className="text-[11px] text-[var(--text-muted)] bg-[var(--surface-soft)] rounded-md p-2">
+                {state.scaleResult.explanation}
+              </div>
+            )}
+
+            {(state.scaleResult.warnings?.length ?? 0) > 0 && (
+              <section>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-1">Warnings</h4>
+                <ul className="space-y-1">
+                  {state.scaleResult.warnings!.map((w, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-[11px]">
+                      <AlertTriangle className="w-3 h-3 text-amber-400 mt-0.5 shrink-0" />
+                      <span className="text-[var(--text-primary)]">{w}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {(state.scaleResult.recommendations?.length ?? 0) > 0 && (
+              <section>
+                <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)] mb-1">Recommendations</h4>
+                <ul className="space-y-1">
+                  {state.scaleResult.recommendations!.slice(0, 5).map((r, i) => (
+                    <li key={i} className="flex items-start gap-1.5 text-[11px]">
+                      <CheckCircle className="w-3 h-3 text-green-400 mt-0.5 shrink-0" />
+                      <span className="text-[var(--text-primary)]">{r.action ?? r.description ?? String(r)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
+        )}
+
+        {/* Migration results */}
+        {state.type === 'migration' && !state.loading && state.migrationTarget && (
+          <>
+            <div className={cn(
+              'rounded-md p-3 border',
+              state.migrationFeasible
+                ? 'bg-cyan-500/10 border-cyan-500/30'
+                : 'bg-red-500/10 border-red-500/30'
+            )}>
+              <div className="flex items-center gap-2 mb-2">
+                <Move className={cn('w-3.5 h-3.5', state.migrationFeasible ? 'text-cyan-400' : 'text-red-400')} />
+                <span className={cn('font-semibold', state.migrationFeasible ? 'text-cyan-400' : 'text-red-400')}>
+                  {state.migrationFeasible ? 'Migration Feasible' : 'Migration Not Recommended'}
+                </span>
+              </div>
+              <div className="space-y-1.5">
+                <DrawerRow label="Target node" value={state.migrationTarget} />
+                {state.migrationReason && (
+                  <div className="text-[11px] text-[var(--text-muted)] mt-1">{state.migrationReason}</div>
+                )}
+              </div>
+            </div>
+
+            {/* Show failure impact during migration */}
+            {state.failureResult && (
+              <div className="rounded-md bg-amber-500/10 border border-amber-500/30 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="font-semibold text-amber-400">Impact During Migration</span>
+                </div>
+                <div className="text-[11px] text-[var(--text-muted)] mb-1.5">
+                  While moving, the service will briefly be unavailable:
+                </div>
+                <div className="space-y-1.5">
+                  <DrawerRow
+                    label="Traffic lost temporarily"
+                    value={state.failureResult.totalLostTrafficRps != null ? `${state.failureResult.totalLostTrafficRps.toFixed(1)} req/s` : 'Minimal'}
+                    highlight={!!state.failureResult.totalLostTrafficRps && state.failureResult.totalLostTrafficRps > 10}
+                  />
+                  <DrawerRow
+                    label="Services affected"
+                    value={
+                      ((state.failureResult.affectedCallers?.length ?? 0) +
+                      (state.failureResult.affectedDownstream?.length ?? 0)) || 'None'
+                    }
+                  />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Drill status */}
+        {state.drillRunId && (
+          <div className="rounded-md bg-purple-500/10 border border-purple-500/30 p-3">
+            <div className="flex items-center gap-2 mb-1">
+              <FlaskConical className="w-3.5 h-3.5 text-purple-400" />
+              <span className="font-semibold text-purple-400">Drill Status</span>
+            </div>
+            <div className="space-y-1">
+              <DrawerRow label="Run ID" value={state.drillRunId} />
+              <DrawerRow label="Status" value={state.drillStatus ?? 'Running…'} />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Export helpers                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -1106,6 +1592,10 @@ export default function ClusterTopologyMap() {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const [inspectedNode, setInspectedNode] = useState<ReagraphNode | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+
+  /* ---- Simulation / drill / migration state ---- */
+  const [simulationState, setSimulationState] = useState<SimulationResultState | null>(null)
+  const [migrationMode, setMigrationMode] = useState<{ serviceName: string; namespace: string } | null>(null)
 
   /* ---- Shareable URL: sync filters ↔ search params ---- */
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1299,17 +1789,11 @@ export default function ClusterTopologyMap() {
     return { k8sNodes, svcs, pods, deps }
   }, [gNodes, gEdges])
 
-  /* Highlight connected neighborhood on hover */
+  /* Highlight only the hovered node (not its neighbors) */
   const handlePointerOver = (node: ReagraphNode) => {
     setHoveredNode(node)
     setIsNodeHovered(true)
-
-    const connected = new Set<string>([node.id])
-    gEdges.forEach((e) => {
-      if (e.source === node.id) connected.add(typeof e.target === 'string' ? e.target : '')
-      if (e.target === node.id) connected.add(typeof e.source === 'string' ? e.source : '')
-    })
-    setSelections(Array.from(connected))
+    setSelections([node.id])
   }
 
   const handlePointerOut = () => {
@@ -1317,6 +1801,146 @@ export default function ClusterTopologyMap() {
     setIsNodeHovered(false)
     setSelections([])
   }
+
+  /* ---- Simulate Failure handler ---- */
+  const handleSimulateFailure = useCallback(async (serviceName: string) => {
+    setSimulationState({ type: 'failure', serviceName, loading: true })
+    try {
+      const result = await simulateFailure({ serviceId: serviceName, maxDepth: 3 })
+      setSimulationState((prev) => prev ? { ...prev, loading: false, failureResult: result } : null)
+      toast.success(`Failure simulation complete for ${serviceName}`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Simulation failed'
+      setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
+      toast.error(`Failure simulation failed: ${msg}`)
+    }
+  }, [])
+
+  /* ---- Run Drill handler ---- */
+  const handleRunDrill = useCallback(async (serviceName: string) => {
+    const toastId = toast.loading(`Planning drill for ${serviceName}…`)
+    try {
+      // Plan the drill
+      const drillPlan = await planDrill({
+        type: 'pod-kill',
+        target: serviceName,
+        config: { replicas: 1, gracePeriod: 30 },
+      })
+      toast.loading(`Running drill ${drillPlan.id}…`, { id: toastId })
+      setSimulationState((prev) => prev
+        ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : { type: 'failure', serviceName, loading: false, drillRunId: drillPlan.id, drillStatus: 'planned' }
+      )
+
+      // Execute the drill
+      const runResult = await runDrill(drillPlan.id)
+      setSimulationState((prev) => prev ? { ...prev, drillStatus: runResult.status } : null)
+      toast.success(`Drill started: ${runResult.status}`, { id: toastId })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error'
+      toast.error(`Drill failed: ${msg}`, { id: toastId })
+      setSimulationState((prev) => prev ? { ...prev, drillStatus: `Error: ${msg}` } : null)
+    }
+  }, [])
+
+  /* ---- Scale Service handler ---- */
+  const handleScaleService = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number) => {
+    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 1)
+    if (direction === 'down' && currentPods <= 1) {
+      toast.error('Cannot scale below 1 pod')
+      return
+    }
+    setSimulationState({ type: 'scale', serviceName, loading: true, scaleDirection: direction })
+    try {
+      const result = await simulateScale({
+        serviceId: serviceName,
+        currentPods,
+        newPods,
+        latencyMetric: 'p95',
+        maxDepth: 3,
+      })
+      setSimulationState((prev) => prev ? { ...prev, loading: false, scaleResult: result } : null)
+      toast.success(`Scale ${direction} simulation complete: ${currentPods} → ${newPods} pods`)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Scale simulation failed'
+      setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
+      toast.error(`Scale simulation failed: ${msg}`)
+    }
+  }, [])
+
+  /* ---- Migrate Service handler (enter migration mode) ---- */
+  const handleMigrateService = useCallback((serviceName: string, namespace: string) => {
+    setMigrationMode({ serviceName, namespace })
+    toast('Click a target node to simulate migration', { icon: '🔀', duration: 4000 })
+  }, [])
+
+  /* ---- Complete migration when a node is clicked in migration mode ---- */
+  const completeMigration = useCallback(async (targetNodeName: string) => {
+    if (!migrationMode) return
+    const { serviceName } = migrationMode
+    setMigrationMode(null)
+
+    // Find the target K8s node resources
+    const targetNode = allNodes.find((n) => n.name === targetNodeName)
+    const cpuAvail = targetNode?.resources?.cpu ? (100 - (targetNode.resources.cpu.usagePercent ?? 0)) : 0
+    const ramTotal = targetNode?.resources?.ram?.totalMB ?? 0
+    const ramUsed = targetNode?.resources?.ram?.usedMB ?? 0
+    const ramAvail = ramTotal - ramUsed
+
+    // Find current service resource usage from pod data
+    const svc = services.find((s) => s.name === serviceName)
+    const pods = svc?.placement?.nodes?.flatMap((np) => np.pods ?? []) ?? []
+    const avgCpuPct = pods.length > 0 ? pods.reduce((s, p) => s + (p.cpuUsagePercent ?? 0), 0) / pods.length : 10
+    const avgRamMB = pods.length > 0 ? pods.reduce((s, p) => s + (p.ramUsedMB ?? 0), 0) / pods.length : 128
+
+    // Check feasibility
+    const cpuFeasible = cpuAvail > avgCpuPct * 0.5  // Needs at least 50% of what pods use
+    const ramFeasible = ramAvail > avgRamMB
+    const feasible = cpuFeasible && ramFeasible
+
+    let reason = ''
+    if (feasible) {
+      reason = `Target node has ${cpuAvail.toFixed(0)}% CPU available and ${friendlyMemory(ramAvail)} free memory — enough to host this service.`
+    } else {
+      const issues: string[] = []
+      if (!cpuFeasible) issues.push(`not enough CPU (only ${cpuAvail.toFixed(0)}% free)`)
+      if (!ramFeasible) issues.push(`not enough memory (only ${friendlyMemory(ramAvail)} free)`)
+      reason = `Target node may not have enough resources: ${issues.join(', ')}.`
+    }
+
+    setSimulationState({
+      type: 'migration',
+      serviceName,
+      loading: true,
+      migrationTarget: targetNodeName,
+      migrationFeasible: feasible,
+      migrationReason: reason,
+    })
+
+    // Also run failure simulation to show migration impact
+    try {
+      const failureResult = await simulateFailure({ serviceId: serviceName, maxDepth: 2 })
+      setSimulationState((prev) => prev ? { ...prev, loading: false, failureResult } : null)
+    } catch {
+      setSimulationState((prev) => prev ? { ...prev, loading: false } : null)
+    }
+  }, [migrationMode, allNodes, services])
+
+  /* ---- Handle node drag end for drag-and-drop migration ---- */
+  const handleNodeDragged = useCallback((node: InternalGraphNode) => {
+    // Only trigger migration for service nodes
+    if (node.data?.kind !== 'service') return
+
+    const serviceName = node.data?.name
+    if (!serviceName) return
+
+    // Since reagraph doesn't expose reliable position access for all nodes,
+    // we enter migration mode so the user can click the target node.
+    const svcName = node.data?.name as string
+    const namespace = node.data?.namespace as string || ''
+    setMigrationMode({ serviceName: svcName, namespace })
+    toast('Service picked up! Click a target node to complete migration', { icon: '🔀', duration: 4000 })
+  }, [])
 
   /* Double-click to set depth origin */
   const handleNodeDoubleClick = useCallback((node: ReagraphNode) => {
@@ -1327,8 +1951,17 @@ export default function ClusterTopologyMap() {
     }))
   }, [])
 
-  /* Single-click to open inspect drawer (or pick path-trace endpoint) */
+  /* Single-click to open inspect drawer (or pick path-trace endpoint or migration target) */
   const handleNodeClick = useCallback((node: ReagraphNode) => {
+    // Migration mode: click a K8s node to complete migration
+    if (migrationMode && node.data?.kind === 'node') {
+      completeMigration(node.data.name)
+      return
+    }
+    if (migrationMode && node.data?.kind !== 'node') {
+      toast.error('Please click a Kubernetes node (blue) as the migration target')
+      return
+    }
     if (pathTraceMode) {
       setPathTraceNodes((prev) => {
         if (!prev[0]) return [node.id, null]
@@ -1338,7 +1971,7 @@ export default function ClusterTopologyMap() {
     } else {
       setInspectedNode(node)
     }
-  }, [pathTraceMode])
+  }, [pathTraceMode, migrationMode, completeMigration])
 
   /* ---- Loading skeleton ---- */
   if (loading && gNodes.length === 0) {
@@ -1495,6 +2128,21 @@ export default function ClusterTopologyMap() {
               </div>
             )}
 
+            {/* Migration mode status bar */}
+            {migrationMode && (
+              <div className="absolute left-4 top-14 z-20 rounded-lg bg-purple-900/80 border border-purple-400/50 px-3 py-2 text-xs text-purple-200 flex items-center gap-2">
+                <Move className="h-3.5 w-3.5 text-purple-400" />
+                <span>Migrating <strong>{migrationMode.serviceName}</strong> — click a target node (blue)</span>
+                <button
+                  type="button"
+                  onClick={() => setMigrationMode(null)}
+                  className="ml-1 underline hover:text-white"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
             <GraphCanvas
               ref={graphRef}
               nodes={displayNodes}
@@ -1502,16 +2150,19 @@ export default function ClusterTopologyMap() {
               selections={activeSelections}
               layoutType="forceDirected2d"
               labelType="all"
+              draggable
               theme={graphTheme}
               onNodePointerOver={handlePointerOver}
               onNodePointerOut={handlePointerOut}
               onNodeClick={handleNodeClick}
               onNodeDoubleClick={handleNodeDoubleClick}
+              onNodeDragged={handleNodeDragged}
               onCanvasClick={() => {
                 setSelections([])
                 setIsNodeHovered(false)
                 setInspectedNode(null)
                 setContextMenu(null)
+                if (migrationMode) setMigrationMode(null)
                 if (!searchQuery) setSelections([])
               }}
               minZoom={0.05}
@@ -1540,6 +2191,19 @@ export default function ClusterTopologyMap() {
                 onClose={() => setContextMenu(null)}
                 onInspect={(node) => setInspectedNode(node)}
                 navigate={navigate}
+                onSimulateFailure={handleSimulateFailure}
+                onRunDrill={handleRunDrill}
+                onScaleService={handleScaleService}
+                onMigrateService={handleMigrateService}
+              />
+            )}
+
+            {/* Simulation results drawer */}
+            {simulationState && (
+              <SimulationResultsDrawer
+                state={simulationState}
+                onClose={() => setSimulationState(null)}
+                onRunDrill={handleRunDrill}
               />
             )}
           </div>

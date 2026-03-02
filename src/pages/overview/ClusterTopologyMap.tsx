@@ -650,6 +650,168 @@ function createTopologyTheme() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Topology Details Drawer (click-to-inspect)                        */
+/* ------------------------------------------------------------------ */
+
+function TopologyDetailsDrawer({
+  node,
+  edges,
+  allGraphNodes,
+  onClose,
+}: {
+  node: ReagraphNode
+  edges: ReagraphEdge[]
+  allGraphNodes: ReagraphNode[]
+  onClose: () => void
+}) {
+  const kind: EntityKind = node.data?.kind ?? 'service'
+
+  /* Compute connected neighbours */
+  const neighbours = useMemo(() => {
+    const incoming: ReagraphNode[] = []
+    const outgoing: ReagraphNode[] = []
+    const nodeMap = new Map(allGraphNodes.map((n) => [n.id, n]))
+    edges.forEach((e) => {
+      const src = typeof e.source === 'string' ? e.source : ''
+      const tgt = typeof e.target === 'string' ? e.target : ''
+      if (src === node.id) {
+        const t = nodeMap.get(tgt)
+        if (t) outgoing.push(t)
+      }
+      if (tgt === node.id) {
+        const s = nodeMap.get(src)
+        if (s) incoming.push(s)
+      }
+    })
+    return { incoming, outgoing }
+  }, [node.id, edges, allGraphNodes])
+
+  return (
+    <div className="absolute top-4 right-4 z-30 w-80 bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-right duration-200">
+      {/* Header */}
+      <div className="p-3 border-b border-[var(--border)] flex justify-between items-start gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="shrink-0 inline-block h-3 w-3 rounded-full"
+            style={{ backgroundColor: node.fill as string }}
+          />
+          <div className="min-w-0">
+            <div className="font-semibold text-sm text-[var(--text-primary)] truncate">
+              {node.data?.name ?? node.label}
+            </div>
+            <div className="text-[10px] text-[var(--text-muted)] capitalize">{kind}</div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+          aria-label="Close drawer"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Body */}
+      <div className="overflow-y-auto flex-1 p-3 space-y-3 text-xs">
+        {/* Properties */}
+        <section className="space-y-1.5">
+          <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)]">Properties</h4>
+          {kind === 'node' && (
+            <>
+              <DrawerRow label="Name" value={node.data?.name} />
+              <DrawerRow label="CPU" value={node.data?.cpu ? `${node.data.cpu.usagePercent?.toFixed(1)}% · ${node.data.cpu.cores} cores` : 'N/A'} />
+              <DrawerRow label="RAM" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} / ${(node.data.ram.totalMB / 1024).toFixed(1)} GB` : 'N/A'} />
+            </>
+          )}
+          {kind === 'service' && (
+            <>
+              <DrawerRow label="Service" value={node.data?.name} />
+              <DrawerRow label="Namespace" value={node.data?.namespace} />
+              <DrawerRow label="Pods" value={node.data?.podCount} />
+              <DrawerRow label="Availability" value={node.data?.availability != null ? `${(node.data.availability * 100).toFixed(1)}%` : 'N/A'} />
+              {node.data?.rps != null && <DrawerRow label="RPS" value={node.data.rps.toFixed(1)} />}
+              {node.data?.errorRate != null && <DrawerRow label="Error rate" value={`${(node.data.errorRate * 100).toFixed(2)}%`} highlight={node.data.errorRate > 0.05} />}
+              {node.data?.p95 != null && <DrawerRow label="p95 latency" value={`${node.data.p95.toFixed(0)} ms`} />}
+            </>
+          )}
+          {kind === 'pod' && (
+            <>
+              <DrawerRow label="Pod" value={node.data?.name} />
+              <DrawerRow label="Node" value={node.data?.nodeName} />
+              <DrawerRow label="Service" value={node.data?.serviceName} />
+              <DrawerRow label="CPU" value={node.data?.cpuUsagePercent != null ? `${node.data.cpuUsagePercent.toFixed(1)}%` : 'N/A'} />
+              <DrawerRow label="RAM" value={node.data?.ramUsedMB != null ? `${(node.data.ramUsedMB / 1024).toFixed(2)} GB` : 'N/A'} />
+              <DrawerRow label="Uptime" value={formatUptime(node.data?.uptimeSeconds)} />
+            </>
+          )}
+        </section>
+
+        {/* Connections */}
+        {(neighbours.incoming.length > 0 || neighbours.outgoing.length > 0) && (
+          <section className="space-y-1.5">
+            <h4 className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-dim)]">Connections</h4>
+            {neighbours.incoming.length > 0 && (
+              <div>
+                <span className="text-[10px] text-[var(--text-muted)]">Incoming ({neighbours.incoming.length})</span>
+                <ul className="mt-0.5 space-y-0.5">
+                  {neighbours.incoming.slice(0, 10).map((n) => (
+                    <li key={n.id} className="flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: n.fill as string }} />
+                      <span className="text-[var(--text-primary)] truncate">{n.data?.name ?? n.label}</span>
+                      <span className="text-[var(--text-dim)] capitalize text-[10px]">({n.data?.kind})</span>
+                    </li>
+                  ))}
+                  {neighbours.incoming.length > 10 && (
+                    <li className="text-[10px] text-[var(--text-dim)]">+{neighbours.incoming.length - 10} more</li>
+                  )}
+                </ul>
+              </div>
+            )}
+            {neighbours.outgoing.length > 0 && (
+              <div>
+                <span className="text-[10px] text-[var(--text-muted)]">Outgoing ({neighbours.outgoing.length})</span>
+                <ul className="mt-0.5 space-y-0.5">
+                  {neighbours.outgoing.slice(0, 10).map((n) => (
+                    <li key={n.id} className="flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: n.fill as string }} />
+                      <span className="text-[var(--text-primary)] truncate">{n.data?.name ?? n.label}</span>
+                      <span className="text-[var(--text-dim)] capitalize text-[10px]">({n.data?.kind})</span>
+                    </li>
+                  ))}
+                  {neighbours.outgoing.length > 10 && (
+                    <li className="text-[10px] text-[var(--text-dim)]">+{neighbours.outgoing.length - 10} more</li>
+                  )}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function DrawerRow({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: string | number | undefined | null
+  highlight?: boolean
+}) {
+  return (
+    <div className="flex justify-between">
+      <span className="text-[var(--text-muted)]">{label}</span>
+      <span className={cn('font-mono font-semibold', highlight ? 'text-red-400' : 'text-[var(--text-primary)]')}>
+        {value ?? 'N/A'}
+      </span>
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /*  Main Component                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -670,6 +832,7 @@ export default function ClusterTopologyMap() {
   const [selections, setSelections] = useState<string[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement | null>(null)
+  const [inspectedNode, setInspectedNode] = useState<ReagraphNode | null>(null)
   const [filters, setFilters] = useState<TopologyFilters>(DEFAULT_FILTERS)
 
   /* Pulse tick — toggles every 800 ms for high-error-rate node animation */
@@ -790,6 +953,11 @@ export default function ClusterTopologyMap() {
     }))
   }, [])
 
+  /* Single-click to open inspect drawer */
+  const handleNodeClick = useCallback((node: ReagraphNode) => {
+    setInspectedNode(node)
+  }, [])
+
   /* ---- Loading skeleton ---- */
   if (loading && gNodes.length === 0) {
     return (
@@ -899,10 +1067,12 @@ export default function ClusterTopologyMap() {
               theme={graphTheme}
               onNodePointerOver={handlePointerOver}
               onNodePointerOut={handlePointerOut}
+              onNodeClick={handleNodeClick}
               onNodeDoubleClick={handleNodeDoubleClick}
               onCanvasClick={() => {
                 setSelections([])
                 setIsNodeHovered(false)
+                setInspectedNode(null)
                 if (!searchQuery) setSelections([])
               }}
               minZoom={0.05}
@@ -912,6 +1082,16 @@ export default function ClusterTopologyMap() {
             {/* Tooltip */}
             {hoveredNode && mousePosition && (
               <TopologyTooltip node={hoveredNode} position={mousePosition} />
+            )}
+
+            {/* Inspect drawer */}
+            {inspectedNode && (
+              <TopologyDetailsDrawer
+                node={inspectedNode}
+                edges={gEdges}
+                allGraphNodes={gNodes}
+                onClose={() => setInspectedNode(null)}
+              />
             )}
           </div>
         ) : (

@@ -31,6 +31,8 @@ import {
   EyeIcon,
   ClipboardCopy,
   Image,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -154,11 +156,14 @@ function buildTopologyGraph(
 
   visibleK8sNodes.forEach((name) => {
     const infra = infraNodeMap.get(name)
+    const cpuPct = infra?.resources?.cpu?.usagePercent ?? 0
+    const ramPct = infra?.resources?.ram ? (infra.resources.ram.usedMB / infra.resources.ram.totalMB) * 100 : 0
     nodes.push({
       id: nodeId(name),
       label: name,
       fill: '#3b82f6', // blue-500
       size: 65,
+      subLabel: `CPU ${cpuPct.toFixed(0)}% · RAM ${ramPct.toFixed(0)}%`,
       data: {
         kind: 'node' as EntityKind,
         name,
@@ -623,55 +628,94 @@ function TopologyTooltip({
 /*  Graph theme (matches existing pattern)                             */
 /* ------------------------------------------------------------------ */
 
-function createTopologyTheme() {
+function createTopologyTheme(isDark: boolean) {
   const rootStyles =
     typeof window !== 'undefined' ? window.getComputedStyle(document.documentElement) : null
   const getVar = (name: string, fallback: string) =>
     rootStyles?.getPropertyValue(name).trim() || fallback
 
+  /* Light and dark palette */
+  const palette = isDark
+    ? {
+        canvasBg: getVar('--graph-canvas', '#0f172a'),
+        nodeFill: getVar('--graph-node-fill', '#64748b'),
+        nodeActiveFill: getVar('--graph-node-active-fill', '#38bdf8'),
+        labelColor: getVar('--graph-node-label', '#e2e8f0'),
+        labelStroke: getVar('--graph-node-label-stroke', '#0f172a'),
+        subLabelColor: getVar('--graph-node-sublabel', '#94a3b8'),
+        edgeFill: getVar('--graph-edge-fill', '#475569'),
+        edgeActiveFill: getVar('--graph-edge-active-fill', '#94a3b8'),
+        arrowFill: getVar('--graph-arrow-fill', '#475569'),
+        arrowActiveFill: getVar('--graph-arrow-active-fill', '#94a3b8'),
+        ringFill: getVar('--graph-ring-fill', '#334155'),
+        ringActiveFill: getVar('--graph-ring-active-fill', '#3b82f6'),
+        lassoColor: '#38bdf8',
+        lassoBg: 'rgba(56, 189, 248, 0.1)',
+        labelActiveColor: '#ffffff',
+        edgeLabelActiveColor: '#f8fafc',
+      }
+    : {
+        canvasBg: '#f8fafc',
+        nodeFill: '#94a3b8',
+        nodeActiveFill: '#2563eb',
+        labelColor: '#1e293b',
+        labelStroke: '#f8fafc',
+        subLabelColor: '#64748b',
+        edgeFill: '#cbd5e1',
+        edgeActiveFill: '#64748b',
+        arrowFill: '#cbd5e1',
+        arrowActiveFill: '#64748b',
+        ringFill: '#e2e8f0',
+        ringActiveFill: '#3b82f6',
+        lassoColor: '#2563eb',
+        lassoBg: 'rgba(37, 99, 235, 0.08)',
+        labelActiveColor: '#1e293b',
+        edgeLabelActiveColor: '#334155',
+      }
+
   return {
-    canvas: { background: getVar('--graph-canvas', '#0f172a') },
+    canvas: { background: palette.canvasBg },
     node: {
-      fill: getVar('--graph-node-fill', '#64748b'),
-      activeFill: getVar('--graph-node-active-fill', '#38bdf8'),
+      fill: palette.nodeFill,
+      activeFill: palette.nodeActiveFill,
       opacity: 0.9,
       selectedOpacity: 1,
       inactiveOpacity: 0.35,
       label: {
-        color: getVar('--graph-node-label', '#e2e8f0'),
-        stroke: getVar('--graph-node-label-stroke', '#0f172a'),
-        activeColor: getVar('--graph-edge-label-active', '#ffffff'),
+        color: palette.labelColor,
+        stroke: palette.labelStroke,
+        activeColor: palette.labelActiveColor,
       },
       subLabel: {
-        color: getVar('--graph-node-sublabel', '#94a3b8'),
+        color: palette.subLabelColor,
         stroke: 'transparent',
-        activeColor: getVar('--graph-node-label', '#e2e8f0'),
+        activeColor: palette.labelColor,
       },
     },
     lasso: {
-      border: `1px solid ${getVar('--graph-lasso-border', '#38bdf8')}`,
-      background: getVar('--graph-lasso-bg', 'rgba(56, 189, 248, 0.1)'),
+      border: `1px solid ${palette.lassoColor}`,
+      background: palette.lassoBg,
     },
     ring: {
-      fill: getVar('--graph-ring-fill', '#334155'),
-      activeFill: getVar('--graph-ring-active-fill', '#3b82f6'),
+      fill: palette.ringFill,
+      activeFill: palette.ringActiveFill,
     },
     edge: {
-      fill: getVar('--graph-edge-fill', '#475569'),
-      activeFill: getVar('--graph-edge-active-fill', '#94a3b8'),
+      fill: palette.edgeFill,
+      activeFill: palette.edgeActiveFill,
       opacity: 0.5,
       selectedOpacity: 1,
       inactiveOpacity: 0.08,
       label: {
         stroke: 'transparent',
-        color: getVar('--graph-node-sublabel', '#94a3b8'),
-        activeColor: getVar('--graph-edge-label', '#f8fafc'),
+        color: palette.subLabelColor,
+        activeColor: palette.edgeLabelActiveColor,
         fontSize: 6,
       },
     },
     arrow: {
-      fill: getVar('--graph-arrow-fill', '#475569'),
-      activeFill: getVar('--graph-arrow-active-fill', '#94a3b8'),
+      fill: palette.arrowFill,
+      activeFill: palette.arrowActiveFill,
     },
   }
 }
@@ -1023,7 +1067,7 @@ function copyTopologyYaml(
 /* ------------------------------------------------------------------ */
 
 export default function ClusterTopologyMap() {
-  const { resolvedTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   const navigate = useNavigate()
   const {
     services,
@@ -1118,7 +1162,7 @@ export default function ClusterTopologyMap() {
     return () => clearTimeout(timer)
   })
 
-  const graphTheme = useMemo(() => createTopologyTheme(), [resolvedTheme]) // eslint-disable-line react-hooks/exhaustive-deps
+  const graphTheme = useMemo(() => createTopologyTheme(resolvedTheme === 'dark'), [resolvedTheme])
 
   const { nodes: gNodes, edges: gEdges } = useMemo(
     () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups),
@@ -1420,6 +1464,12 @@ export default function ClusterTopologyMap() {
               <span className="w-px h-5 bg-[var(--border)]" />
               <ZoomButton icon={Image} label="Export PNG" onClick={() => exportCanvasAsPng(canvasContainerRef)} />
               <ZoomButton icon={ClipboardCopy} label="Copy YAML" onClick={() => copyTopologyYaml(gNodes, gEdges)} />
+              <span className="w-px h-5 bg-[var(--border)]" />
+              <ZoomButton
+                icon={resolvedTheme === 'dark' ? Sun : Moon}
+                label={resolvedTheme === 'dark' ? 'Light mode' : 'Dark mode'}
+                onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              />
             </div>
 
             {/* Path-trace status bar */}

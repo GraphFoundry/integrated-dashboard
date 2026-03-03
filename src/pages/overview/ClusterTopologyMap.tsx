@@ -326,9 +326,17 @@ function buildTopologyGraph(
       np.pods?.forEach((pod) => {
         const pid = podId(pod.name)
         if (!nodes.find((n) => n.id === pid)) {
+          /* Show prefix of pod name + "..." suffix for readability */
+          const podLabel = (() => {
+            const parts = pod.name.split('-')
+            if (parts.length <= 2) return pod.name
+            // Keep the service-meaningful prefix, truncate the hash suffixes
+            const prefix = parts.slice(0, Math.max(parts.length - 2, 2)).join('-')
+            return prefix.length > 18 ? prefix.slice(0, 18) + '…' : prefix + '…'
+          })()
           nodes.push({
             id: pid,
-            label: pod.name.replace(/^.*?-([a-z0-9]{5,10}-[a-z0-9]{4,5})$/, '...$1'),
+            label: podLabel,
             fill: podCpuFill(pod.cpuUsagePercent), // heatmap: lavender → red
             size: 20,
             data: {
@@ -555,11 +563,16 @@ function TopologyTooltip({
   const vw = window.innerWidth
   const vh = window.innerHeight
 
-  let left = position.x + 16
-  let top = position.y + 16
-  if (left + tooltipWidth > vw) left = position.x - tooltipWidth - 16
-  if (top + tooltipHeight > vh) top = position.y - tooltipHeight - 16
+  /* Position tooltip ABOVE the cursor to avoid overlapping with click interactions */
+  let left = position.x - tooltipWidth / 2
+  let top = position.y - tooltipHeight - 20
+  /* If not enough room above, fall below */
+  if (top < 16) top = position.y + 24
+  /* Keep within horizontal bounds */
+  if (left + tooltipWidth > vw - 16) left = vw - tooltipWidth - 16
   if (left < 16) left = 16
+  /* Keep within vertical bounds */
+  if (top + tooltipHeight > vh - 16) top = vh - tooltipHeight - 16
   if (top < 16) top = 16
 
   return (
@@ -922,12 +935,27 @@ function TopologyContextMenu({
   ]
 
   if (kind === 'service') {
+    const isDown = state.node.data?.isDown === true
     items.push(
       {
         icon: ExternalLink,
         label: 'View service details',
         action: () => { navigate(`/services/${namespace}:${name}`); onClose() },
       },
+      /* Service up/down toggle */
+      isDown
+        ? {
+            icon: ArrowUp,
+            label: 'Drill: Bring service up',
+            destructive: true,
+            action: () => { onScaleDrill(name, 'up', 0, namespace); onClose() },
+          }
+        : {
+            icon: ArrowDown,
+            label: 'Drill: Bring service down',
+            destructive: true,
+            action: () => { onScaleDrill(name, 'down', state.node.data?.podCount ?? 1, namespace); onClose() },
+          },
       {
         icon: Zap,
         label: 'Simulate failure',
@@ -1721,17 +1749,28 @@ export default function ClusterTopologyMap() {
     return Array.from(ns).sort()
   }, [services])
 
-  /* Auto-zoom to fit all nodes on initial load */
+  /* Auto-zoom to fit all nodes on initial load and after structural changes */
   const hasAutoZoomed = useRef(false)
+  const lastStructureKeyRef = useRef<string>('')
   useEffect(() => {
-    if (hasAutoZoomed.current || !graphRef.current) return
-    if (gNodes.length === 0) return
-    // Small delay to let the graph layout settle before fitting
-    const timer = setTimeout(() => {
-      graphRef.current?.fitNodesInView?.()
-      hasAutoZoomed.current = true
-    }, 600)
-    return () => clearTimeout(timer)
+    if (!graphRef.current || gNodes.length === 0) return
+    // Initial zoom
+    if (!hasAutoZoomed.current) {
+      const timer = setTimeout(() => {
+        graphRef.current?.fitNodesInView?.()
+        hasAutoZoomed.current = true
+        lastStructureKeyRef.current = graphStructureKey
+      }, 600)
+      return () => clearTimeout(timer)
+    }
+    // On structure change (new pods added/removed), do a gentle fit after a delay
+    if (lastStructureKeyRef.current && lastStructureKeyRef.current !== graphStructureKey) {
+      lastStructureKeyRef.current = graphStructureKey
+      const timer = setTimeout(() => {
+        graphRef.current?.fitNodesInView?.()
+      }, 800)
+      return () => clearTimeout(timer)
+    }
   })
 
   const graphTheme = useMemo(() => createTopologyTheme(resolvedTheme === 'dark'), [resolvedTheme])
@@ -1740,6 +1779,18 @@ export default function ClusterTopologyMap() {
     () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups),
     [services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups]
   )
+
+  /**
+   * Compute a stable "structural key" from node/edge IDs so the force layout
+   * only re-runs when the actual topology structure changes (nodes added/removed),
+   * NOT when properties (cpu%, labels, colours) update from polling.
+   * This prevents the annoying "dancing" on scale drill / poll refreshes.
+   */
+  const graphStructureKey = useMemo(() => {
+    const nodeIds = gNodes.map((n) => n.id).sort().join('|')
+    const edgeIds = gEdges.map((e) => e.id).sort().join('|')
+    return `${nodeIds}::${edgeIds}`
+  }, [gNodes, gEdges])
 
   /** BFS shortest path between two node IDs across all edges */
   const tracedPath = useMemo(() => {
@@ -1931,9 +1982,9 @@ export default function ClusterTopologyMap() {
 
   /* ---- Scale Service handler ---- */
   const handleScaleService = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => {
-    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 1)
-    if (direction === 'down' && currentPods <= 1) {
-      toast.error('Cannot scale below 1 pod')
+    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 0)
+    if (direction === 'down' && currentPods <= 0) {
+      toast.error('Already at 0 pods')
       return
     }
     setSimulationState({ type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction })
@@ -1958,9 +2009,9 @@ export default function ClusterTopologyMap() {
 
   /* ---- Scale Drill handler (actually scales via K8s) ---- */
   const handleScaleDrill = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => {
-    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 1)
-    if (direction === 'down' && currentPods <= 1) {
-      toast.error('Cannot scale below 1 pod')
+    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 0)
+    if (direction === 'down' && currentPods <= 0) {
+      toast.error('Already at 0 pods')
       return
     }
     const drillType = direction === 'up' ? 'PodScaleUp' : 'PodScaleDown'
@@ -2017,25 +2068,31 @@ export default function ClusterTopologyMap() {
 
     // Find current service resource usage from pod data
     const svc = services.find((s) => s.name === serviceName)
+    const currentPodCount = svc?.podCount ?? 1
     const pods = svc?.placement?.nodes?.flatMap((np) => np.pods ?? []) ?? []
     const avgCpuPct = pods.length > 0 ? pods.reduce((s, p) => s + (p.cpuUsagePercent ?? 0), 0) / pods.length : 10
     const avgRamMB = pods.length > 0 ? pods.reduce((s, p) => s + (p.ramUsedMB ?? 0), 0) / pods.length : 128
 
+    // Detect source node(s)
+    const sourceNodes = svc?.placement?.nodes?.map((np) => np.node).filter(Boolean) ?? []
+    const sourceNodeName = sourceNodes.length > 0 ? sourceNodes[0] : 'unknown'
+
     // Check feasibility
-    const cpuFeasible = cpuAvail > avgCpuPct * 0.5  // Needs at least 50% of what pods use
+    const cpuFeasible = cpuAvail > avgCpuPct * 0.5
     const ramFeasible = ramAvail > avgRamMB
     const feasible = cpuFeasible && ramFeasible
 
     let reason = ''
     if (feasible) {
-      reason = `Target node has ${cpuAvail.toFixed(0)}% CPU available and ${friendlyMemory(ramAvail)} free memory — enough to host this service.`
+      reason = `Target node "${targetNodeName}" has ${cpuAvail.toFixed(0)}% CPU available and ${friendlyMemory(ramAvail)} free memory — enough to host this service. Source node: "${sourceNodeName}".`
     } else {
       const issues: string[] = []
       if (!cpuFeasible) issues.push(`not enough CPU (only ${cpuAvail.toFixed(0)}% free)`)
       if (!ramFeasible) issues.push(`not enough memory (only ${friendlyMemory(ramAvail)} free)`)
-      reason = `Target node may not have enough resources: ${issues.join(', ')}.`
+      reason = `Target node "${targetNodeName}" may not have enough resources: ${issues.join(', ')}.`
     }
 
+    const toastId = toast.loading(`Migrating ${serviceName} to ${targetNodeName}…`)
     setSimulationState({
       type: 'migration',
       serviceName,
@@ -2046,14 +2103,56 @@ export default function ClusterTopologyMap() {
       migrationReason: reason,
     })
 
-    // Also run failure simulation to show migration impact
     try {
+      // 1. Run failure simulation to assess migration impact
       const failureResult = await simulateFailure({ serviceId: serviceName, maxDepth: 2 })
-      setSimulationState((prev) => prev ? { ...prev, loading: false, failureResult } : null)
-    } catch {
-      setSimulationState((prev) => prev ? { ...prev, loading: false } : null)
+      setSimulationState((prev) => prev ? { ...prev, failureResult } : null)
+
+      if (!feasible) {
+        toast.error(`Migration not recommended: insufficient resources on ${targetNodeName}`, { id: toastId })
+        setSimulationState((prev) => prev ? { ...prev, loading: false } : null)
+        return
+      }
+
+      // 2. Execute migration drill using the dedicated MigrateService drill type.
+      //    The backend patches nodeSelector to the target node, scales down to 0,
+      //    then scales back up so pods are scheduled only on the target node.
+      const ns = migrationMode.namespace || 'onlineboutique'
+
+      const drillPlan = await planDrill({
+        type: 'MigrateService',
+        target: serviceName,
+        config: {
+          targetNode: targetNodeName,
+          replicas: currentPodCount,
+          namespace: ns,
+        },
+      })
+
+      setSimulationState((prev) => prev
+        ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : null
+      )
+
+      toast.loading(`Executing migration drill ${drillPlan.id}…`, { id: toastId })
+
+      const runResult = await runDrill(drillPlan.id)
+      setSimulationState((prev) => prev
+        ? { ...prev, drillStatus: runResult.status }
+        : null
+      )
+
+      toast.success(`Migration drill started: ${serviceName} → ${targetNodeName}`, { id: toastId })
+      setSimulationState((prev) => prev ? { ...prev, loading: false, drillStatus: 'completed' } : null)
+
+      // Start polling to track the migration effect on topology
+      startDrillRefreshPolling(drillPlan.id)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Migration failed'
+      toast.error(`Migration failed: ${msg}`, { id: toastId })
+      setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
     }
-  }, [migrationMode, allNodes, services])
+  }, [migrationMode, allNodes, services, startDrillRefreshPolling])
 
   /* ---- Handle node drag end for drag-and-drop migration ---- */
   const handleNodeDragged = useCallback((node: InternalGraphNode) => {
@@ -2273,6 +2372,7 @@ export default function ClusterTopologyMap() {
             )}
 
             <GraphCanvas
+              key={graphStructureKey}
               ref={graphRef}
               nodes={displayNodes}
               edges={displayEdges}

@@ -269,44 +269,50 @@ function buildTopologyGraph(
   })
 
   filteredServices.forEach((svc) => {
-    if (!svc.placement?.nodes || svc.placement.nodes.length === 0) return
+    /* ---------- Add service node even if placement is empty (down service) ---------- */
+    const hasPlacement = svc.placement?.nodes && svc.placement.nodes.length > 0
 
-    svc.placement.nodes.forEach((np) => {
-      if (!visibleNodeSet.has(np.node)) return
-
-      /* Service node (add only once) */
-      if (!addedServices.has(svc.name)) {
-        addedServices.add(svc.name)
-        const avail = typeof svc.availability === 'number' ? svc.availability : 1
-        let fill = '#ef4444'
+    if (!addedServices.has(svc.name)) {
+      addedServices.add(svc.name)
+      const avail = typeof svc.availability === 'number' ? svc.availability : (hasPlacement ? 1 : 0)
+      const isDown = !hasPlacement || svc.podCount === 0
+      let fill = '#ef4444' // red = critical / down
+      if (!isDown) {
         if (avail >= 0.95) fill = '#10b981'
         else if (avail >= 0.8) fill = '#f59e0b'
-
-        const metrics = serviceMetrics?.get(svc.name)
-        const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
-        const alertData = alertRollups?.get(svc.name)
-
-        nodes.push({
-          id: svcId(svc.name),
-          label: svc.name,
-          fill,
-          size: 40,
-          data: {
-            kind: 'service' as EntityKind,
-            name: svc.name,
-            namespace: svc.namespace,
-            podCount: svc.podCount,
-            availability: avail,
-            rps: metrics?.rps,
-            errorRate: metrics?.errorRate,
-            p95: metrics?.p95,
-            highErrorRate,
-            openIncidents: alertData?.open_incidents ?? 0,
-            criticalAlerts: alertData?.critical_count ?? 0,
-            highAlerts: alertData?.high_count ?? 0,
-          },
-        })
       }
+
+      const metrics = serviceMetrics?.get(svc.name)
+      const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
+      const alertData = alertRollups?.get(svc.name)
+
+      nodes.push({
+        id: svcId(svc.name),
+        label: isDown ? `${svc.name} ⛔` : svc.name,
+        fill,
+        size: isDown ? 36 : 40,
+        data: {
+          kind: 'service' as EntityKind,
+          name: svc.name,
+          namespace: svc.namespace,
+          podCount: svc.podCount ?? 0,
+          availability: avail,
+          rps: metrics?.rps,
+          errorRate: metrics?.errorRate,
+          p95: metrics?.p95,
+          highErrorRate,
+          isDown,
+          openIncidents: alertData?.open_incidents ?? 0,
+          criticalAlerts: alertData?.critical_count ?? 0,
+          highAlerts: alertData?.high_count ?? 0,
+        },
+      })
+    }
+
+    if (!hasPlacement) return // no placement edges/pods to add
+
+    svc.placement!.nodes.forEach((np) => {
+      if (!visibleNodeSet.has(np.node)) return
 
       /* Node → Service edge */
       edges.push({
@@ -881,6 +887,7 @@ function TopologyContextMenu({
   onSimulateFailure,
   onRunDrill,
   onScaleService,
+  onScaleDrill,
   onMigrateService,
 }: {
   state: ContextMenuState
@@ -890,6 +897,7 @@ function TopologyContextMenu({
   onSimulateFailure: (serviceName: string) => void
   onRunDrill: (serviceName: string) => void
   onScaleService: (serviceName: string, direction: 'up' | 'down', currentPods: number) => void
+  onScaleDrill: (serviceName: string, direction: 'up' | 'down', currentPods: number) => void
   onMigrateService: (serviceName: string, namespace: string) => void
 }) {
   const kind: EntityKind = state.node.data?.kind ?? 'service'
@@ -932,13 +940,25 @@ function TopologyContextMenu({
       },
       {
         icon: ArrowUp,
-        label: 'Scale up (+1 pod)',
+        label: 'Simulate scale up (+1)',
         action: () => { onScaleService(name, 'up', state.node.data?.podCount ?? 1); onClose() },
       },
       {
         icon: ArrowDown,
-        label: 'Scale down (-1 pod)',
+        label: 'Simulate scale down (-1)',
         action: () => { onScaleService(name, 'down', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: ArrowUp,
+        label: 'Drill: Scale up (+1 pod)',
+        destructive: true,
+        action: () => { onScaleDrill(name, 'up', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: ArrowDown,
+        label: 'Drill: Scale down (-1 pod)',
+        destructive: true,
+        action: () => { onScaleDrill(name, 'down', state.node.data?.podCount ?? 1); onClose() },
       },
       {
         icon: Move,
@@ -967,13 +987,25 @@ function TopologyContextMenu({
       },
       {
         icon: ArrowUp,
-        label: 'Scale up service (+1 pod)',
+        label: 'Simulate scale up',
         action: () => { if (svcName) onScaleService(svcName, 'up', state.node.data?.podCount ?? 1); onClose() },
       },
       {
         icon: ArrowDown,
-        label: 'Scale down service (-1 pod)',
+        label: 'Simulate scale down',
         action: () => { if (svcName) onScaleService(svcName, 'down', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: ArrowUp,
+        label: 'Drill: Scale up (+1 pod)',
+        destructive: true,
+        action: () => { if (svcName) onScaleDrill(svcName, 'up', state.node.data?.podCount ?? 1); onClose() },
+      },
+      {
+        icon: ArrowDown,
+        label: 'Drill: Scale down (-1 pod)',
+        destructive: true,
+        action: () => { if (svcName) onScaleDrill(svcName, 'down', state.node.data?.podCount ?? 1); onClose() },
       },
     )
   }
@@ -1621,12 +1653,7 @@ export default function ClusterTopologyMap() {
   const [pathTraceMode, setPathTraceMode] = useState(false)
   const [pathTraceNodes, setPathTraceNodes] = useState<[string | null, string | null]>([null, null])
 
-  /* Pulse tick — toggles every 800 ms for high-error-rate node animation */
-  const [pulseTick, setPulseTick] = useState(false)
-  useEffect(() => {
-    const id = setInterval(() => setPulseTick((t) => !t), 800)
-    return () => clearInterval(id)
-  }, [])
+  /* Pulse animation is handled via CSS to avoid re-layouting the graph */
 
   const handleFilterChange = useCallback((patch: Partial<TopologyFilters>) => {
     setFilters((prev) => ({ ...prev, ...patch }))
@@ -1739,22 +1766,21 @@ export default function ClusterTopologyMap() {
       if (tracedPath.size > 0 && tracedPath.has(n.id)) {
         patched = { ...patched, fill: '#22d3ee' } // cyan-400
       }
-      /* Pulse animation: oscillate size for high-error-rate services */
+      /* High error rate: use a static red fill (no pulse to avoid re-layout) */
       if (n.data?.highErrorRate) {
-        patched = { ...patched, size: pulseTick ? 48 : 40 }
+        patched = { ...patched, fill: '#ef4444', size: 44 }
       }
-      /* Alert badge: add subLabel count and flashing ring for critical alerts */
+      /* Alert badge: add subLabel count */
       if (n.data?.openIncidents > 0) {
         const badgeText = `⚠ ${n.data.openIncidents} alert${n.data.openIncidents > 1 ? 's' : ''}`
         patched = { ...patched, subLabel: badgeText }
         if (n.data.criticalAlerts > 0) {
-          // Flash the fill between original and red
-          patched = { ...patched, fill: pulseTick ? '#ef4444' : (patched.fill as string) }
+          patched = { ...patched, fill: '#ef4444' }
         }
       }
       return patched
     })
-  }, [gNodes, searchMatchIds, pulseTick, tracedPath])
+  }, [gNodes, searchMatchIds, tracedPath])
 
   const displayEdges = useMemo(() => {
     if (tracedEdgeIds.size === 0) return gEdges
@@ -1865,6 +1891,41 @@ export default function ClusterTopologyMap() {
       const msg = err instanceof Error ? err.message : 'Scale simulation failed'
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
       toast.error(`Scale simulation failed: ${msg}`)
+    }
+  }, [])
+
+  /* ---- Scale Drill handler (actually scales via K8s) ---- */
+  const handleScaleDrill = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number) => {
+    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 1)
+    if (direction === 'down' && currentPods <= 1) {
+      toast.error('Cannot scale below 1 pod')
+      return
+    }
+    const drillType = direction === 'up' ? 'PodScaleUp' : 'PodScaleDown'
+    const toastId = toast.loading(`Planning ${direction} drill for ${serviceName}…`)
+    setSimulationState({ type: 'scale', serviceName, loading: true, scaleDirection: direction })
+    try {
+      const drillPlan = await planDrill({
+        type: drillType,
+        target: serviceName,
+        config: { replicas: newPods, gracePeriod: 30 },
+      })
+      toast.loading(`Executing scale ${direction} drill ${drillPlan.id}…`, { id: toastId })
+      setSimulationState((prev) => prev
+        ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : { type: 'scale', serviceName, loading: true, scaleDirection: direction, drillRunId: drillPlan.id, drillStatus: 'planned' }
+      )
+
+      const runResult = await runDrill(drillPlan.id)
+      setSimulationState((prev) => prev
+        ? { ...prev, loading: false, drillStatus: runResult.status }
+        : null
+      )
+      toast.success(`Scale ${direction} drill started: ${currentPods} → ${newPods} pods`, { id: toastId })
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Scale drill failed'
+      setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg, drillStatus: `Error: ${msg}` } : null)
+      toast.error(`Scale drill failed: ${msg}`, { id: toastId })
     }
   }, [])
 
@@ -2150,7 +2211,7 @@ export default function ClusterTopologyMap() {
               selections={activeSelections}
               layoutType="forceDirected2d"
               labelType="all"
-              draggable
+              draggable={!!migrationMode}
               theme={graphTheme}
               onNodePointerOver={handlePointerOver}
               onNodePointerOut={handlePointerOut}
@@ -2194,6 +2255,7 @@ export default function ClusterTopologyMap() {
                 onSimulateFailure={handleSimulateFailure}
                 onRunDrill={handleRunDrill}
                 onScaleService={handleScaleService}
+                onScaleDrill={handleScaleDrill}
                 onMigrateService={handleMigrateService}
               />
             )}

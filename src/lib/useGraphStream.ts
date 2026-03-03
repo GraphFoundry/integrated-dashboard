@@ -128,7 +128,23 @@ export function useGraphStream() {
     }
   }, [handleGraphUpdate])
 
-  return { graphData, loading, lastUpdated, freshness }
+  /**
+   * Force-refresh graph data by fetching from the BFF cache.
+   * Call this after drill/simulation operations to pick up cluster state changes.
+   */
+  const refetch = useCallback(async () => {
+    try {
+      const result = await getLatestGraphData()
+      if (result?.data) {
+        handleGraphUpdate(result.data)
+        if (result.freshness) setFreshness(result.freshness)
+      }
+    } catch {
+      // Ignore transient refetch failures
+    }
+  }, [handleGraphUpdate])
+
+  return { graphData, loading, lastUpdated, freshness, refetch }
 }
 
 /**
@@ -316,7 +332,7 @@ export function useDependencyGraphSnapshot() {
  * Drop-in replacement for the polling pattern in NodeResourceGraph.
  */
 export function useServicesWithPlacement() {
-  const { graphData, loading, lastUpdated } = useGraphStream()
+  const { graphData, loading, lastUpdated, refetch: refetchGraph } = useGraphStream()
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
   const [allNodes, setAllNodes] = useState<NodeWithResources[]>([])
   const [fallbackLoading, setFallbackLoading] = useState(true)
@@ -402,6 +418,33 @@ export function useServicesWithPlacement() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Force-refresh services & nodes from the analysis-engine directly,
+   * bypassing the webhook cache. Useful after drills/simulations that
+   * mutate cluster state so the topology map reflects changes immediately.
+   */
+  const refetch = useCallback(async () => {
+    // First try the BFF-level refetch (fast, uses cached webhook data)
+    await refetchGraph()
+
+    // Then also pull live data directly from the analysis-engine
+    // to capture very recent k8s changes (e.g. new pods from a scale drill)
+    try {
+      const [servicesData, nodesData] = await Promise.all([
+        getServicesWithPlacement(),
+        getNodes().catch(() => ({ nodes: [] })),
+      ])
+      if (servicesData.services?.length) {
+        setServices(servicesData.services)
+      }
+      if (nodesData.nodes?.length) {
+        setAllNodes(nodesData.nodes)
+      }
+    } catch {
+      // Direct fetch failed — rely on BFF-level data
+    }
+  }, [refetchGraph])
+
   return {
     services,
     allNodes,
@@ -411,5 +454,7 @@ export function useServicesWithPlacement() {
     dependencyEdges,
     // Per-service live metrics map
     serviceMetrics,
+    // Manual refetch trigger for drill/simulation operations
+    refetch,
   }
 }

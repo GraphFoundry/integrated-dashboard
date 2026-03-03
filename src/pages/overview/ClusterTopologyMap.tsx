@@ -55,7 +55,7 @@ import { useTheme } from '@/theme/useTheme'
 import toast from 'react-hot-toast'
 import type { ServiceWithPlacement, NodeWithResources, FailureResponse, ScaleResponse } from '@/lib/types'
 import { simulateFailure, simulateScale } from '@/lib/api'
-import { planDrill, runDrill } from '@/lib/api/drills'
+import { planDrill, runDrill, getDrillRun } from '@/lib/api/drills'
 
 /** Live per-service metrics map exposed by useServicesWithPlacement */
 type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: number }>
@@ -336,6 +336,8 @@ function buildTopologyGraph(
               name: pod.name,
               nodeName: np.node,
               serviceName: svc.name,
+              namespace: svc.namespace,
+              podCount: svc.podCount ?? 0,
               cpuUsagePercent: pod.cpuUsagePercent,
               ramUsedMB: pod.ramUsedMB,
               uptimeSeconds: pod.uptimeSeconds,
@@ -894,10 +896,10 @@ function TopologyContextMenu({
   onClose: () => void
   onInspect: (node: ReagraphNode) => void
   navigate: ReturnType<typeof useNavigate>
-  onSimulateFailure: (serviceName: string) => void
-  onRunDrill: (serviceName: string) => void
-  onScaleService: (serviceName: string, direction: 'up' | 'down', currentPods: number) => void
-  onScaleDrill: (serviceName: string, direction: 'up' | 'down', currentPods: number) => void
+  onSimulateFailure: (serviceName: string, namespace: string) => void
+  onRunDrill: (serviceName: string, namespace: string) => void
+  onScaleService: (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => void
+  onScaleDrill: (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => void
   onMigrateService: (serviceName: string, namespace: string) => void
 }) {
   const kind: EntityKind = state.node.data?.kind ?? 'service'
@@ -930,35 +932,35 @@ function TopologyContextMenu({
         icon: Zap,
         label: 'Simulate failure',
         destructive: true,
-        action: () => { onSimulateFailure(name); onClose() },
+        action: () => { onSimulateFailure(name, namespace); onClose() },
       },
       {
         icon: FlaskConical,
         label: 'Run chaos drill',
         destructive: true,
-        action: () => { onRunDrill(name); onClose() },
+        action: () => { onRunDrill(name, namespace); onClose() },
       },
       {
         icon: ArrowUp,
         label: 'Simulate scale up (+1)',
-        action: () => { onScaleService(name, 'up', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { onScaleService(name, 'up', state.node.data?.podCount ?? 1, namespace); onClose() },
       },
       {
         icon: ArrowDown,
         label: 'Simulate scale down (-1)',
-        action: () => { onScaleService(name, 'down', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { onScaleService(name, 'down', state.node.data?.podCount ?? 1, namespace); onClose() },
       },
       {
         icon: ArrowUp,
         label: 'Drill: Scale up (+1 pod)',
         destructive: true,
-        action: () => { onScaleDrill(name, 'up', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { onScaleDrill(name, 'up', state.node.data?.podCount ?? 1, namespace); onClose() },
       },
       {
         icon: ArrowDown,
         label: 'Drill: Scale down (-1 pod)',
         destructive: true,
-        action: () => { onScaleDrill(name, 'down', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { onScaleDrill(name, 'down', state.node.data?.podCount ?? 1, namespace); onClose() },
       },
       {
         icon: Move,
@@ -988,24 +990,24 @@ function TopologyContextMenu({
       {
         icon: ArrowUp,
         label: 'Simulate scale up',
-        action: () => { if (svcName) onScaleService(svcName, 'up', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { if (svcName) onScaleService(svcName, 'up', state.node.data?.podCount ?? 1, podNamespace); onClose() },
       },
       {
         icon: ArrowDown,
         label: 'Simulate scale down',
-        action: () => { if (svcName) onScaleService(svcName, 'down', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { if (svcName) onScaleService(svcName, 'down', state.node.data?.podCount ?? 1, podNamespace); onClose() },
       },
       {
         icon: ArrowUp,
         label: 'Drill: Scale up (+1 pod)',
         destructive: true,
-        action: () => { if (svcName) onScaleDrill(svcName, 'up', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { if (svcName) onScaleDrill(svcName, 'up', state.node.data?.podCount ?? 1, podNamespace); onClose() },
       },
       {
         icon: ArrowDown,
         label: 'Drill: Scale down (-1 pod)',
         destructive: true,
-        action: () => { if (svcName) onScaleDrill(svcName, 'down', state.node.data?.podCount ?? 1); onClose() },
+        action: () => { if (svcName) onScaleDrill(svcName, 'down', state.node.data?.podCount ?? 1, podNamespace); onClose() },
       },
     )
   }
@@ -1225,6 +1227,7 @@ function DrawerRow({
 interface SimulationResultState {
   type: 'failure' | 'scale' | 'migration'
   serviceName: string
+  namespace: string
   loading: boolean
   failureResult?: FailureResponse | null
   scaleResult?: ScaleResponse | null
@@ -1244,7 +1247,7 @@ function SimulationResultsDrawer({
 }: {
   state: SimulationResultState
   onClose: () => void
-  onRunDrill?: (serviceName: string) => void
+  onRunDrill?: (serviceName: string, namespace: string) => void
 }) {
   return (
     <div className="absolute top-4 left-4 z-30 w-96 bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-left duration-200">
@@ -1359,7 +1362,7 @@ function SimulationResultsDrawer({
             {onRunDrill && (
               <button
                 type="button"
-                onClick={() => onRunDrill(state.serviceName)}
+                onClick={() => onRunDrill(state.serviceName, state.namespace)}
                 className="w-full mt-2 rounded-md bg-red-500/20 border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/30 transition-colors flex items-center justify-center gap-2"
               >
                 <FlaskConical className="w-3.5 h-3.5" />
@@ -1593,7 +1596,59 @@ export default function ClusterTopologyMap() {
     loading,
     dependencyEdges,
     serviceMetrics,
+    refetch,
   } = useServicesWithPlacement()
+
+  /* Track active drill polling intervals so we can clean up */
+  const drillPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  useEffect(() => {
+    return () => {
+      if (drillPollRef.current) clearInterval(drillPollRef.current)
+    }
+  }, [])
+
+  /**
+   * Start polling the graph data to pick up cluster changes from a drill.
+   * Polls every 3 s for up to `durationMs` (default 90 s), then stops.
+   * Also polls drill status and updates simulationState accordingly.
+   */
+  const startDrillRefreshPolling = useCallback((drillRunId?: string, durationMs = 90_000) => {
+    // Clear any prior polling
+    if (drillPollRef.current) clearInterval(drillPollRef.current)
+
+    const started = Date.now()
+    drillPollRef.current = setInterval(async () => {
+      // Stop after duration
+      if (Date.now() - started > durationMs) {
+        if (drillPollRef.current) clearInterval(drillPollRef.current)
+        drillPollRef.current = null
+        return
+      }
+
+      // Refetch graph data so topology map updates
+      await refetch()
+
+      // If we have a drill ID, poll its status too
+      if (drillRunId) {
+        try {
+          const run = await getDrillRun(drillRunId)
+          setSimulationState((prev) => {
+            if (!prev || prev.drillRunId !== drillRunId) return prev
+            return { ...prev, drillStatus: run.status }
+          })
+          // Stop polling once drill is completed or aborted
+          if (['completed', 'aborted', 'failed'].includes(run.status.toLowerCase())) {
+            // One final refetch after a short delay to capture post-rollback state
+            setTimeout(() => refetch(), 3000)
+            if (drillPollRef.current) clearInterval(drillPollRef.current)
+            drillPollRef.current = null
+          }
+        } catch {
+          // Drill status fetch failed — continue polling graph data
+        }
+      }
+    }, 3000)
+  }, [refetch])
 
   /* Fetch open alerts grouped by service (lightweight polling every 30 s) */
   const [alertRollups, setAlertRollups] = useState<Map<string, ServiceRollup>>(new Map())
@@ -1829,54 +1884,59 @@ export default function ClusterTopologyMap() {
   }
 
   /* ---- Simulate Failure handler ---- */
-  const handleSimulateFailure = useCallback(async (serviceName: string) => {
-    setSimulationState({ type: 'failure', serviceName, loading: true })
+  const handleSimulateFailure = useCallback(async (serviceName: string, namespace: string) => {
+    setSimulationState({ type: 'failure', serviceName, namespace, loading: true })
     try {
-      const result = await simulateFailure({ serviceId: serviceName, maxDepth: 3 })
+      const result = await simulateFailure({ serviceId: namespace ? `${namespace}:${serviceName}` : serviceName, maxDepth: 3 })
       setSimulationState((prev) => prev ? { ...prev, loading: false, failureResult: result } : null)
       toast.success(`Failure simulation complete for ${serviceName}`)
+      // Refresh topology to reflect any real cluster state changes
+      await refetch()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Simulation failed'
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
       toast.error(`Failure simulation failed: ${msg}`)
     }
-  }, [])
+  }, [refetch])
 
   /* ---- Run Drill handler ---- */
-  const handleRunDrill = useCallback(async (serviceName: string) => {
+  const handleRunDrill = useCallback(async (serviceName: string, namespace: string) => {
     const toastId = toast.loading(`Planning drill for ${serviceName}…`)
     try {
       // Plan the drill
       const drillPlan = await planDrill({
-        type: 'pod-kill',
+        type: 'ServiceShutdown',
         target: serviceName,
-        config: { replicas: 1, gracePeriod: 30 },
+        config: { replicas: 0, gracePeriod: 30, namespace: namespace || 'onlineboutique' },
       })
       toast.loading(`Running drill ${drillPlan.id}…`, { id: toastId })
       setSimulationState((prev) => prev
         ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
-        : { type: 'failure', serviceName, loading: false, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : { type: 'failure', serviceName, namespace, loading: false, drillRunId: drillPlan.id, drillStatus: 'planned' }
       )
 
       // Execute the drill
       const runResult = await runDrill(drillPlan.id)
       setSimulationState((prev) => prev ? { ...prev, drillStatus: runResult.status } : null)
       toast.success(`Drill started: ${runResult.status}`, { id: toastId })
+
+      // Start polling to reflect drill effects on the topology map
+      startDrillRefreshPolling(drillPlan.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Unknown error'
       toast.error(`Drill failed: ${msg}`, { id: toastId })
       setSimulationState((prev) => prev ? { ...prev, drillStatus: `Error: ${msg}` } : null)
     }
-  }, [])
+  }, [startDrillRefreshPolling])
 
   /* ---- Scale Service handler ---- */
-  const handleScaleService = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number) => {
+  const handleScaleService = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => {
     const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 1)
     if (direction === 'down' && currentPods <= 1) {
       toast.error('Cannot scale below 1 pod')
       return
     }
-    setSimulationState({ type: 'scale', serviceName, loading: true, scaleDirection: direction })
+    setSimulationState({ type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction })
     try {
       const result = await simulateScale({
         serviceId: serviceName,
@@ -1887,15 +1947,17 @@ export default function ClusterTopologyMap() {
       })
       setSimulationState((prev) => prev ? { ...prev, loading: false, scaleResult: result } : null)
       toast.success(`Scale ${direction} simulation complete: ${currentPods} → ${newPods} pods`)
+      // Refresh topology to pick up any concurrent cluster changes
+      await refetch()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Scale simulation failed'
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
       toast.error(`Scale simulation failed: ${msg}`)
     }
-  }, [])
+  }, [refetch])
 
   /* ---- Scale Drill handler (actually scales via K8s) ---- */
-  const handleScaleDrill = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number) => {
+  const handleScaleDrill = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => {
     const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 1)
     if (direction === 'down' && currentPods <= 1) {
       toast.error('Cannot scale below 1 pod')
@@ -1903,17 +1965,17 @@ export default function ClusterTopologyMap() {
     }
     const drillType = direction === 'up' ? 'PodScaleUp' : 'PodScaleDown'
     const toastId = toast.loading(`Planning ${direction} drill for ${serviceName}…`)
-    setSimulationState({ type: 'scale', serviceName, loading: true, scaleDirection: direction })
+    setSimulationState({ type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction })
     try {
       const drillPlan = await planDrill({
         type: drillType,
         target: serviceName,
-        config: { replicas: newPods, gracePeriod: 30 },
+        config: { replicas: newPods, gracePeriod: 30, namespace: namespace || 'onlineboutique' },
       })
       toast.loading(`Executing scale ${direction} drill ${drillPlan.id}…`, { id: toastId })
       setSimulationState((prev) => prev
         ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
-        : { type: 'scale', serviceName, loading: true, scaleDirection: direction, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : { type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction, drillRunId: drillPlan.id, drillStatus: 'planned' }
       )
 
       const runResult = await runDrill(drillPlan.id)
@@ -1922,12 +1984,17 @@ export default function ClusterTopologyMap() {
         : null
       )
       toast.success(`Scale ${direction} drill started: ${currentPods} → ${newPods} pods`, { id: toastId })
+
+      // Start polling to reflect the scale drill's effect on the topology map.
+      // Initial refetch after 3 s to give k8s time to create / terminate pods,
+      // then every 3 s thereafter so the map stays in sync while the drill is active.
+      startDrillRefreshPolling(drillPlan.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Scale drill failed'
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg, drillStatus: `Error: ${msg}` } : null)
       toast.error(`Scale drill failed: ${msg}`, { id: toastId })
     }
-  }, [])
+  }, [startDrillRefreshPolling])
 
   /* ---- Migrate Service handler (enter migration mode) ---- */
   const handleMigrateService = useCallback((serviceName: string, namespace: string) => {
@@ -1972,6 +2039,7 @@ export default function ClusterTopologyMap() {
     setSimulationState({
       type: 'migration',
       serviceName,
+      namespace: migrationMode.namespace,
       loading: true,
       migrationTarget: targetNodeName,
       migrationFeasible: feasible,

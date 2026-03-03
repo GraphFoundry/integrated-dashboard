@@ -33,7 +33,7 @@ export interface DrillRun {
     canRecover?: boolean
     recoveryDeadline?: string
     recoveryMode?: 'manual_with_failsafe' | 'automatic'
-    recoverySource?: 'manual' | 'failsafe' | 'abort'
+    recoverySource?: 'manual' | 'failsafe' | 'abort' | 'accept'
 }
 
 export interface DrillPlanRequest {
@@ -64,6 +64,11 @@ export const abortDrillRun = async (runId: string): Promise<{ status: string }> 
 
 export const recoverDrillRun = async (runId: string): Promise<{ status: string }> => {
     const response = await predictiveApi.post(`/drills/runs/${runId}/recover`)
+    return response.data
+}
+
+export const acceptDrillRun = async (runId: string): Promise<{ status: string }> => {
+    const response = await predictiveApi.post(`/drills/runs/${runId}/accept`)
     return response.data
 }
 

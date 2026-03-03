@@ -77,7 +77,7 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
   const [isExplainMode, setIsExplainMode] = useState(true)
 
   const isObservingImpact = ['Observing', 'AwaitingRecovery', 'Recovering'].includes(run.status)
-  const isCompleted = ['Completed', 'Aborted'].includes(run.status)
+  const isCompleted = ['Completed', 'Aborted', 'Accepted'].includes(run.status)
 
   const baseline = getMetricsForService(run.preSnapshot, run.target)
   const recovered = getMetricsForService(run.postSnapshot, run.target)

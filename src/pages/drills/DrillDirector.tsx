@@ -40,6 +40,8 @@ function getRunStatusBadgeClass(status: string): string {
       return 'border-violet-400/30 bg-violet-500/10 text-[var(--text-primary)]'
     case 'Completed':
       return 'border-emerald-400/30 bg-emerald-500/10 text-[var(--text-primary)]'
+    case 'Accepted':
+      return 'border-teal-400/30 bg-teal-500/10 text-[var(--text-primary)]'
     case 'Aborted':
       return 'border-orange-400/30 bg-orange-500/10 text-[var(--text-primary)]'
     case 'Failed':
@@ -87,7 +89,7 @@ export default function DrillDirector() {
   }, [])
 
   useEffect(() => {
-    if (!activeRun || !['Completed', 'Aborted', 'Failed'].includes(activeRun.status)) {
+    if (!activeRun || !['Completed', 'Aborted', 'Failed', 'Accepted'].includes(activeRun.status)) {
       return
     }
 

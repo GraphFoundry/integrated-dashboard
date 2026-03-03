@@ -55,7 +55,7 @@ import { useTheme } from '@/theme/useTheme'
 import toast from 'react-hot-toast'
 import type { ServiceWithPlacement, NodeWithResources, FailureResponse, ScaleResponse } from '@/lib/types'
 import { simulateFailure, simulateScale } from '@/lib/api'
-import { planDrill, runDrill, getDrillRun, recoverDrillRun, abortDrillRun } from '@/lib/api/drills'
+import { planDrill, runDrill, getDrillRun, recoverDrillRun, acceptDrillRun } from '@/lib/api/drills'
 
 /** Live per-service metrics map exposed by useServicesWithPlacement */
 type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: number }>
@@ -1708,8 +1708,8 @@ export default function ClusterTopologyMap() {
               return { ...prev, awaitingRecovery: true }
             })
           }
-          // Stop polling once drill is completed or aborted
-          if (['completed', 'aborted', 'failed'].includes(run.status.toLowerCase())) {
+          // Stop polling once drill is completed, aborted, or accepted
+          if (['completed', 'aborted', 'failed', 'accepted'].includes(run.status.toLowerCase())) {
             // One final refetch after a short delay to capture post-rollback state
             setTimeout(() => refetch(), 3000)
             if (drillPollRef.current) clearInterval(drillPollRef.current)
@@ -2555,8 +2555,8 @@ export default function ClusterTopologyMap() {
                 onSkipRecover={async () => {
                   if (!simulationState.drillRunId) return
                   try {
-                    await abortDrillRun(simulationState.drillRunId)
-                  } catch { /* best-effort */ }
+                    await acceptDrillRun(simulationState.drillRunId)
+                  } catch { /* best-effort: drill will stay in AwaitingRecovery, cluster state is unchanged */ }
                   setSimulationState((prev) => prev ? { ...prev, awaitingRecovery: false, drillStatus: 'kept' } : null)
                   toast.success('Current cluster state kept')
                   if (drillPollRef.current) { clearInterval(drillPollRef.current); drillPollRef.current = null }

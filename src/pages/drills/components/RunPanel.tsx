@@ -43,6 +43,8 @@ function getStatusBadgeClass(status: string): string {
       return 'border-violet-400/30 bg-violet-500/10 text-[var(--text-primary)]'
     case 'Completed':
       return 'border-emerald-400/30 bg-emerald-500/10 text-[var(--text-primary)]'
+    case 'Accepted':
+      return 'border-teal-400/30 bg-teal-500/10 text-[var(--text-primary)]'
     case 'Aborted':
       return 'border-orange-400/30 bg-orange-500/10 text-[var(--text-primary)]'
     case 'Failed':
@@ -345,7 +347,7 @@ export default function RunPanel({
   const [isRecoverSubmitting, setIsRecoverSubmitting] = useState(false)
   const [countdownNow, setCountdownNow] = useState(Date.now())
 
-  const isTerminal = ['Completed', 'Aborted', 'Failed'].includes(run.status)
+  const isTerminal = ['Completed', 'Aborted', 'Failed', 'Accepted'].includes(run.status)
   const isAwaitingRecovery = run.status === 'AwaitingRecovery'
   const isActiveLifecycle = ['Running', 'Observing', 'AwaitingRecovery', 'Recovering'].includes(run.status)
   const isBusyVisual = ['Running', 'Observing', 'Recovering'].includes(run.status)

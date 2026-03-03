@@ -55,7 +55,7 @@ import { useTheme } from '@/theme/useTheme'
 import toast from 'react-hot-toast'
 import type { ServiceWithPlacement, NodeWithResources, FailureResponse, ScaleResponse } from '@/lib/types'
 import { simulateFailure, simulateScale } from '@/lib/api'
-import { planDrill, runDrill, getDrillRun } from '@/lib/api/drills'
+import { planDrill, runDrill, getDrillRun, recoverDrillRun } from '@/lib/api/drills'
 
 /** Live per-service metrics map exposed by useServicesWithPlacement */
 type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: number }>
@@ -1664,6 +1664,14 @@ export default function ClusterTopologyMap() {
             if (!prev || prev.drillRunId !== drillRunId) return prev
             return { ...prev, drillStatus: run.status }
           })
+          // Auto-approve recovery for scale / migration drills so they
+          // don't hang in AwaitingRecovery until the failsafe timer fires.
+          if (run.status.toLowerCase() === 'awaitingrecovery' && run.canRecover) {
+            try {
+              await recoverDrillRun(drillRunId)
+              toast.success('Drill recovery completed – rolling back to baseline')
+            } catch { /* will retry on next poll cycle */ }
+          }
           // Stop polling once drill is completed or aborted
           if (['completed', 'aborted', 'failed'].includes(run.status.toLowerCase())) {
             // One final refetch after a short delay to capture post-rollback state
@@ -1925,7 +1933,7 @@ export default function ClusterTopologyMap() {
 
     return gNodes.map((n) => {
       let fill = n.fill
-      let size = n.size
+      const size = n.size
       let subLabel = n.subLabel
 
       /* Search highlight */
@@ -1936,10 +1944,9 @@ export default function ClusterTopologyMap() {
       if (tracedPath.size > 0 && tracedPath.has(n.id)) {
         fill = '#22d3ee' // cyan-400
       }
-      /* High error rate: use a static red fill */
-      if (n.data?.highErrorRate) {
-        fill = '#ef4444'
-        size = 44
+      /* Running with high errors → orange; down services stay red from buildTopologyGraph */
+      if (n.data?.highErrorRate && !n.data?.isDown) {
+        fill = '#f97316'
       }
       /* Alert badge: add subLabel count */
       if (n.data?.openIncidents > 0) {

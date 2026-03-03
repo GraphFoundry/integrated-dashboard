@@ -1775,16 +1775,69 @@ export default function ClusterTopologyMap() {
 
   const graphTheme = useMemo(() => createTopologyTheme(resolvedTheme === 'dark'), [resolvedTheme])
 
-  const { nodes: gNodes, edges: gEdges } = useMemo(
+  const { nodes: rawNodes, edges: rawEdges } = useMemo(
     () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups),
     [services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups]
   )
 
   /**
-   * Compute a stable "structural key" from node/edge IDs so the force layout
-   * only re-runs when the actual topology structure changes (nodes added/removed),
+   * Stable node / edge references: only create new JS objects for nodes whose
+   * visual properties actually changed.  Unchanged nodes keep the previous
+   * object identity so reagraph’s internal diff sees “no change” and the
+   * force-directed layout keeps its positions instead of “dancing.”
+   */
+  const prevNodesRef = useRef<Map<string, ReagraphNode>>(new Map())
+  const prevEdgesRef = useRef<Map<string, ReagraphEdge>>(new Map())
+
+  const gNodes = useMemo(() => {
+    const prev = prevNodesRef.current
+    const next = new Map<string, ReagraphNode>()
+    const stable: ReagraphNode[] = rawNodes.map((n) => {
+      const old = prev.get(n.id)
+      // Compare visual-only fields; skip deep data comparison for perf
+      if (
+        old &&
+        old.fill === n.fill &&
+        old.label === n.label &&
+        old.subLabel === n.subLabel &&
+        old.size === n.size
+      ) {
+        // Preserve the old object reference – reagraph won’t re-layout
+        next.set(n.id, old)
+        return old
+      }
+      next.set(n.id, n)
+      return n
+    })
+    prevNodesRef.current = next
+    return stable
+  }, [rawNodes])
+
+  const gEdges = useMemo(() => {
+    const prev = prevEdgesRef.current
+    const next = new Map<string, ReagraphEdge>()
+    const stable: ReagraphEdge[] = rawEdges.map((e) => {
+      const old = prev.get(e.id)
+      if (
+        old &&
+        old.label === e.label &&
+        old.size === e.size &&
+        old.fill === e.fill
+      ) {
+        next.set(e.id, old)
+        return old
+      }
+      next.set(e.id, e)
+      return e
+    })
+    prevEdgesRef.current = next
+    return stable
+  }, [rawEdges])
+
+  /**
+   * Compute a stable "structural key" from node/edge IDs so auto-zoom
+   * fires only when the actual topology structure changes (nodes added/removed),
    * NOT when properties (cpu%, labels, colours) update from polling.
-   * This prevents the annoying "dancing" on scale drill / poll refreshes.
    */
   const graphStructureKey = useMemo(() => {
     const nodeIds = gNodes.map((n) => n.id).sort().join('|')
@@ -1862,29 +1915,43 @@ export default function ClusterTopologyMap() {
   }, [searchQuery, gNodes])
 
   const displayNodes = useMemo(() => {
+    // When there are no search/path/alert overlays, return gNodes directly
+    // so reagraph sees the same stable references (no dancing).
+    const hasOverlays = searchMatchIds.size > 0 || tracedPath.size > 0
+    const needsPerNodeCheck = hasOverlays || gNodes.some(
+      (n) => n.data?.highErrorRate || (n.data?.openIncidents ?? 0) > 0
+    )
+    if (!needsPerNodeCheck) return gNodes
+
     return gNodes.map((n) => {
-      let patched = n
+      let fill = n.fill
+      let size = n.size
+      let subLabel = n.subLabel
+
       /* Search highlight */
       if (searchMatchIds.size > 0 && searchMatchIds.has(n.id)) {
-        patched = { ...patched, fill: '#FBBF24' }
+        fill = '#FBBF24'
       }
       /* Path-trace highlight: cyan for nodes on traced path */
       if (tracedPath.size > 0 && tracedPath.has(n.id)) {
-        patched = { ...patched, fill: '#22d3ee' } // cyan-400
+        fill = '#22d3ee' // cyan-400
       }
-      /* High error rate: use a static red fill (no pulse to avoid re-layout) */
+      /* High error rate: use a static red fill */
       if (n.data?.highErrorRate) {
-        patched = { ...patched, fill: '#ef4444', size: 44 }
+        fill = '#ef4444'
+        size = 44
       }
       /* Alert badge: add subLabel count */
       if (n.data?.openIncidents > 0) {
-        const badgeText = `⚠ ${n.data.openIncidents} alert${n.data.openIncidents > 1 ? 's' : ''}`
-        patched = { ...patched, subLabel: badgeText }
+        subLabel = `⚠ ${n.data.openIncidents} alert${n.data.openIncidents > 1 ? 's' : ''}`
         if (n.data.criticalAlerts > 0) {
-          patched = { ...patched, fill: '#ef4444' }
+          fill = '#ef4444'
         }
       }
-      return patched
+
+      // Only create a new object if something actually changed
+      if (fill === n.fill && size === n.size && subLabel === n.subLabel) return n
+      return { ...n, fill, size, subLabel }
     })
   }, [gNodes, searchMatchIds, tracedPath])
 
@@ -2372,7 +2439,6 @@ export default function ClusterTopologyMap() {
             )}
 
             <GraphCanvas
-              key={graphStructureKey}
               ref={graphRef}
               nodes={displayNodes}
               edges={displayEdges}

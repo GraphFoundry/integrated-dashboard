@@ -55,7 +55,7 @@ import { useTheme } from '@/theme/useTheme'
 import toast from 'react-hot-toast'
 import type { ServiceWithPlacement, NodeWithResources, FailureResponse, ScaleResponse } from '@/lib/types'
 import { simulateFailure, simulateScale } from '@/lib/api'
-import { planDrill, runDrill, getDrillRun, recoverDrillRun } from '@/lib/api/drills'
+import { planDrill, runDrill, getDrillRun, recoverDrillRun, abortDrillRun } from '@/lib/api/drills'
 
 /** Live per-service metrics map exposed by useServicesWithPlacement */
 type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: number }>
@@ -1265,6 +1265,8 @@ interface SimulationResultState {
   migrationReason?: string
   drillRunId?: string
   drillStatus?: string
+  /** True when the drill engine is waiting for the operator to approve rollback */
+  awaitingRecovery?: boolean
   error?: string
 }
 
@@ -1272,10 +1274,14 @@ function SimulationResultsDrawer({
   state,
   onClose,
   onRunDrill,
+  onRecover,
+  onSkipRecover,
 }: {
   state: SimulationResultState
   onClose: () => void
   onRunDrill?: (serviceName: string, namespace: string) => void
+  onRecover?: () => void
+  onSkipRecover?: () => void
 }) {
   return (
     <div className="absolute top-4 left-4 z-30 w-96 bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-left duration-200">
@@ -1535,6 +1541,35 @@ function SimulationResultsDrawer({
             </div>
           </div>
         )}
+
+        {/* Recovery prompt — shown when the drill engine is waiting for operator approval */}
+        {state.awaitingRecovery && (
+          <div className="rounded-md bg-amber-500/10 border border-amber-500/40 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span className="font-semibold text-amber-400">Roll back to baseline?</span>
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              The drill has finished. Do you want to restore the original state, or keep the current cluster state as-is?
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onRecover}
+                className="flex-1 rounded-md bg-amber-500/20 border border-amber-500/40 px-3 py-1.5 text-xs font-semibold text-amber-400 hover:bg-amber-500/30 transition-colors"
+              >
+                Yes, roll back
+              </button>
+              <button
+                type="button"
+                onClick={onSkipRecover}
+                className="flex-1 rounded-md bg-[var(--surface-soft)] border border-[var(--border)] px-3 py-1.5 text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--surface-subtle)] transition-colors"
+              >
+                No, keep current state
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1664,13 +1699,14 @@ export default function ClusterTopologyMap() {
             if (!prev || prev.drillRunId !== drillRunId) return prev
             return { ...prev, drillStatus: run.status }
           })
-          // Auto-approve recovery for scale / migration drills so they
-          // don't hang in AwaitingRecovery until the failsafe timer fires.
-          if (run.status.toLowerCase() === 'awaitingrecovery' && run.canRecover) {
-            try {
-              await recoverDrillRun(drillRunId)
-              toast.success('Drill recovery completed – rolling back to baseline')
-            } catch { /* will retry on next poll cycle */ }
+          // When the drill reaches AwaitingRecovery, surface a prompt in the
+          // drawer so the operator can decide whether to roll back or keep the
+          // current cluster state.  Never auto-recover.
+          if (run.status.toLowerCase() === 'awaitingrecovery') {
+            setSimulationState((prev) => {
+              if (!prev || prev.drillRunId !== drillRunId) return prev
+              return { ...prev, awaitingRecovery: true }
+            })
           }
           // Stop polling once drill is completed or aborted
           if (['completed', 'aborted', 'failed'].includes(run.status.toLowerCase())) {
@@ -2111,8 +2147,6 @@ export default function ClusterTopologyMap() {
       toast.success(`Scale ${direction} drill started: ${currentPods} → ${newPods} pods`, { id: toastId })
 
       // Start polling to reflect the scale drill's effect on the topology map.
-      // Initial refetch after 3 s to give k8s time to create / terminate pods,
-      // then every 3 s thereafter so the map stays in sync while the drill is active.
       startDrillRefreshPolling(drillPlan.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Scale drill failed'
@@ -2507,6 +2541,26 @@ export default function ClusterTopologyMap() {
                 state={simulationState}
                 onClose={() => setSimulationState(null)}
                 onRunDrill={handleRunDrill}
+                onRecover={async () => {
+                  if (!simulationState.drillRunId) return
+                  try {
+                    await recoverDrillRun(simulationState.drillRunId)
+                    toast.success('Rolled back to baseline')
+                    setSimulationState((prev) => prev ? { ...prev, awaitingRecovery: false, drillStatus: 'recovering' } : null)
+                    setTimeout(() => refetch(), 3000)
+                  } catch {
+                    toast.error('Rollback failed — please try again')
+                  }
+                }}
+                onSkipRecover={async () => {
+                  if (!simulationState.drillRunId) return
+                  try {
+                    await abortDrillRun(simulationState.drillRunId)
+                  } catch { /* best-effort */ }
+                  setSimulationState((prev) => prev ? { ...prev, awaitingRecovery: false, drillStatus: 'kept' } : null)
+                  toast.success('Current cluster state kept')
+                  if (drillPollRef.current) { clearInterval(drillPollRef.current); drillPollRef.current = null }
+                }}
               />
             )}
           </div>

@@ -1,0 +1,57 @@
+services:
+  # ─── BFF (Node + TypeScript) ───────────────────────────────────────────────
+  bff:
+    build:
+      context: ./bff
+      dockerfile: Dockerfile
+    container_name: dashboard-bff
+    restart: unless-stopped
+    ports:
+      - "${BFF_PORT:-3001}:3001"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - WEBHOOK_DEDUPE_FILE=/app/data/webhook-dedupe.json
+    volumes:
+      - bff-data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # ─── Frontend (Vite + React → nginx) ──────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # BFF URL must be empty so browser calls /api/* on same origin;
+        # nginx proxies them to the bff container.
+        VITE_BFF_URL: ""
+        VITE_PREDICTIVE_API_BASE_URL: "${VITE_PREDICTIVE_API_BASE_URL:-http://localhost:7000}"
+        VITE_SCHEDULER_API_BASE_URL: "${VITE_SCHEDULER_API_BASE_URL:-http://localhost:9020}"
+        VITE_GRAPH_ALERT_API_BASE_URL: "${VITE_GRAPH_ALERT_API_BASE_URL:-}"
+        VITE_ENABLE_GRAPH_DIRECT_FALLBACK: "${VITE_ENABLE_GRAPH_DIRECT_FALLBACK:-false}"
+        VITE_GRAPH_CACHE_REFRESH_MS: "${VITE_GRAPH_CACHE_REFRESH_MS:-5000}"
+        VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE: "${VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE:-false}"
+    container_name: dashboard-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      bff:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+volumes:
+  bff-data:
+    driver: local

@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+bff/node_modules/
+
+# Build output
+dist/
+bff/dist/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+bff/.env
+
+# Version control
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test / docs / CI (not needed in image)
+docs/
+.github/
+*.md
+!README.md
+test-alerts.sh
+.editorconfig
+.prettierrc
+.prettierignore
+.nvmrc
+
+# BFF directory (frontend Dockerfile doesn't need it)
+bff/

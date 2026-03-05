@@ -24,7 +24,7 @@ interface SidebarProps {
   readonly onClose: () => void
 }
 
-function NavItem({ path, label, icon: Icon }: { path: string; label: string; icon: React.ElementType }) {
+function NavItem({ path, label, icon: Icon }: { path: string; label: string; icon: React.ComponentType<{ className?: string }> }) {
   return (
     <li>
       <NavLink

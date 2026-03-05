@@ -3,8 +3,9 @@ import {
   connectToGraphStream,
   getLatestGraphData,
   type GraphUpdateData,
+  type GraphFreshness,
 } from '@/lib/bffApiClient'
-import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes } from '@/lib/api'
+import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes, isInfrastructureService } from '@/lib/api'
 import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
 const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
@@ -23,6 +24,7 @@ export function useGraphStream() {
   const [graphData, setGraphData] = useState<GraphUpdateData | null>(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [freshness, setFreshness] = useState<GraphFreshness | null>(null)
   const isFirstUpdate = useRef(true)
   const lastReceivedAtMs = useRef<number>(0)
 
@@ -44,7 +46,9 @@ export function useGraphStream() {
     // 1. Try to get cached data from BFF first (fast initial render)
     getLatestGraphData()
       .then((result) => {
-        if (isMounted && result?.data) {
+        if (!isMounted || !result) return
+        if (result.freshness) setFreshness(result.freshness)
+        if (result.data) {
           const receivedAt = result.receivedAt || new Date().toISOString()
           lastReceivedAtMs.current = Date.parse(receivedAt) || Date.now()
           setGraphData(result.data)
@@ -70,7 +74,9 @@ export function useGraphStream() {
       if (!isMounted) return
       getLatestGraphData()
         .then((result) => {
-          if (!isMounted || !result?.data) return
+          if (!isMounted || !result) return
+          if (result.freshness) setFreshness(result.freshness)
+          if (!result.data) return
           const receivedAt = result.receivedAt || new Date().toISOString()
           const receivedAtMs = Date.parse(receivedAt) || Date.now()
           if (receivedAtMs <= lastReceivedAtMs.current) return
@@ -122,7 +128,23 @@ export function useGraphStream() {
     }
   }, [handleGraphUpdate])
 
-  return { graphData, loading, lastUpdated }
+  /**
+   * Force-refresh graph data by fetching from the BFF cache.
+   * Call this after drill/simulation operations to pick up cluster state changes.
+   */
+  const refetch = useCallback(async () => {
+    try {
+      const result = await getLatestGraphData()
+      if (result?.data) {
+        handleGraphUpdate(result.data)
+        if (result.freshness) setFreshness(result.freshness)
+      }
+    } catch {
+      // Ignore transient refetch failures
+    }
+  }, [handleGraphUpdate])
+
+  return { graphData, loading, lastUpdated, freshness, refetch }
 }
 
 /**
@@ -133,7 +155,7 @@ export function useGraphStream() {
  * Drop-in replacement for the previous polling useEffect pattern.
  */
 export function useDependencyGraphSnapshot() {
-  const { graphData, loading, lastUpdated } = useGraphStream()
+  const { graphData, loading, lastUpdated, freshness } = useGraphStream()
   const [snapshot, setSnapshot] = useState<GraphSnapshot | null>(null)
   const [fallbackLoading, setFallbackLoading] = useState(true)
 
@@ -152,12 +174,14 @@ export function useDependencyGraphSnapshot() {
     }
 
     // Build nodes (same enrichment logic as analysis-engine DependencyGraphHandler)
-    const nodes = metricsSnapshot.services.map((svc) => {
-      const ns = svc.namespace || 'default'
-      const id = `${ns}:${svc.name}`
-      const errPct = svc.errorRate * 100
-      const availPct = (typeof svc.availability === 'number' ? svc.availability : 0) * 100
-      const centralityScore = centralityMap.get(svc.name)
+    const nodes = metricsSnapshot.services
+      .filter((svc) => !isInfrastructureService({ name: svc.name, namespace: svc.namespace || 'default' }))
+      .map((svc) => {
+        const ns = svc.namespace || 'default'
+        const id = `${ns}:${svc.name}`
+        const errPct = svc.errorRate * 100
+        const availPct = (typeof svc.availability === 'number' ? svc.availability : 0) * 100
+        const centralityScore = centralityMap.get(svc.name)
 
       // Risk calculation (mirrors analysis-engine calculateRiskLevel)
       let riskLevel: GraphRiskLevel = 'LOW'
@@ -214,25 +238,46 @@ export function useDependencyGraphSnapshot() {
       serviceNamespaceMap.set(svc.name, svc.namespace || 'default')
     })
 
-    const edges = metricsSnapshot.edges.map((e) => {
-      const fromNs = serviceNamespaceMap.get(e.from) || 'default'
-      const toNs = e.namespace || serviceNamespaceMap.get(e.to) || 'default'
-      return {
-        id: `${fromNs}:${e.from}->${toNs}:${e.to}`,
-        source: `${fromNs}:${e.from}`,
-        target: `${toNs}:${e.to}`,
-        reqRate: e.rps,
-        latencyP95Ms: e.p95,
-      }
-    })
+    const edges = metricsSnapshot.edges
+      .filter((e) => {
+        const fromNs = serviceNamespaceMap.get(e.from) || 'default'
+        const toNs = e.namespace || serviceNamespaceMap.get(e.to) || 'default'
+        return (
+          !isInfrastructureService({ name: e.from, namespace: fromNs }) &&
+          !isInfrastructureService({ name: e.to, namespace: toNs })
+        )
+      })
+      .map((e) => {
+        const fromNs = serviceNamespaceMap.get(e.from) || 'default'
+        const toNs = e.namespace || serviceNamespaceMap.get(e.to) || 'default'
+        return {
+          id: `${fromNs}:${e.from}->${toNs}:${e.to}`,
+          source: `${fromNs}:${e.from}`,
+          target: `${toNs}:${e.to}`,
+          reqRate: e.rps,
+          errorRatePct: Number(e.errorRate || 0) * 100,
+          latencyP95Ms: e.p95,
+        }
+      })
+
+    const fallbackUpdatedSecondsAgo =
+      lastUpdated && Number.isFinite(Date.parse(lastUpdated))
+        ? Math.max(0, Math.floor((Date.now() - Date.parse(lastUpdated)) / 1000))
+        : null
+    const resolvedWindowMinutes = freshness?.windowMinutes ?? 5
+    const resolvedUpdatedSecondsAgo = freshness?.lastUpdatedSecondsAgo ?? fallbackUpdatedSecondsAgo
+    const resolvedStale =
+      freshness?.stale ?? (resolvedUpdatedSecondsAgo === null
+        ? true
+        : resolvedUpdatedSecondsAgo > resolvedWindowMinutes * 60)
 
     setSnapshot({
       nodes,
       edges,
       metadata: {
-        stale: false,
-        lastUpdatedSecondsAgo: 0,
-        windowMinutes: 5,
+        stale: resolvedStale,
+        lastUpdatedSecondsAgo: resolvedUpdatedSecondsAgo,
+        windowMinutes: resolvedWindowMinutes,
         nodeCount: nodes.length,
         edgeCount: edges.length,
         nodesWithMetrics: nodes.length,
@@ -241,7 +286,7 @@ export function useDependencyGraphSnapshot() {
       },
     })
     setFallbackLoading(false)
-  }, [graphData, lastUpdated])
+  }, [graphData, lastUpdated, freshness])
 
   // Optional fallback: disabled by default to avoid masking webhook pipeline failures.
   useEffect(() => {
@@ -287,7 +332,7 @@ export function useDependencyGraphSnapshot() {
  * Drop-in replacement for the polling pattern in NodeResourceGraph.
  */
 export function useServicesWithPlacement() {
-  const { graphData, loading, lastUpdated } = useGraphStream()
+  const { graphData, loading, lastUpdated, refetch: refetchGraph } = useGraphStream()
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
   const [allNodes, setAllNodes] = useState<NodeWithResources[]>([])
   const [fallbackLoading, setFallbackLoading] = useState(true)
@@ -296,7 +341,21 @@ export function useServicesWithPlacement() {
       (graphData?.metricsSnapshot?.edges || []).map((e) => ({
         source: e.from,
         target: e.to,
+        rps: e.rps,
+        errorRate: e.errorRate,
       })),
+    [graphData]
+  )
+
+  /** Per-service live metrics (rps, errorRate, p95) keyed by service name */
+  const serviceMetrics = useMemo(
+    () =>
+      new Map(
+        (graphData?.metricsSnapshot?.services || []).map((s) => [
+          s.name,
+          { rps: s.rps, errorRate: s.errorRate, p95: s.p95 },
+        ])
+      ),
     [graphData]
   )
 
@@ -304,13 +363,15 @@ export function useServicesWithPlacement() {
     if (!graphData) return
 
     // Map webhook services to ServiceWithPlacement format
-    const mappedServices: ServiceWithPlacement[] = graphData.services.map((svc) => ({
-      name: svc.name,
-      namespace: svc.namespace,
-      podCount: svc.podCount,
-      availability: svc.availability,
-      placement: svc.placement,
-    }))
+    const mappedServices: ServiceWithPlacement[] = graphData.services
+      .filter((svc) => !isInfrastructureService({ name: svc.name, namespace: svc.namespace }))
+      .map((svc) => ({
+        name: svc.name,
+        namespace: svc.namespace,
+        podCount: svc.podCount,
+        availability: svc.availability,
+        placement: svc.placement,
+      }))
 
     // Map infrastructure nodes
     const mappedNodes: NodeWithResources[] = (graphData.infrastructure?.nodes || []).map((n) => ({
@@ -357,12 +418,43 @@ export function useServicesWithPlacement() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * Force-refresh services & nodes from the analysis-engine directly,
+   * bypassing the webhook cache. Useful after drills/simulations that
+   * mutate cluster state so the topology map reflects changes immediately.
+   */
+  const refetch = useCallback(async () => {
+    // First try the BFF-level refetch (fast, uses cached webhook data)
+    await refetchGraph()
+
+    // Then also pull live data directly from the analysis-engine
+    // to capture very recent k8s changes (e.g. new pods from a scale drill)
+    try {
+      const [servicesData, nodesData] = await Promise.all([
+        getServicesWithPlacement(),
+        getNodes().catch(() => ({ nodes: [] })),
+      ])
+      if (servicesData.services?.length) {
+        setServices(servicesData.services)
+      }
+      if (nodesData.nodes?.length) {
+        setAllNodes(nodesData.nodes)
+      }
+    } catch {
+      // Direct fetch failed — rely on BFF-level data
+    }
+  }, [refetchGraph])
+
   return {
     services,
     allNodes,
     loading: loading && fallbackLoading,
     lastUpdated,
-    // Expose dependency edges from the snapshot
+    // Expose dependency edges from the snapshot (now includes rps / errorRate)
     dependencyEdges,
+    // Per-service live metrics map
+    serviceMetrics,
+    // Manual refetch trigger for drill/simulation operations
+    refetch,
   }
 }

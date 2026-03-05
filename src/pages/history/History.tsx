@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
-import { Download, Filter, History as HistoryIcon, RefreshCw, Share2, SplitSquareHorizontal } from 'lucide-react'
+import { Download, Filter, History as HistoryIcon, RefreshCw, Share2, SplitSquareHorizontal, Zap, Layers, TrendingUp, Database, ChevronLeft, ChevronRight, ExternalLink, ShieldCheck, Clock } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
+import MetricHighlightCard from '@/components/layout/MetricHighlightCard'
 import {
   cn,
   controlInputMutedClass,
@@ -55,18 +56,45 @@ function getConfidenceBadge(result: Record<string, unknown>) {
   if (!confidence) return null
 
   const colors: Record<string, string> = {
-    high: 'bg-emerald-500/12 text-emerald-700 border-emerald-500/45',
-    medium: 'bg-amber-500/12 text-amber-700 border-amber-500/45',
-    low: 'bg-rose-500/12 text-rose-700 border-rose-500/45',
+    high: 'bg-emerald-500/12 text-emerald-400 border-emerald-500/35',
+    medium: 'bg-amber-500/12 text-amber-400 border-amber-500/35',
+    low: 'bg-rose-500/12 text-rose-400 border-rose-500/35',
   }
 
   return (
     <span
-      className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+      className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
         colors[confidence] || 'bg-[var(--surface-soft)] text-[var(--text-secondary)]'
       }`}
     >
       {confidence}
+    </span>
+  )
+}
+
+function getTypeBadge(type: string) {
+  const cfg: Record<string, { label: string; icon: ReactNode; cls: string }> = {
+    failure: {
+      label: 'Failure',
+      icon: <Zap className="h-3 w-3" />,
+      cls: 'bg-rose-500/12 text-rose-400 border-rose-500/35',
+    },
+    scaling: {
+      label: 'Scaling',
+      icon: <Layers className="h-3 w-3" />,
+      cls: 'bg-cyan-500/12 text-cyan-400 border-cyan-500/35',
+    },
+    scale: {
+      label: 'Scale',
+      icon: <TrendingUp className="h-3 w-3" />,
+      cls: 'bg-blue-500/12 text-blue-400 border-blue-500/35',
+    },
+  }
+  const c = cfg[type] ?? { label: type, icon: <Database className="h-3 w-3" />, cls: 'bg-[var(--surface-soft)] text-[var(--text-secondary)] border-[var(--border)]' }
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold capitalize ${c.cls}`}>
+      {c.icon}
+      {c.label}
     </span>
   )
 }
@@ -177,13 +205,83 @@ export default function History() {
     }
   }
 
+  const failureCount = data?.decisions.filter((d) => d.type === 'failure').length ?? 0
+  const scalingCount = data?.decisions.filter((d) => d.type === 'scaling' || d.type === 'scale').length ?? 0
+
   return (
     <div className={pageContainerClass} aria-busy={loading && !data}>
       <PageHeader
         title="History"
         description="Decision audit trail, run comparison, and exportable evidence"
         icon={HistoryIcon}
+        actions={
+          <button
+            type="button"
+            onClick={fetchData}
+            disabled={loading}
+            className={cn(subtleIconButtonClass)}
+            title="Refresh history"
+            aria-label="Refresh history data"
+          >
+            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        }
       />
+
+      {/* Stats Cards — skeleton while loading */}
+      {loading && !data && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4" aria-label="Loading history metrics">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={`history-stat-skeleton-${index}`} className={cn(loadingCardClass, 'p-6 text-left')}>
+              <SkeletonBlock variant="line" className="mb-3 w-2/3" />
+              <SkeletonBlock variant="line" className="mb-4 w-5/6" />
+              <SkeletonBlock variant="title" className="w-1/2" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      {data && (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <MetricHighlightCard
+            label="Total Decisions"
+            description="All analysis runs recorded in the audit trail."
+            icon={Database}
+            value={data.total}
+            valueClassName="text-indigo-200"
+            tone="indigo"
+            tooltip="Total number of decision records stored across all pages."
+          />
+          <MetricHighlightCard
+            label="Shown on Page"
+            description="Decisions visible in the current page view."
+            icon={Layers}
+            value={data.decisions.length}
+            valueClassName="text-[var(--text-primary)]"
+            tone="blue"
+            tooltip="How many decision records are rendered on this page. Up to 20 per page."
+          />
+          <MetricHighlightCard
+            label="Failure Simulations"
+            description="Failure-type runs on the current page."
+            icon={Zap}
+            value={failureCount}
+            valueClassName={failureCount > 0 ? 'text-rose-300' : 'text-emerald-300'}
+            tone="rose"
+            tooltip="Counts how many records on this page are failure-type simulations."
+          />
+          <MetricHighlightCard
+            label="Scaling Simulations"
+            description="Scale-type runs on the current page."
+            icon={TrendingUp}
+            value={scalingCount}
+            valueClassName="text-amber-200"
+            tone="amber"
+            tooltip="Counts how many records on this page are scaling-type simulations."
+          />
+        </div>
+      )}
 
       <Section icon={Filter}>
         <div className="flex flex-wrap items-end gap-4">
@@ -217,17 +315,6 @@ export default function History() {
             <SplitSquareHorizontal className="h-4 w-4" />
             Compare Selected
           </button>
-
-          <button
-            type="button"
-            onClick={fetchData}
-            disabled={loading}
-            className={cn(subtleIconButtonClass)}
-            title="Refresh data"
-            aria-label="Refresh history data"
-          >
-            <RefreshCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
         </div>
 
         <p className="mt-3 text-xs text-[var(--text-muted)]">
@@ -237,45 +324,67 @@ export default function History() {
 
       {compareResult && (
         <Section title="Run Comparison" icon={SplitSquareHorizontal}>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3" title="How many more or fewer services are impacted between selected runs.">
-              <div className="text-xs text-[var(--text-dim)]">Difference in impacted services</div>
-              <div className="text-xl font-semibold text-[var(--text-primary)]">
-                {compareResult.summary.affectedServicesDelta >= 0 ? '+' : ''}
-                {compareResult.summary.affectedServicesDelta}
+          {/* Run labels */}
+          <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="flex items-center gap-3 rounded-xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/8 to-[var(--surface-subtle)] p-4">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-500/20 text-xs font-bold text-cyan-300">L</span>
+              <div>
+                <div className="text-xs text-[var(--text-dim)] uppercase tracking-widest">Left Run</div>
+                <div className="mt-0.5 text-sm font-semibold text-[var(--text-primary)]">
+                  #{compareResult.left.id} · {compareResult.left.type} · {formatShortDate(compareResult.left.timestamp)}
+                </div>
               </div>
             </div>
-            <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3" title="Whether the confidence level changed between selected runs.">
-              <div className="text-xs text-[var(--text-dim)]">Confidence changed</div>
-              <div className="text-xl font-semibold text-[var(--text-primary)]">
-                {compareResult.summary.confidenceChanged ? 'Yes' : 'No'}
-              </div>
-              <div className="mt-1 text-xs text-[var(--text-muted)]">
-                {compareResult.summary.leftConfidence ?? 'n/a'} → {compareResult.summary.rightConfidence ?? 'n/a'}
-              </div>
-            </div>
-            <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3" title="Difference in expected response-time impact between selected runs.">
-              <div className="text-xs text-[var(--text-dim)]">Difference in response-time change</div>
-              <div className="text-xl font-semibold text-[var(--text-primary)]">
-                {compareResult.summary.latencyDeltaDiffMs === null ||
-                compareResult.summary.latencyDeltaDiffMs === undefined
-                  ? 'n/a'
-                  : `${compareResult.summary.latencyDeltaDiffMs >= 0 ? '+' : ''}${compareResult.summary.latencyDeltaDiffMs.toFixed(2)} ms`}
+            <div className="flex items-center gap-3 rounded-xl border border-blue-500/25 bg-gradient-to-r from-blue-500/8 to-[var(--surface-subtle)] p-4">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-xs font-bold text-blue-300">R</span>
+              <div>
+                <div className="text-xs text-[var(--text-dim)] uppercase tracking-widest">Right Run</div>
+                <div className="mt-0.5 text-sm font-semibold text-[var(--text-primary)]">
+                  #{compareResult.right.id} · {compareResult.right.type} · {formatShortDate(compareResult.right.timestamp)}
+                </div>
               </div>
             </div>
           </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-3 text-sm text-[var(--text-secondary)]">
-              <div className="mb-1 text-xs text-[var(--text-dim)]">Left Run</div>
-              #{compareResult.left.id} · {compareResult.left.type} ·{' '}
-              {formatShortDate(compareResult.left.timestamp)}
-            </div>
-            <div className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-3 text-sm text-[var(--text-secondary)]">
-              <div className="mb-1 text-xs text-[var(--text-dim)]">Right Run</div>
-              #{compareResult.right.id} · {compareResult.right.type} ·{' '}
-              {formatShortDate(compareResult.right.timestamp)}
-            </div>
+          {/* Delta metric cards — same MetricHighlightCard style */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <MetricHighlightCard
+              label="Impacted Services Δ"
+              description="Change in affected service count between the two runs."
+              icon={Layers}
+              value={`${compareResult.summary.affectedServicesDelta >= 0 ? '+' : ''}${compareResult.summary.affectedServicesDelta}`}
+              valueClassName={compareResult.summary.affectedServicesDelta > 0 ? 'text-rose-300' : compareResult.summary.affectedServicesDelta < 0 ? 'text-emerald-300' : 'text-[var(--text-primary)]'}
+              tone={compareResult.summary.affectedServicesDelta > 0 ? 'rose' : 'emerald'}
+              tooltip="How many more or fewer services are impacted between the selected runs."
+            />
+            <MetricHighlightCard
+              label="Confidence Changed"
+              description={`${compareResult.summary.leftConfidence ?? 'n/a'} → ${compareResult.summary.rightConfidence ?? 'n/a'}`}
+              icon={ShieldCheck}
+              value={compareResult.summary.confidenceChanged ? 'Yes' : 'No'}
+              valueClassName={compareResult.summary.confidenceChanged ? 'text-amber-300' : 'text-emerald-300'}
+              tone={compareResult.summary.confidenceChanged ? 'amber' : 'emerald'}
+              tooltip="Whether the confidence level changed between the selected runs."
+            />
+            <MetricHighlightCard
+              label="Response-time Δ"
+              description="Difference in expected latency impact between runs."
+              icon={Clock}
+              value={
+                compareResult.summary.latencyDeltaDiffMs === null ||
+                compareResult.summary.latencyDeltaDiffMs === undefined
+                  ? 'n/a'
+                  : `${compareResult.summary.latencyDeltaDiffMs >= 0 ? '+' : ''}${compareResult.summary.latencyDeltaDiffMs.toFixed(2)} ms`
+              }
+              valueClassName={
+                compareResult.summary.latencyDeltaDiffMs == null
+                  ? 'text-[var(--text-secondary)]'
+                  : compareResult.summary.latencyDeltaDiffMs > 0
+                    ? 'text-rose-300'
+                    : 'text-emerald-300'
+              }
+              tone={compareResult.summary.latencyDeltaDiffMs != null && compareResult.summary.latencyDeltaDiffMs > 0 ? 'rose' : 'emerald'}
+              tooltip="Difference in expected response-time impact in milliseconds between the two runs."
+            />
           </div>
         </Section>
       )}
@@ -314,7 +423,7 @@ export default function History() {
                         {getScenarioSummary(record)}
                       </td>
                       <td className={tableCellClass}>
-                        <span className="capitalize text-[var(--text-secondary)]">{record.type}</span>
+                        {getTypeBadge(record.type)}
                       </td>
                       <td className={tableCellClass}>{getConfidenceBadge(record.result) ?? '—'}</td>
                       <td className={cn(tableCellClass, 'font-mono text-xs')}>
@@ -324,9 +433,10 @@ export default function History() {
                         <button
                           type="button"
                           onClick={() => navigate(`/history/${record.id}`)}
-                          className={tableActionLinkClass}
+                          className={cn(tableActionLinkClass, 'inline-flex items-center gap-1')}
                         >
-                          Open details
+                          <ExternalLink className="h-3 w-3" />
+                          Open
                         </button>
                         <button
                           type="button"
@@ -335,7 +445,7 @@ export default function History() {
                           title="Copy share link"
                         >
                           <Share2 className="mr-1 inline h-3.5 w-3.5" />
-                          Share link
+                          Share
                         </button>
                         <details className="relative inline-block">
                           <summary className={cn(tableActionLinkClass, 'list-none cursor-pointer')}>Advanced export</summary>
@@ -372,27 +482,34 @@ export default function History() {
             Selected: {selectedRecords.map((record) => `#${record.id}`).join(', ') || 'none'}
           </div>
 
-          <div className="mt-6 flex items-center justify-between">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-[var(--text-muted)]">
-              Showing {page * pageSize + 1} - {Math.min((page + 1) * pageSize, data.total)} of {data.total}{' '}
-              decisions
+              Showing{' '}
+              <span className="font-semibold text-[var(--text-secondary)]">{page * pageSize + 1}–{Math.min((page + 1) * pageSize, data.total)}</span>
+              {' '}of{' '}
+              <span className="font-semibold text-[var(--text-secondary)]">{data.total}</span> decisions
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setPage(page - 1)}
                 disabled={page === 0}
-                className={secondaryButtonClass}
+                className={cn(secondaryButtonClass, 'inline-flex items-center gap-1.5 px-3')}
               >
-                Previous
+                <ChevronLeft className="h-4 w-4" />
+                Prev
               </button>
+              <span className="min-w-[5rem] rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-center text-sm font-semibold text-[var(--text-primary)]">
+                {page + 1} / {totalPages || 1}
+              </span>
               <button
                 type="button"
                 onClick={() => setPage(page + 1)}
                 disabled={page >= totalPages - 1}
-                className={secondaryButtonClass}
+                className={cn(secondaryButtonClass, 'inline-flex items-center gap-1.5 px-3')}
               >
                 Next
+                <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           </div>

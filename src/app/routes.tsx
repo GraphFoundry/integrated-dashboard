@@ -5,6 +5,7 @@ import ServiceHealthDetails from '@/pages/services/ServiceHealthDetails'
 import Metrics from '@/pages/metrics/Metrics'
 import OffenderDetails from '@/pages/metrics/OffenderDetails'
 import Simulations from '@/pages/simulations/Simulations'
+import DrillDirector from '@/pages/drills/DrillDirector'
 import History from '@/pages/history/History'
 import DecisionDetail from '@/pages/history/DecisionDetail'
 import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
@@ -39,6 +40,10 @@ export const router = createBrowserRouter([
       {
         path: 'simulations',
         element: <Simulations />,
+      },
+      {
+        path: 'drills',
+        element: <DrillDirector />,
       },
       {
         path: 'history',

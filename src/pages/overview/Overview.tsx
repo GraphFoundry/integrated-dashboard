@@ -46,7 +46,7 @@ export default function Overview() {
     try {
       // Fetch services
       const servicesResponse = await getServices()
-      const services = servicesResponse.services
+      const services = Array.isArray(servicesResponse?.services) ? servicesResponse.services : []
 
       // Fetch latest telemetry for all services (last 5 minutes)
       const now = new Date()
@@ -72,11 +72,12 @@ export default function Overview() {
 
       services.forEach((_, idx) => {
         const telemetry = telemetryResults[idx]
-        if (!telemetry || telemetry.datapoints.length === 0) {
+        const datapoints = Array.isArray(telemetry?.datapoints) ? telemetry.datapoints : []
+        if (datapoints.length === 0) {
           return
         }
 
-        const latest = telemetry.datapoints[telemetry.datapoints.length - 1]
+        const latest = datapoints[datapoints.length - 1]
         if (!latest) return
 
         totalRequestRate += latest.requestRate
@@ -101,8 +102,10 @@ export default function Overview() {
   }, [])
 
   useEffect(() => {
-    const services = graphData?.metricsSnapshot?.services
-    if (!services || services.length === 0) return
+    const services = Array.isArray(graphData?.metricsSnapshot?.services)
+      ? graphData.metricsSnapshot.services
+      : []
+    if (services.length === 0) return
 
     let totalRequestRate = 0
     let totalErrorRatePct = 0
@@ -128,7 +131,9 @@ export default function Overview() {
   }, [graphData, lastUpdated])
 
   useEffect(() => {
-    if (graphData?.metricsSnapshot?.services?.length) return
+    const hasGraphServices = Array.isArray(graphData?.metricsSnapshot?.services)
+      && graphData.metricsSnapshot.services.length > 0
+    if (hasGraphServices) return
     fetchData()
   }, [fetchData, graphData])
 

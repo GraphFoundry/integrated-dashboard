@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import React, { forwardRef, useEffect, useMemo, useState } from 'react'
+import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import type { Key } from 'react-aria-components'
 import {
   ComboBox as AriaComboBox,
@@ -106,6 +106,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
   const selectedKey = selectedOption?.key
   const [query, setQuery] = useState(selectedOption?.textValue ?? '')
   const [isOpen, setIsOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     setQuery(selectedOption?.textValue ?? '')
@@ -136,7 +137,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
     const option = options.find((item) => item.key === String(nextKey))
     const nextValue = option?.value ?? ''
     setQuery(option?.textValue ?? '')
+    setIsOpen(false)
     emitChange(nextValue)
+    requestAnimationFrame(() => {
+      inputRef.current?.blur()
+      const activeEl = document.activeElement
+      if (activeEl instanceof HTMLElement) {
+        activeEl.blur()
+      }
+    })
   }
 
   const handleInputChange = (nextQuery: string) => {
@@ -146,6 +155,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
       if (emptyOption) {
         emitChange('')
       }
+    }
+  }
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setIsOpen(nextOpen)
+    if (!nextOpen) {
+      requestAnimationFrame(() => {
+        inputRef.current?.blur()
+      })
     }
   }
 
@@ -183,11 +201,12 @@ export const Select = forwardRef<HTMLSelectElement, SelectAdapterProps>(function
         menuTrigger="focus"
         selectedKey={selectedKey}
         onInputChange={handleInputChange}
-        onOpenChange={setIsOpen}
+        onOpenChange={handleOpenChange}
         onSelectionChange={handleSelectionChange}
       >
         <div className="relative w-full">
           <AriaInput
+            ref={inputRef}
             id={id}
             aria-invalid={ariaInvalid}
             aria-label={fallbackAriaLabel}

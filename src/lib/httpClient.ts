@@ -1,6 +1,6 @@
 import axios, { AxiosError, type AxiosInstance } from 'axios'
 
-const API_TIMEOUT_MS = 20000
+const API_TIMEOUT_MS = 30000
 
 /**
  * Custom error class for API errors with status code and payload

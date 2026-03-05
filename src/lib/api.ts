@@ -98,11 +98,43 @@ export function cacheServices(services: DiscoveredService[]): void {
   }
 }
 
+const INFRASTRUCTURE_NAMESPACES = [
+  'istio-system',
+  'kube-system',
+  'monitoring',
+  'logging',
+  'kiali-operator',
+  'jaeger-operator',
+  'cert-manager',
+  'ingress-nginx',
+]
+
+const INFRASTRUCTURE_SERVICE_PATTERNS = [
+  'kiali',
+  'jaeger',
+  'prometheus',
+  'grafana',
+  'istio-',
+  'kube-',
+  'node-exporter',
+  'blackbox-exporter',
+  'alertmanager',
+]
+
+export function isInfrastructureService(service: { name: string; namespace: string }): boolean {
+  if (INFRASTRUCTURE_NAMESPACES.includes(service.namespace)) {
+    return true
+  }
+
+  const name = service.name.toLowerCase()
+  return INFRASTRUCTURE_SERVICE_PATTERNS.some((pattern) => name.includes(pattern))
+}
+
 export function dedupeServices(services: DiscoveredService[]): DiscoveredService[] {
   const byId = new Map<string, DiscoveredService>()
   for (const service of services) {
     const normalized = normalizeServiceRecord(service)
-    if (!normalized.name) continue
+    if (!normalized.name || isInfrastructureService(normalized)) continue
     byId.set(normalized.serviceId, normalized)
   }
   return Array.from(byId.values()).sort((a, b) => a.serviceId.localeCompare(b.serviceId))

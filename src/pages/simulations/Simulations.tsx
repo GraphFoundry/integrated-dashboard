@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Activity, Network, Settings, SlidersHorizontal, Sparkles } from 'lucide-react'
+import { Activity, AlertTriangle, Clock3, Network, Settings, ShieldCheck, Sparkles, TrendingUp, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
-import InfoHint from '@/components/common/InfoHint'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
@@ -17,10 +16,10 @@ import {
   tableHeaderCellClass,
   tableShellClass,
 } from '@/components/common/uiClassTokens'
-import { Checkbox } from '@/components/ui'
 import ScenarioForm from '@/pages/simulations/ScenarioForm'
 import ClusterTopologyMap from '@/pages/overview/ClusterTopologyMap'
 import {
+  getCurrentPredictiveAction,
   getSimulationCapabilities,
   getSimulationContext,
   simulateFailure,
@@ -36,6 +35,7 @@ import type {
   ServiceAdditionResponse,
   SimulationCapabilitiesResponse,
   SimulationContextResponse,
+  PredictiveCurrentActionResponse,
 } from '@/lib/types'
 
 type SimulationResult = FailureResponse | ScaleResponse | ServiceAdditionResponse
@@ -73,6 +73,125 @@ function getScaleCallers(result: ScaleResponse) {
   return result.affectedCallers?.items ?? []
 }
 
+const CONTEXT_REFRESH_MS = 8000
+const NETWORK_PRESSURE_P95_MS = 250
+
+type AggregatedContextEdge = {
+  source: string
+  target: string
+  avgRate: number
+  peakRate: number
+  avgP95: number
+  peakP95: number
+  maxErrorRate: number
+  sampleCount: number
+}
+
+function shortServiceName(serviceId?: string): string {
+  if (!serviceId) return 'unknown'
+  const parts = serviceId.split(':')
+  return parts.length === 2 ? parts[1] : serviceId
+}
+
+function aggregateContextEdges(context: SimulationContextResponse): AggregatedContextEdge[] {
+  const byLink = new Map<string, AggregatedContextEdge>()
+  for (const edge of context.edges) {
+    const source = edge.source
+    const target = edge.target
+    const key = `${source}=>${target}`
+    const existing = byLink.get(key)
+    if (!existing) {
+      byLink.set(key, {
+        source,
+        target,
+        avgRate: edge.rate ?? 0,
+        peakRate: edge.rate ?? 0,
+        avgP95: edge.p95 ?? 0,
+        peakP95: edge.p95 ?? 0,
+        maxErrorRate: edge.errorRate ?? 0,
+        sampleCount: 1,
+      })
+      continue
+    }
+
+    const nextCount = existing.sampleCount + 1
+    existing.avgRate = (existing.avgRate * existing.sampleCount + (edge.rate ?? 0)) / nextCount
+    existing.avgP95 = (existing.avgP95 * existing.sampleCount + (edge.p95 ?? 0)) / nextCount
+    existing.peakRate = Math.max(existing.peakRate, edge.rate ?? 0)
+    existing.peakP95 = Math.max(existing.peakP95, edge.p95 ?? 0)
+    existing.maxErrorRate = Math.max(existing.maxErrorRate, edge.errorRate ?? 0)
+    existing.sampleCount = nextCount
+  }
+
+  return Array.from(byLink.values()).sort((a, b) => {
+    const leftPressure = a.peakRate * (1 + a.maxErrorRate * 8) + a.peakP95 / 30
+    const rightPressure = b.peakRate * (1 + b.maxErrorRate * 8) + b.peakP95 / 30
+    return rightPressure - leftPressure
+  })
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function deriveHealthScore(
+  context: SimulationContextResponse,
+  hottestEdge: AggregatedContextEdge | null
+): number {
+  if (context.nodes.length === 0) return 100
+
+  const availabilityPct =
+    context.nodes.reduce((acc, node) => acc + (node.availability ?? 1) * 100, 0) / context.nodes.length
+
+  const maxEdgeErrorPct = hottestEdge ? hottestEdge.maxErrorRate * 100 : 0
+  const worstP95 = hottestEdge?.peakP95 ?? 0
+  const latencyPenalty = Math.min(28, worstP95 / 45)
+  const errorPenalty = Math.min(26, maxEdgeErrorPct * 2.5)
+  const availabilityPenalty = Math.max(0, 100 - availabilityPct) * 0.7
+
+  return Math.round(clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty, 0, 100))
+}
+
+function formatPredictiveBottleneck(payload: PredictiveCurrentActionResponse | null): string | null {
+  const bottleneck = payload?.primaryBottleneck
+  if (!bottleneck) return null
+
+  if (bottleneck.type === 'capacity') {
+    if (bottleneck.service && bottleneck.node) {
+      return `${bottleneck.service} on ${bottleneck.node}`
+    }
+    return bottleneck.service || bottleneck.node || null
+  }
+
+  const source = [bottleneck.sourceService, bottleneck.sourceNode].filter(Boolean).join('@')
+  const target = [bottleneck.targetService, bottleneck.targetNode].filter(Boolean).join('@')
+  if (source && target) return `${source} -> ${target}`
+  return source || target || null
+}
+
+function deriveTimeToImpact(
+  payload: PredictiveCurrentActionResponse | null,
+  hottestEdge: AggregatedContextEdge | null
+): string {
+  if (payload?.timeToImpactSec != null) {
+    return `~${payload.timeToImpactSec}s`
+  }
+
+  if (!hottestEdge) return 'Stable'
+
+  if (hottestEdge.peakP95 >= 2000 || hottestEdge.maxErrorRate >= 0.02) {
+    return '< 2 min'
+  }
+  if (hottestEdge.peakP95 >= 1000 || hottestEdge.peakRate >= 150) {
+    return '< 5 min'
+  }
+  if (hottestEdge.peakP95 >= NETWORK_PRESSURE_P95_MS || hottestEdge.peakRate >= 60) {
+    return '< 10 min'
+  }
+
+  return 'Stable'
+}
+
 export default function Simulations() {
   const [searchParams] = useSearchParams()
   const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
@@ -88,10 +207,9 @@ export default function Simulations() {
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [selectedDepth, setSelectedDepth] = useState(1)
   const [contextData, setContextData] = useState<SimulationContextResponse | null>(null)
+  const [contextPrediction, setContextPrediction] = useState<PredictiveCurrentActionResponse | null>(null)
   const [contextLoading, setContextLoading] = useState(false)
   const [contextError, setContextError] = useState<string | null>(null)
-  const [hideLowRpsEdges, setHideLowRpsEdges] = useState(false)
-  const [hideLowAvailabilityNodes, setHideLowAvailabilityNodes] = useState(false)
 
   const prefillType = searchParams.get('type') as ScenarioType | null
 
@@ -116,27 +234,42 @@ export default function Simulations() {
   useEffect(() => {
     if (!selectedServiceId || scenarioType === 'add-service') {
       setContextData(null)
+      setContextPrediction(null)
       setContextError(null)
       return
     }
 
     const controller = new AbortController()
+    let refreshTimer: ReturnType<typeof setInterval> | null = null
+
     const fetchContext = async () => {
       setContextLoading(true)
-      setContextError(null)
       try {
-        const response = await getSimulationContext({
+        const contextRequest = getSimulationContext({
           serviceId: selectedServiceId,
           k: selectedDepth,
           direction: scenarioType === 'scale' ? 'in' : 'both',
           mode: 'live',
         })
+        const predictiveRequest = getCurrentPredictiveAction(controller.signal)
+        const [contextResult, predictiveResult] = await Promise.allSettled([
+          contextRequest,
+          predictiveRequest,
+        ])
+
+        if (contextResult.status === 'rejected') {
+          throw contextResult.reason
+        }
+
         if (!controller.signal.aborted) {
-          setContextData(response)
+          setContextData(contextResult.value)
+          setContextError(null)
+          if (predictiveResult.status === 'fulfilled') {
+            setContextPrediction(predictiveResult.value)
+          }
         }
       } catch (error) {
         if (!controller.signal.aborted) {
-          setContextData(null)
           setContextError(
             error instanceof Error
               ? error.message
@@ -150,9 +283,17 @@ export default function Simulations() {
       }
     }
 
-    fetchContext()
+    void fetchContext()
+    refreshTimer = setInterval(() => {
+      void fetchContext()
+    }, CONTEXT_REFRESH_MS)
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      if (refreshTimer) {
+        clearInterval(refreshTimer)
+      }
+    }
   }, [scenarioType, selectedDepth, selectedServiceId])
 
   const runOptions = { mode: 'live' as const }
@@ -255,11 +396,11 @@ export default function Simulations() {
       )
     }
 
-    if (contextLoading) {
+    if (contextLoading && !contextData) {
       return <LoadingSpinner fullHeight={false} message="Loading neighborhood context..." />
     }
 
-    if (contextError) {
+    if (contextError && !contextData) {
       return (
         <p className="rounded border border-rose-500/45 bg-rose-500/10 p-3 text-sm text-[var(--text-primary)]">
           {contextError}
@@ -271,103 +412,167 @@ export default function Simulations() {
       return <p className="text-sm text-[var(--text-muted)]">No context available.</p>
     }
 
-    const lowRpsThreshold = 5
-    const targetServiceId = contextData.target.serviceId ?? ''
-    const visibleNodes = hideLowAvailabilityNodes
-      ? contextData.nodes.filter(
-        (node) => node.serviceId === targetServiceId || (node.availability ?? 1) >= 0.95
-      )
-      : contextData.nodes
-    const visibleNodeIds = new Set(visibleNodes.map((node) => node.serviceId))
-    const edgesAfterNodeFilter = contextData.edges.filter(
-      (edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
-    )
-    const visibleEdges = hideLowRpsEdges
-      ? edgesAfterNodeFilter.filter((edge) => (edge.rate ?? 0) >= lowRpsThreshold)
-      : edgesAfterNodeFilter
-    const topEdges = [...visibleEdges].sort((a, b) => b.rate - a.rate).slice(0, 12)
+    const aggregatedEdges = aggregateContextEdges(contextData)
+    const hottestEdge = aggregatedEdges[0] ?? null
+    const healthScore = Math.round(contextPrediction?.healthScore ?? deriveHealthScore(contextData, hottestEdge))
+    const healthLabel = healthScore >= 85 ? 'Stable' : healthScore >= 70 ? 'Watch closely' : 'Immediate action required'
+    const healthTone =
+      healthScore >= 85
+        ? 'border-emerald-400/45 bg-emerald-500/14 text-emerald-200'
+        : healthScore >= 70
+          ? 'border-amber-400/45 bg-amber-500/16 text-amber-100'
+          : 'border-rose-400/50 bg-rose-500/18 text-rose-100'
+
+    const bottleneckLocation =
+      formatPredictiveBottleneck(contextPrediction) ??
+      (hottestEdge ? `${shortServiceName(hottestEdge.source)} -> ${shortServiceName(hottestEdge.target)}` : 'No active hotspot')
+
+    const timeToImpactLabel = deriveTimeToImpact(contextPrediction, hottestEdge)
+    const recommendationTitle =
+      contextPrediction?.recommendation?.title ??
+      (hottestEdge ? 'Watch the busiest service path' : 'No urgent recommendation')
+    const recommendationMessage =
+      contextPrediction?.recommendation?.message ??
+      (hottestEdge
+        ? `${shortServiceName(hottestEdge.source)} -> ${shortServiceName(hottestEdge.target)} is carrying most of the load right now.`
+        : 'Live signals are stable. Keep observing before executing a drill.')
 
     return (
       <div className="h-full min-h-0 space-y-4 overflow-y-auto pr-1">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <KPIStatCard
-            label="Target Service"
-            value={contextData.target.name ?? contextData.target.serviceId ?? 'unknown'}
-            variant="default"
-            tooltip="This is the main service you selected for analysis. All impact numbers in this panel are calculated relative to this target."
-          />
-          <KPIStatCard label="Visible Services" value={visibleNodes.length} variant="default" tooltip="How many services are currently visible in this preview after your filters are applied. If this number drops, your filter is hiding more nodes." />
-          <KPIStatCard label="Visible Connections" value={visibleEdges.length} variant="default" tooltip="How many service-to-service links are currently visible. This helps you see how connected the selected neighborhood is." />
-          <KPIStatCard label="View Direction" value={contextData.direction} variant="default" tooltip="Shows the direction of analysis: callers (incoming), dependencies (outgoing), or both. Use this to understand whether impact is upstream, downstream, or both." />
+        {contextError && (
+          <p className="rounded border border-amber-500/45 bg-amber-500/10 p-3 text-xs text-[var(--text-primary)]">
+            Live refresh warning: {contextError}
+          </p>
+        )}
+
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-gradient-to-br from-cyan-500/15 via-emerald-500/10 to-sky-500/12 p-5">
+          <div className="pointer-events-none absolute inset-0 opacity-70">
+            <div className="absolute -left-8 top-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
+            <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-black/20 blur-2xl" />
+          </div>
+
+          <div className="relative space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--text-secondary)]">
+              <span className="inline-flex items-center gap-1.5 font-semibold uppercase tracking-widest">
+                <TrendingUp className="h-3.5 w-3.5" />
+                Live Scenario Pulse
+              </span>
+              <span className="rounded border border-[var(--border)] bg-black/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">
+                Refresh every {Math.round(CONTEXT_REFRESH_MS / 1000)}s
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className={`rounded-xl border px-4 py-3 ${healthTone}`}>
+                <div className="text-[11px] font-semibold uppercase tracking-wider">Health Score</div>
+                <div className="mt-1 flex items-end gap-1">
+                  <span className="text-3xl font-black leading-none">{healthScore}</span>
+                  <span className="pb-0.5 text-sm font-semibold">/100</span>
+                </div>
+                <p className="mt-1 text-xs">{healthLabel}</p>
+              </div>
+
+              <div className="rounded-xl border border-[var(--border)] bg-black/10 px-4 py-3 text-[var(--text-primary)]">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Primary Bottleneck
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
+                  <AlertTriangle className="h-4 w-4 text-amber-300" />
+                  <span className="truncate">{bottleneckLocation}</span>
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Based on latest service-graph and predictive analysis signals.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-[var(--border)] bg-black/10 px-4 py-3 text-[var(--text-primary)]">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Time To Impact
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-2xl font-black">
+                  <Clock3 className="h-5 w-5 text-cyan-200" />
+                  <span>{timeToImpactLabel}</span>
+                </div>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">Estimated time before user-facing instability.</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-3">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)]">
-            <SlidersHorizontal className="h-4 w-4" />
-            Preview filters
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Services In Scope</div>
+            <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">{contextData.nodes.length}</div>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">Neighborhood around {contextData.target.name ?? shortServiceName(contextData.target.serviceId)}.</p>
           </div>
-          <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--text-secondary)]">
-            <Checkbox
-              checked={hideLowRpsEdges}
-              onChange={(event) => setHideLowRpsEdges(Boolean(event.target.checked))}
-              label={`Hide low-traffic connections (<${lowRpsThreshold} req/s)`}
-            />
-            <Checkbox
-              checked={hideLowAvailabilityNodes}
-              onChange={(event) => setHideLowAvailabilityNodes(Boolean(event.target.checked))}
-              label="Hide lower-health services (availability below 95%)"
-            />
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Busiest Link</div>
+            <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
+              {hottestEdge ? formatRps(hottestEdge.peakRate) : formatRps(0)}
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              {hottestEdge
+                ? `${shortServiceName(hottestEdge.source)} -> ${shortServiceName(hottestEdge.target)}`
+                : 'No active path detected'}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Worst Slow-End Latency
+            </div>
+            <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
+              {hottestEdge ? formatMs(hottestEdge.peakP95) : formatMs(0)}
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              Derived from {contextData.edges.length} recent time-series samples.
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Recommended Operator Action</h3>
+              <p className="mt-1 text-base font-bold text-[var(--text-primary)]">{recommendationTitle}</p>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">{recommendationMessage}</p>
+            </div>
+            <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/45 bg-cyan-500/12 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100">
+              <Zap className="h-3 w-3" />
+              Live
+            </span>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--text-secondary)]">
+            <span className="inline-flex items-center gap-1">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+              Target health:{' '}
+              {formatPercent(
+                ((contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)?.availability ??
+                  1) as number) * 100
+              )}
+            </span>
+            {hottestEdge && (
+              <span className="inline-flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                Peak error exposure: {formatPercent(hottestEdge.maxErrorRate * 100)}
+              </span>
+            )}
+            {contextLoading && (
+              <span className="inline-flex items-center gap-1 text-cyan-200">
+                <Clock3 className="h-3.5 w-3.5" />
+                Refreshing...
+              </span>
+            )}
           </div>
         </div>
 
         {contextData.truncated && (
           <p className="rounded border border-amber-500/60 bg-amber-500/10 p-2 text-xs text-[var(--text-primary)]">
-            Context graph was truncated to keep the response bounded.
+            Context is condensed from a larger graph to keep the panel fast and readable.
           </p>
         )}
-
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3">
-            <div className="mb-2 inline-flex items-center gap-1.5">
-              <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Services in neighborhood</h3>
-              <InfoHint text="This list shows nearby services directly connected to your selected target. It gives you a quick map of who talks to whom around the target service." />
-            </div>
-            <div className="max-h-64 space-y-2 overflow-auto pr-1">
-              {visibleNodes.map((node) => (
-                <div key={node.serviceId} className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-2">
-                  <div className="text-sm font-medium text-[var(--text-primary)]">{node.name}</div>
-                  <div className="text-xs text-[var(--text-muted)]">{node.namespace}</div>
-                  <div className="mt-1 text-xs text-[var(--text-secondary)]">
-                    Pods: {node.podCount} | Health: {formatPercent((node.availability ?? 0) * 100)}
-                  </div>
-                </div>
-              ))}
-              {visibleNodes.length === 0 && (
-                <p className="text-xs text-[var(--text-muted)]">No services match the current filter.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3">
-            <div className="mb-2 inline-flex items-center gap-1.5">
-              <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Top edges by traffic</h3>
-              <InfoHint text="This list highlights the busiest links between services in this local area. Higher traffic links usually carry more risk during failures." />
-            </div>
-            <div className="max-h-64 space-y-2 overflow-auto pr-1">
-              {topEdges.map((edge, index) => (
-                <div key={`${edge.source}-${edge.target}-${index}`} className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-2 text-xs">
-                  <div className="font-mono text-[var(--text-primary)]">
-                    {edge.source} → {edge.target}
-                  </div>
-                  <div className="mt-1 text-[var(--text-secondary)]">
-                    {formatRps(edge.rate)} req/s | slow-end response time {formatMs(edge.p95)} | failures {formatPercent(edge.errorRate * 100)}
-                  </div>
-                </div>
-              ))}
-              {topEdges.length === 0 && <p className="text-xs text-[var(--text-muted)]">No connections match the current filter.</p>}
-            </div>
-          </div>
-        </div>
       </div>
     )
   }

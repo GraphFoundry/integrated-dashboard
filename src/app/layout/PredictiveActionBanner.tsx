@@ -10,7 +10,7 @@ import type {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/components/common/uiClassTokens'
 
-const POLL_INTERVAL_MS = 5000
+const POLL_INTERVAL_MS = 2000
 const SNOOZE_MS = 60_000
 
 type SnoozeState = {

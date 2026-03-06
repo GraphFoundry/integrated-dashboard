@@ -11,6 +11,29 @@ import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResou
 const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
 const graphCacheRefreshMs = Number.parseInt(import.meta.env.VITE_GRAPH_CACHE_REFRESH_MS || '5000', 10) || 5000
 
+function buildServicesTopologySignature(services: ServiceWithPlacement[]): string {
+  return services
+    .map((svc) => {
+      const nodeSignature = (svc.placement?.nodes || [])
+        .map((np) => {
+          const podNames = (np.pods || []).map((p) => p.name).sort().join(',')
+          return `${np.node}#${podNames}`
+        })
+        .sort()
+        .join(';')
+      return `${svc.namespace}:${svc.name}#${svc.podCount ?? 0}#${nodeSignature}`
+    })
+    .sort()
+    .join('|')
+}
+
+function buildNodesTopologySignature(nodes: NodeWithResources[]): string {
+  return nodes
+    .map((node) => node.name)
+    .sort()
+    .join('|')
+}
+
 /**
  * React hook that connects to the BFF WebSocket for real-time graph updates.
  *
@@ -135,14 +158,25 @@ export function useGraphStream() {
   const refetch = useCallback(async () => {
     try {
       const result = await getLatestGraphData()
-      if (result?.data) {
-        handleGraphUpdate(result.data)
-        if (result.freshness) setFreshness(result.freshness)
+      if (!result) return
+      if (result.freshness) setFreshness(result.freshness)
+      if (!result.data) return
+
+      const receivedAt = result.receivedAt || new Date().toISOString()
+      const receivedAtMs = Date.parse(receivedAt) || Date.now()
+      if (receivedAtMs <= lastReceivedAtMs.current) return
+
+      lastReceivedAtMs.current = receivedAtMs
+      setGraphData(result.data)
+      setLastUpdated(receivedAt)
+      if (isFirstUpdate.current) {
+        setLoading(false)
+        isFirstUpdate.current = false
       }
     } catch {
       // Ignore transient refetch failures
     }
-  }, [handleGraphUpdate])
+  }, [])
 
   return { graphData, loading, lastUpdated, freshness, refetch }
 }
@@ -336,6 +370,8 @@ export function useServicesWithPlacement() {
   const [services, setServices] = useState<ServiceWithPlacement[]>([])
   const [allNodes, setAllNodes] = useState<NodeWithResources[]>([])
   const [fallbackLoading, setFallbackLoading] = useState(true)
+  const servicesSignatureRef = useRef('')
+  const nodesSignatureRef = useRef('')
   const dependencyEdges = useMemo(
     () =>
       (graphData?.metricsSnapshot?.edges || []).map((e) => ({
@@ -379,8 +415,17 @@ export function useServicesWithPlacement() {
       resources: n.resources,
     }))
 
-    setServices(mappedServices)
-    setAllNodes(mappedNodes)
+    const nextServicesSignature = buildServicesTopologySignature(mappedServices)
+    const nextNodesSignature = buildNodesTopologySignature(mappedNodes)
+
+    if (nextServicesSignature !== servicesSignatureRef.current) {
+      servicesSignatureRef.current = nextServicesSignature
+      setServices(mappedServices)
+    }
+    if (nextNodesSignature !== nodesSignatureRef.current) {
+      nodesSignatureRef.current = nextNodesSignature
+      setAllNodes(mappedNodes)
+    }
     setFallbackLoading(false)
   }, [graphData])
 
@@ -403,8 +448,12 @@ export function useServicesWithPlacement() {
           getNodes().catch(() => ({ nodes: [] })),
         ])
         if (isMounted && services.length === 0) {
-          setServices(servicesData.services || [])
-          setAllNodes(nodesData.nodes || [])
+          const fallbackServices = servicesData.services || []
+          const fallbackNodes = nodesData.nodes || []
+          servicesSignatureRef.current = buildServicesTopologySignature(fallbackServices)
+          nodesSignatureRef.current = buildNodesTopologySignature(fallbackNodes)
+          setServices(fallbackServices)
+          setAllNodes(fallbackNodes)
           setFallbackLoading(false)
         }
       } catch {
@@ -434,11 +483,19 @@ export function useServicesWithPlacement() {
         getServicesWithPlacement(),
         getNodes().catch(() => ({ nodes: [] })),
       ])
-      if (servicesData.services?.length) {
-        setServices(servicesData.services)
+      if (servicesData.services) {
+        const nextServicesSignature = buildServicesTopologySignature(servicesData.services)
+        if (nextServicesSignature !== servicesSignatureRef.current) {
+          servicesSignatureRef.current = nextServicesSignature
+          setServices(servicesData.services)
+        }
       }
-      if (nodesData.nodes?.length) {
-        setAllNodes(nodesData.nodes)
+      if (nodesData.nodes) {
+        const nextNodesSignature = buildNodesTopologySignature(nodesData.nodes)
+        if (nextNodesSignature !== nodesSignatureRef.current) {
+          nodesSignatureRef.current = nextNodesSignature
+          setAllNodes(nodesData.nodes)
+        }
       }
     } catch {
       // Direct fetch failed — rely on BFF-level data

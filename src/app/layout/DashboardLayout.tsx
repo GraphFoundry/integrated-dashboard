@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet } from 'react-router'
 import Sidebar from '@/app/layout/Sidebar'
 import Topbar from '@/app/layout/Topbar'
+import PredictiveActionBanner from '@/app/layout/PredictiveActionBanner'
 import { cn, shellMainClass } from '@/components/common/uiClassTokens'
 
 export default function DashboardLayout() {
@@ -24,6 +25,7 @@ export default function DashboardLayout() {
         >
           <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
           <div className="h-16 shrink-0" aria-hidden />
+          <PredictiveActionBanner />
           <main className={shellMainClass}>
             <Outlet />
           </main>

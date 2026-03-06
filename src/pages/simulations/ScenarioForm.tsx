@@ -4,7 +4,6 @@ import type {
   Scenario,
   ScenarioType,
   DiscoveredService,
-  SimulationDemoConstraints,
   TimeWindow,
 } from '@/lib/types'
 import { getResilientServices, getServices } from '@/lib/api'
@@ -18,7 +17,7 @@ import {
 } from '@/components/common/uiClassTokens'
 import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
 
-// Example services for Demo mode (valid format for Live mode reference)
+// Fallback examples used when live discovery is unavailable.
 const EXAMPLE_SERVICES = [
   'default:productcatalog',
   'default:checkoutservice',
@@ -28,14 +27,7 @@ const EXAMPLE_SERVICES = [
   'default:paymentservice',
 ]
 
-const DEFAULT_DEMO_CONSTRAINTS: SimulationDemoConstraints = {
-  note: 'Demo Snapshot Mode uses deterministic fixtures and supports a curated subset of scenarios.',
-  addServiceSupported: false,
-  failure: { serviceId: 'default:checkoutservice' },
-  scale: { serviceId: 'default:recommendationservice', currentPods: 2, newPods: 5 },
-}
-
-// Validate serviceId format for Live mode: must be "namespace:name"
+// Validate serviceId format: must be "namespace:name"
 function isValidLiveServiceId(serviceId: string): boolean {
   const trimmed = serviceId.trim()
   if (!trimmed) return false
@@ -67,9 +59,7 @@ function normalizeLiveServiceInput(rawValue: string): string {
 interface ScenarioFormProps {
   readonly onRun: (scenario: Scenario) => void
   readonly loading: boolean
-  readonly mode: 'demo' | 'live'
   readonly scenarioType: ScenarioType
-  readonly demoConstraints?: SimulationDemoConstraints
   readonly onScenarioTypeChange: (type: ScenarioType) => void
   readonly allowExperimentalAdd?: boolean
   readonly onServiceSelectionChange?: (serviceId: string) => void
@@ -82,16 +72,13 @@ const compactControlClass =
 export default function ScenarioForm({
   onRun,
   loading,
-  mode,
   scenarioType,
-  demoConstraints,
   onScenarioTypeChange,
   allowExperimentalAdd = true,
   onServiceSelectionChange,
   onDepthChange,
 }: ScenarioFormProps) {
-  // Demo mode: prefill with a valid service; Live mode: empty for user input
-  const [serviceId, setServiceId] = useState(mode === 'demo' ? 'default:productcatalog' : '')
+  const [serviceId, setServiceId] = useState('')
   const [maxDepth, setMaxDepth] = useState(1)
   const [currentPods, setCurrentPods] = useState(3)
   const [newPods, setNewPods] = useState(5)
@@ -106,32 +93,14 @@ export default function ScenarioForm({
   const [addReplicas, setAddReplicas] = useState(1)
   const [dependencies, setDependencies] = useState<string[]>([])
 
-  // Service discovery state (Live mode only)
+  // Service discovery state
   const [discoveredServices, setDiscoveredServices] = useState<DiscoveredService[]>([])
   const [servicesLoading, setServicesLoading] = useState(false)
   const [servicesError, setServicesError] = useState<string | null>(null)
   const [servicesNotice, setServicesNotice] = useState<string | null>(null)
   const [servicesStale, setServicesStale] = useState(false)
-  const allowUnsafeDemoConstraintOverrides =
-    mode === 'demo' &&
-    import.meta.env.DEV &&
-    (window.__ENV__?.ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true' ||
-      import.meta.env.VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true')
-  const effectiveDemoConstraints = demoConstraints ?? DEFAULT_DEMO_CONSTRAINTS
-  const activeDemoScenarioConstraint =
-    mode !== 'demo' || allowUnsafeDemoConstraintOverrides
-      ? undefined
-      : scenarioType === 'failure'
-        ? effectiveDemoConstraints.failure
-        : scenarioType === 'scale'
-          ? effectiveDemoConstraints.scale
-          : undefined
-  const demoScaleConstraint =
-    mode === 'demo' && scenarioType === 'scale' && !allowUnsafeDemoConstraintOverrides
-      ? effectiveDemoConstraints.scale
-      : undefined
 
-  // Fetch services from backend when Live mode is active
+  // Fetch services from backend for simulation targeting.
   const fetchServices = useCallback(async (signal?: AbortSignal) => {
     setServicesLoading(true)
     setServicesError(null)
@@ -152,43 +121,19 @@ export default function ScenarioForm({
       }
       setServicesError(null)
       setServicesStale(true)
-      setServicesNotice('Live service list is unavailable. Showing cached/demo services.')
+      setServicesNotice('Live service list is unavailable. Showing fallback service options.')
       setDiscoveredServices(getResilientServices([]))
     } finally {
       setServicesLoading(false)
     }
   }, [])
 
-  // Reset serviceId and fetch services when mode changes
+  // Fetch services for live simulation runs.
   useEffect(() => {
-    if (mode === 'demo') {
-      if (scenarioType === 'failure') {
-        setServiceId(effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice')
-      } else if (scenarioType === 'scale') {
-        setServiceId(effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice')
-        setCurrentPods(effectiveDemoConstraints.scale?.currentPods ?? 2)
-        setNewPods(effectiveDemoConstraints.scale?.newPods ?? 5)
-      }
-      setDiscoveredServices(getResilientServices([]))
-      setServicesError(null)
-      setServicesNotice(null)
-      setServicesStale(false)
-    } else {
-      setServiceId('')
-      // Fetch services for Live mode
-      const controller = new AbortController()
-      fetchServices(controller.signal)
-      return () => controller.abort()
-    }
-  }, [
-    mode,
-    fetchServices,
-    scenarioType,
-    effectiveDemoConstraints.failure?.serviceId,
-    effectiveDemoConstraints.scale?.serviceId,
-    effectiveDemoConstraints.scale?.currentPods,
-    effectiveDemoConstraints.scale?.newPods,
-  ])
+    const controller = new AbortController()
+    fetchServices(controller.signal)
+    return () => controller.abort()
+  }, [fetchServices])
 
   useEffect(() => {
     onServiceSelectionChange?.(serviceId.trim())
@@ -199,29 +144,18 @@ export default function ScenarioForm({
   }, [maxDepth, onDepthChange])
 
   useEffect(() => {
-    const addServiceSupportedInCurrentMode =
-      allowExperimentalAdd &&
-      (mode !== 'demo' || effectiveDemoConstraints.addServiceSupported === true)
-    if (!addServiceSupportedInCurrentMode && scenarioType === 'add-service') {
+    if (!allowExperimentalAdd && scenarioType === 'add-service') {
       onScenarioTypeChange('failure')
     }
-  }, [
-    allowExperimentalAdd,
-    effectiveDemoConstraints.addServiceSupported,
-    mode,
-    onScenarioTypeChange,
-    scenarioType,
-  ])
+  }, [allowExperimentalAdd, onScenarioTypeChange, scenarioType])
 
-  // Helper: check if serviceId exists in discovered services (Live mode)
+  // Helper: check if serviceId exists in discovered services.
   const isServiceIdInGraph = (): boolean => {
-    if (mode !== 'live') return true
     if (discoveredServices.length === 0) return true // Allow if no services loaded (may be loading)
     return discoveredServices.some((s) => s.serviceId === serviceId.trim())
   }
 
-  // Helper: check if serviceId is valid for Live mode
-  const isLiveServiceIdValid = (): boolean => {
+  const isServiceIdValid = (): boolean => {
     if (!serviceId.trim()) return false
     if (!isValidLiveServiceId(serviceId)) return false
     return isServiceIdInGraph()
@@ -248,22 +182,6 @@ export default function ScenarioForm({
 
   // Helper: get serviceId validation message for display
   const getServiceIdHint = (): string | null => {
-    if (mode === 'demo') {
-      if (allowUnsafeDemoConstraintOverrides) {
-        return 'Demo override enabled for local testing. Fixture locks are bypassed and backend validation errors may be surfaced.'
-      }
-      if (scenarioType === 'failure') {
-        return `Demo failure runs are fixed to ${effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice'}.`
-      }
-      if (scenarioType === 'scale') {
-        const scaleTarget =
-          effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice'
-        const current = effectiveDemoConstraints.scale?.currentPods ?? 2
-        const next = effectiveDemoConstraints.scale?.newPods ?? 5
-        return `Demo scaling runs are fixed to ${scaleTarget} (${current} -> ${next} pods).`
-      }
-      return 'Demo mode supports curated fixtures only.'
-    }
     if (!serviceId.trim()) return null
     if (!isValidLiveServiceId(serviceId)) {
       return 'Format: namespace:name (e.g., default:productcatalog)'
@@ -277,52 +195,27 @@ export default function ScenarioForm({
   // Main validation
   const isValid = (): boolean => {
     if (scenarioType === 'add-service') {
-      return mode === 'live' && isAddServiceInputsValid()
+      return isAddServiceInputsValid()
     }
     if (!serviceId.trim()) return false
-    if (mode === 'demo') {
-      if (!allowUnsafeDemoConstraintOverrides && scenarioType === 'failure') {
-        const expectedServiceId = effectiveDemoConstraints.failure?.serviceId
-        if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
-      }
-      if (!allowUnsafeDemoConstraintOverrides && scenarioType === 'scale') {
-        const expectedServiceId = effectiveDemoConstraints.scale?.serviceId
-        if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
-        const expectedCurrentPods = effectiveDemoConstraints.scale?.currentPods
-        if (typeof expectedCurrentPods === 'number' && currentPods !== expectedCurrentPods)
-          return false
-        const expectedNewPods = effectiveDemoConstraints.scale?.newPods
-        if (typeof expectedNewPods === 'number' && newPods !== expectedNewPods) return false
-      }
-    }
-    if (mode === 'live' && !isLiveServiceIdValid()) return false
+    if (!isServiceIdValid()) return false
     if (maxDepth < 1 || maxDepth > 3) return false
     if (scenarioType === 'scale' && !isScaleInputsValid()) return false
     return true
   }
 
   const serviceIdHint = getServiceIdHint()
-  const serviceComboboxItems =
-    mode === 'live'
-      ? discoveredServices.map((s) => {
-          let label = `${s.name} (${s.namespace})`
-          if (s.podCount !== undefined || s.availability !== undefined) {
-            const details = []
-            if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
-            if (s.availability !== undefined)
-              details.push(`${(s.availability * 100).toFixed(0)}% up`)
-            label += ` - ${details.join(', ')}`
-          }
-          return { value: s.serviceId, label }
-        })
-      : activeDemoScenarioConstraint
-        ? [
-            {
-              value: activeDemoScenarioConstraint.serviceId,
-              label: `${activeDemoScenarioConstraint.serviceId} (demo fixture)`,
-            },
-          ]
-        : []
+  const serviceComboboxItems = discoveredServices.map((s) => {
+    let label = `${s.name} (${s.namespace})`
+    if (s.podCount !== undefined || s.availability !== undefined) {
+      const details = []
+      if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
+      if (s.availability !== undefined)
+        details.push(`${(s.availability * 100).toFixed(0)}% up`)
+      label += ` - ${details.join(', ')}`
+    }
+    return { value: s.serviceId, label }
+  })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -393,23 +286,9 @@ export default function ScenarioForm({
           <option value="failure">Failure Simulation</option>
           <option value="scale">Scaling Simulation</option>
           {allowExperimentalAdd && (
-            <option
-              value="add-service"
-              disabled={mode === 'demo' && effectiveDemoConstraints.addServiceSupported !== true}
-            >
-              {mode === 'demo'
-                ? 'Add New Service (Experimental, Live only)'
-                : 'Add New Service (Experimental)'}
-            </option>
+            <option value="add-service">Add New Service (Experimental)</option>
           )}
         </Select>
-        {mode === 'demo' && (
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
-            {allowUnsafeDemoConstraintOverrides
-              ? 'Demo fixture override is enabled for local testing. Requests may fail backend validation by design.'
-              : 'Demo mode is constrained to curated fixtures for repeatable outputs.'}
-          </p>
-        )}
       </div>
 
       {/* Time Period (For all simulation types) */}
@@ -566,13 +445,9 @@ export default function ScenarioForm({
                   <span className="ml-1 align-middle">
                     <InfoHint text="Pick the service you want to test in this simulation. Use namespace:name so the system can find the exact service correctly and avoid selecting the wrong service with a similar name." />
                   </span>
-                  {mode === 'live' && (
-                    <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>
-                  )}
-                  {mode === 'live' && servicesLoading && (
-                    <span className="ml-2 text-xs text-blue-400">Loading services...</span>
-                  )}
-                  {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
+                  <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>
+                  {servicesLoading && <span className="ml-2 text-xs text-blue-400">Loading services...</span>}
+                  {!servicesLoading && discoveredServices.length > 0 && (
                     <span className="ml-2 text-xs text-[var(--text-secondary)]">
                       {discoveredServices.length} service
                       {discoveredServices.length === 1 ? '' : 's'} available
@@ -585,8 +460,7 @@ export default function ScenarioForm({
               helperText={
                 serviceIdHint ||
                 servicesNotice ||
-                (mode === 'live' &&
-                !serviceId.trim() &&
+                (!serviceId.trim() &&
                 !servicesLoading &&
                 discoveredServices.length === 0 &&
                 !servicesError
@@ -594,21 +468,14 @@ export default function ScenarioForm({
                   : undefined)
               }
               errorClassName="text-red-400"
-              errorText={mode === 'live' ? servicesError : null}
+              errorText={servicesError}
             >
               <Combobox
                 id="serviceId"
                 value={serviceId}
                 onChange={(e) => setServiceId(normalizeLiveServiceInput(e.target.value))}
-                disabled={mode === 'demo' && Boolean(activeDemoScenarioConstraint?.serviceId)}
                 items={serviceComboboxItems}
-                placeholder={
-                  mode === 'live'
-                    ? 'Select or type service...'
-                    : activeDemoScenarioConstraint
-                      ? 'Fixed by demo fixture'
-                      : 'e.g., productcatalog'
-                }
+                placeholder="Select or type service..."
                 className={cn(
                   compactControlClass,
                   'placeholder-slate-500',
@@ -654,7 +521,6 @@ export default function ScenarioForm({
                     min="1"
                     value={currentPods}
                     onChange={(e) => setCurrentPods(Number(e.target.value))}
-                    disabled={Boolean(demoScaleConstraint)}
                     className={compactControlClass}
                   />
                 </div>
@@ -668,18 +534,10 @@ export default function ScenarioForm({
                     min="1"
                     value={newPods}
                     onChange={(e) => setNewPods(Number(e.target.value))}
-                    disabled={Boolean(demoScaleConstraint)}
                     className={compactControlClass}
                   />
                 </div>
               </div>
-              {demoScaleConstraint && (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Demo scaling fixture is locked to {demoScaleConstraint.serviceId} (
-                  {demoScaleConstraint.currentPods ?? 2} -&gt; {demoScaleConstraint.newPods ?? 5}{' '}
-                  pods) to match backend demo validation.
-                </p>
-              )}
 
               <div>
                 <label htmlFor="latencyMetric" className={controlLabelClass}>

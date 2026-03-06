@@ -42,6 +42,22 @@ export interface DrillPlanRequest {
     config: any
 }
 
+export interface DrillPrefillConfig {
+    namespace: string
+    observeTokens: number
+    replicas?: number
+    targetNode?: string
+    rps?: number
+    rate?: number
+    users?: number
+}
+
+export interface DrillPrefillRequest {
+    type: string
+    target: string
+    config: DrillPrefillConfig
+}
+
 export const planDrill = async (request: DrillPlanRequest): Promise<DrillRun> => {
     const response = await predictiveApi.post(`/drills/plan`, request)
     return response.data

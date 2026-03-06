@@ -21,6 +21,7 @@ import type {
   SimulationContextResponse,
   SimulationMetricsResponse,
   DemoSnapshotsResponse,
+  PredictiveCurrentActionResponse,
 } from '@/lib/types'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 
@@ -250,6 +251,20 @@ export async function simulateScale(
  */
 export async function healthCheck(signal?: AbortSignal): Promise<{ status: string }> {
   const { data } = await predictiveApi.get<{ status: string }>('/health', { signal })
+  return data
+}
+
+/**
+ * Fetch current predictive anomaly recommendation for operator actioning.
+ * Routed via BFF path: /api/predictive/predictive/actions/current
+ */
+export async function getCurrentPredictiveAction(
+  signal?: AbortSignal
+): Promise<PredictiveCurrentActionResponse> {
+  const { data } = await predictiveApi.get<PredictiveCurrentActionResponse>(
+    '/predictive/actions/current',
+    { signal }
+  )
   return data
 }
 

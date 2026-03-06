@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import toast from 'react-hot-toast'
 import DrillCatalog from './components/DrillCatalog'
 import RunPanel from './components/RunPanel'
 import LiveMetricsStrip from './components/LiveMetricsStrip'
 import TimelineReplay from './components/TimelineReplay'
-import type { DrillRun } from '@/lib/api/drills'
+import type { DrillPrefillRequest, DrillRun } from '@/lib/api/drills'
 import { getDrillRun, listDrillHistory } from '@/lib/api/drills'
 import { useK8sHealth } from '@/lib/useK8sHealth'
 import { History, PlayCircle, ShieldCheck, LayoutDashboard, Loader2, WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react'
@@ -25,6 +26,7 @@ import {
 } from '@/components/common/uiClassTokens'
 
 type DirectorTab = 'director' | 'history'
+type DrillDirectorLocationState = { prefillDrill?: DrillPrefillRequest }
 
 function getRunStatusBadgeClass(status: string): string {
   switch (status) {
@@ -52,14 +54,28 @@ function getRunStatusBadgeClass(status: string): string {
 }
 
 export default function DrillDirector() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [selectedTab, setSelectedTab] = useState<DirectorTab>('director')
   const [activeRun, setActiveRun] = useState<DrillRun | null>(null)
   const [history, setHistory] = useState<DrillRun[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [reviewingRunId, setReviewingRunId] = useState<string | null>(null)
+  const [prefillDrill, setPrefillDrill] = useState<DrillPrefillRequest | null>(null)
   const { status: k8sHealth, isLoading: isK8sProbing, recheck: recheckK8s } = useK8sHealth()
 
   const isClusterOffline = !isK8sProbing && k8sHealth !== null && !k8sHealth.reachable
+
+  useEffect(() => {
+    const state = location.state as DrillDirectorLocationState | null
+    if (!state?.prefillDrill) return
+
+    setPrefillDrill(state.prefillDrill)
+    setSelectedTab('director')
+    setActiveRun(null)
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     let isMounted = true
@@ -274,7 +290,12 @@ export default function DrillDirector() {
                   </p>
                 </div>
               </div>
-              <DrillCatalog onDrillSelect={setActiveRun} disabled={isClusterOffline} />
+              <DrillCatalog
+                onDrillSelect={setActiveRun}
+                disabled={isClusterOffline}
+                prefill={prefillDrill}
+                onPrefillConsumed={() => setPrefillDrill(null)}
+              />
             </div>
           )}
         </TabPanel>

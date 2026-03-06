@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X, ShieldAlert, TrendingUpDown, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X, ShieldAlert, TrendingUpDown, ChevronDown, type LucideIcon } from 'lucide-react'
 import { cn, shellSidebarClass } from '@/components/common/uiClassTokens'
 
 const topNavItems = [
@@ -24,7 +24,7 @@ interface SidebarProps {
   readonly onClose: () => void
 }
 
-function NavItem({ path, label, icon: Icon }: { path: string; label: string; icon: React.ComponentType<{ className?: string }> }) {
+function NavItem({ path, label, icon: Icon }: { path: string; label: string; icon: LucideIcon }) {
   return (
     <li>
       <NavLink

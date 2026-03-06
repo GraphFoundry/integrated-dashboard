@@ -12,6 +12,26 @@ export interface ServiceRisk {
 }
 
 /**
+ * Normalizes error rate into percentage points [0, 100].
+ * Accepts either fraction form (0..1) or percent form (0..100).
+ */
+export function normalizeErrorRatePercent(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || Number.isNaN(value) || !Number.isFinite(value))
+    return null
+  if (value < 0) return null
+  if (value <= 1) return value * 100
+  return Math.min(value, 100)
+}
+
+function normalizeAvailabilityPercent(value: number | null | undefined): number | undefined {
+  if (value === null || value === undefined || Number.isNaN(value) || !Number.isFinite(value))
+    return undefined
+  if (value < 0) return undefined
+  if (value <= 1) return value * 100
+  return Math.min(value, 100)
+}
+
+/**
  * Calculate risk level for a service based on telemetry metrics
  */
 export function calculateServiceRisk(
@@ -29,25 +49,27 @@ export function calculateServiceRisk(
   }
 
   const { errorRate, p95, availability } = latestMetrics
+  const errorRatePct = normalizeErrorRatePercent(errorRate)
+  const availabilityPct = normalizeAvailabilityPercent(availability)
 
   // High risk conditions
-  if (errorRate > 5) {
+  if (errorRatePct !== null && errorRatePct > 5) {
     return {
       service,
       namespace,
       riskLevel: 'high',
       reason: 'High error rate',
-      errorRate,
+      errorRate: errorRatePct,
     }
   }
 
-  if (availability < 95) {
+  if (availabilityPct !== undefined && availabilityPct < 95) {
     return {
       service,
       namespace,
       riskLevel: 'high',
       reason: 'Low availability',
-      availability,
+      availability: availabilityPct,
     }
   }
 
@@ -62,23 +84,23 @@ export function calculateServiceRisk(
   }
 
   // Medium risk conditions
-  if (errorRate > 1) {
+  if (errorRatePct !== null && errorRatePct > 1) {
     return {
       service,
       namespace,
       riskLevel: 'medium',
       reason: 'Elevated error rate',
-      errorRate,
+      errorRate: errorRatePct,
     }
   }
 
-  if (availability < 99) {
+  if (availabilityPct !== undefined && availabilityPct < 99) {
     return {
       service,
       namespace,
       riskLevel: 'medium',
       reason: 'Availability degraded',
-      availability,
+      availability: availabilityPct,
     }
   }
 
@@ -98,9 +120,9 @@ export function calculateServiceRisk(
     namespace,
     riskLevel: 'low',
     reason: 'Stable',
-    errorRate,
+    errorRate: errorRatePct ?? undefined,
     p95,
-    availability,
+    availability: availabilityPct,
   }
 }
 

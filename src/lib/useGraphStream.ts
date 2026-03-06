@@ -11,6 +11,35 @@ import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResou
 const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
 const graphCacheRefreshMs = Number.parseInt(import.meta.env.VITE_GRAPH_CACHE_REFRESH_MS || '5000', 10) || 5000
 
+function namespacedServiceKey(name: string, namespace?: string): string {
+  return `${(namespace || 'default').trim() || 'default'}:${name}`
+}
+
+function pickNamespace(
+  serviceName: string,
+  preferredNamespace: string | undefined,
+  namespacesByService: Map<string, Set<string>>,
+  activeServiceKeys: Set<string>
+): string | null {
+  const namespaces = namespacesByService.get(serviceName)
+  if (!namespaces || namespaces.size === 0) return null
+
+  const preferred = preferredNamespace?.trim()
+  if (preferred && namespaces.has(preferred)) return preferred
+
+  if (preferred && activeServiceKeys.has(namespacedServiceKey(serviceName, preferred))) {
+    return preferred
+  }
+
+  if (namespaces.size === 1) return Array.from(namespaces)[0]
+
+  for (const ns of namespaces) {
+    if (activeServiceKeys.has(namespacedServiceKey(serviceName, ns))) return ns
+  }
+
+  return Array.from(namespaces).sort()[0] ?? null
+}
+
 function buildServicesTopologySignature(services: ServiceWithPlacement[]): string {
   return services
     .map((svc) => {
@@ -32,6 +61,21 @@ function buildNodesTopologySignature(nodes: NodeWithResources[]): string {
     .map((node) => node.name)
     .sort()
     .join('|')
+}
+
+function normalizeServicesWithPlacement(services: ServiceWithPlacement[]): ServiceWithPlacement[] {
+  return services
+    .filter((svc) => {
+      if (!svc?.name || !svc?.namespace) return false
+      return !isInfrastructureService({ name: svc.name, namespace: svc.namespace })
+    })
+    .map((svc) => ({
+      name: svc.name,
+      namespace: svc.namespace,
+      podCount: typeof svc.podCount === 'number' ? svc.podCount : 0,
+      availability: typeof svc.availability === 'number' ? svc.availability : 0,
+      placement: svc.placement ?? { nodes: [] },
+    }))
 }
 
 /**
@@ -372,42 +416,88 @@ export function useServicesWithPlacement() {
   const [fallbackLoading, setFallbackLoading] = useState(true)
   const servicesSignatureRef = useRef('')
   const nodesSignatureRef = useRef('')
-  const dependencyEdges = useMemo(
-    () =>
-      (graphData?.metricsSnapshot?.edges || []).map((e) => ({
+  const topologyEpochRef = useRef(0)
+  const filteredServiceKeySet = useMemo(
+    () => new Set((services || []).map((svc) => namespacedServiceKey(svc.name, svc.namespace))),
+    [services]
+  )
+  const namespacesByServiceName = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    ;(services || []).forEach((svc) => {
+      const list = map.get(svc.name) ?? new Set<string>()
+      list.add(svc.namespace || 'default')
+      map.set(svc.name, list)
+    })
+    return map
+  }, [services])
+
+  const dependencyEdges = useMemo(() => {
+    const snapshotEdges = graphData?.metricsSnapshot?.edges || []
+    if (snapshotEdges.length === 0) return []
+
+    const mapped: Array<{
+      source: string
+      target: string
+      sourceNamespace: string
+      targetNamespace: string
+      rps: number
+      errorRate: number
+    }> = []
+
+    snapshotEdges.forEach((e) => {
+      const targetNamespace =
+        pickNamespace(e.to, e.namespace, namespacesByServiceName, filteredServiceKeySet) ||
+        (e.namespace?.trim() || 'default')
+
+      const sourceNamespace =
+        pickNamespace(e.from, targetNamespace, namespacesByServiceName, filteredServiceKeySet) ||
+        pickNamespace(e.from, e.namespace, namespacesByServiceName, filteredServiceKeySet) ||
+        pickNamespace(e.from, undefined, namespacesByServiceName, filteredServiceKeySet) ||
+        targetNamespace
+
+      const sourceKey = namespacedServiceKey(e.from, sourceNamespace)
+      const targetKey = namespacedServiceKey(e.to, targetNamespace)
+      if (!filteredServiceKeySet.has(sourceKey) || !filteredServiceKeySet.has(targetKey)) return
+
+      mapped.push({
         source: e.from,
         target: e.to,
+        sourceNamespace,
+        targetNamespace,
         rps: e.rps,
         errorRate: e.errorRate,
-      })),
-    [graphData]
-  )
+      })
+    })
 
-  /** Per-service live metrics (rps, errorRate, p95) keyed by service name */
+    return mapped
+  }, [filteredServiceKeySet, graphData, namespacesByServiceName])
+
+  /** Per-service live metrics keyed by "namespace:service" */
   const serviceMetrics = useMemo(
     () =>
       new Map(
-        (graphData?.metricsSnapshot?.services || []).map((s) => [
-          s.name,
-          { rps: s.rps, errorRate: s.errorRate, p95: s.p95 },
-        ])
+        (graphData?.metricsSnapshot?.services || [])
+          .map((s) => ({
+            key: namespacedServiceKey(s.name, s.namespace),
+            value: { rps: s.rps, errorRate: s.errorRate, p95: s.p95 },
+          }))
+          .filter((entry) => filteredServiceKeySet.has(entry.key))
+          .map((s) => [
+            s.key,
+            s.value,
+          ])
       ),
-    [graphData]
+    [filteredServiceKeySet, graphData]
   )
 
   useEffect(() => {
     if (!graphData) return
+    const snapshotTsMs = Date.parse(graphData.metricsSnapshot?.timestamp || '')
+    const snapshotEpoch = Number.isFinite(snapshotTsMs) ? snapshotTsMs : Date.now()
+    if (snapshotEpoch < topologyEpochRef.current) return
 
     // Map webhook services to ServiceWithPlacement format
-    const mappedServices: ServiceWithPlacement[] = graphData.services
-      .filter((svc) => !isInfrastructureService({ name: svc.name, namespace: svc.namespace }))
-      .map((svc) => ({
-        name: svc.name,
-        namespace: svc.namespace,
-        podCount: svc.podCount,
-        availability: svc.availability,
-        placement: svc.placement,
-      }))
+    const mappedServices = normalizeServicesWithPlacement(graphData.services || [])
 
     // Map infrastructure nodes
     const mappedNodes: NodeWithResources[] = (graphData.infrastructure?.nodes || []).map((n) => ({
@@ -417,14 +507,20 @@ export function useServicesWithPlacement() {
 
     const nextServicesSignature = buildServicesTopologySignature(mappedServices)
     const nextNodesSignature = buildNodesTopologySignature(mappedNodes)
+    let updated = false
 
     if (nextServicesSignature !== servicesSignatureRef.current) {
       servicesSignatureRef.current = nextServicesSignature
       setServices(mappedServices)
+      updated = true
     }
     if (nextNodesSignature !== nodesSignatureRef.current) {
       nodesSignatureRef.current = nextNodesSignature
       setAllNodes(mappedNodes)
+      updated = true
+    }
+    if (updated || snapshotEpoch > topologyEpochRef.current) {
+      topologyEpochRef.current = snapshotEpoch
     }
     setFallbackLoading(false)
   }, [graphData])
@@ -448,10 +544,11 @@ export function useServicesWithPlacement() {
           getNodes().catch(() => ({ nodes: [] })),
         ])
         if (isMounted && services.length === 0) {
-          const fallbackServices = servicesData.services || []
+          const fallbackServices = normalizeServicesWithPlacement(servicesData.services || [])
           const fallbackNodes = nodesData.nodes || []
           servicesSignatureRef.current = buildServicesTopologySignature(fallbackServices)
           nodesSignatureRef.current = buildNodesTopologySignature(fallbackNodes)
+          topologyEpochRef.current = Date.now()
           setServices(fallbackServices)
           setAllNodes(fallbackNodes)
           setFallbackLoading(false)
@@ -478,16 +575,20 @@ export function useServicesWithPlacement() {
 
     // Then also pull live data directly from the analysis-engine
     // to capture very recent k8s changes (e.g. new pods from a scale drill)
+    const directFetchEpoch = Date.now()
     try {
       const [servicesData, nodesData] = await Promise.all([
         getServicesWithPlacement(),
         getNodes().catch(() => ({ nodes: [] })),
       ])
+      let updated = false
       if (servicesData.services) {
-        const nextServicesSignature = buildServicesTopologySignature(servicesData.services)
+        const normalizedServices = normalizeServicesWithPlacement(servicesData.services)
+        const nextServicesSignature = buildServicesTopologySignature(normalizedServices)
         if (nextServicesSignature !== servicesSignatureRef.current) {
           servicesSignatureRef.current = nextServicesSignature
-          setServices(servicesData.services)
+          setServices(normalizedServices)
+          updated = true
         }
       }
       if (nodesData.nodes) {
@@ -495,7 +596,11 @@ export function useServicesWithPlacement() {
         if (nextNodesSignature !== nodesSignatureRef.current) {
           nodesSignatureRef.current = nextNodesSignature
           setAllNodes(nodesData.nodes)
+          updated = true
         }
+      }
+      if (updated || directFetchEpoch > topologyEpochRef.current) {
+        topologyEpochRef.current = directFetchEpoch
       }
     } catch {
       // Direct fetch failed — rely on BFF-level data

@@ -49,6 +49,7 @@ import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
 import { cn } from '@/components/common/uiClassTokens'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
+import { createTopologyStableLayoutOverrides } from '@/pages/overview/topologyStableLayout'
 import { bffApi } from '@/lib/bffApiClient'
 import type { ServiceRollup } from '@/lib/bffApiClient'
 import { useTheme } from '@/theme/useTheme'
@@ -64,6 +65,8 @@ type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: numb
 interface DependencyEdge {
   source: string
   target: string
+  sourceNamespace?: string
+  targetNamespace?: string
   rps?: number
   errorRate?: number
 }
@@ -173,8 +176,63 @@ function friendlyMemory(mb?: number): string {
 
 /* Prefixes ensure globally unique ids */
 const nodeId = (n: string) => `node::${n}`
-const svcId = (s: string) => `svc::${s}`
-const podId = (p: string) => `pod::${p}`
+function graphNamespace(namespace?: string): string {
+  return namespace?.trim() || 'default'
+}
+function graphServiceKey(name: string, namespace?: string): string {
+  return `${graphNamespace(namespace)}:${name}`
+}
+const svcId = (name: string, namespace?: string) => `svc::${graphServiceKey(name, namespace)}`
+const podId = (serviceKey: string, podStableName: string) => `pod::${serviceKey}::${podStableName}`
+
+function formatEdgeRps(rps?: number): string {
+  if (rps == null || Number.isNaN(rps)) return ''
+  if (rps <= 0) return '0 rps'
+  if (rps < 1) return `${rps.toFixed(2)} rps`
+  if (rps < 10) return `${rps.toFixed(1)} rps`
+  return `${rps.toFixed(0)} rps`
+}
+
+const TOPOLOGY_FLICKER_GUARD_MS = 2500
+const MASS_DOWN_RATIO_THRESHOLD = 0.7
+const MASS_DOWN_RATIO_SPIKE = 0.45
+const INFRA_COLLAPSE_RATIO = 0.5
+const TOPOLOGY_LAYOUT_CACHE_VERSION = '2026-03-06-v2'
+
+interface TopologyFrameStats {
+  serviceCount: number
+  downServices: number
+  downRatio: number
+  k8sNodeCount: number
+}
+
+function computeTopologyFrameStats(nodes: ReagraphNode[]): TopologyFrameStats {
+  let serviceCount = 0
+  let downServices = 0
+  let k8sNodeCount = 0
+
+  nodes.forEach((node) => {
+    const kind: EntityKind | undefined = node.data?.kind
+    if (kind === 'node') {
+      k8sNodeCount += 1
+      return
+    }
+    if (kind !== 'service') return
+
+    serviceCount += 1
+    const podCount = typeof node.data?.podCount === 'number' ? node.data.podCount : 0
+    const availability = typeof node.data?.availability === 'number' ? node.data.availability : 0
+    const isDown = node.data?.isDown === true || podCount <= 0 || availability <= 0
+    if (isDown) downServices += 1
+  })
+
+  return {
+    serviceCount,
+    downServices,
+    downRatio: serviceCount > 0 ? downServices / serviceCount : 0,
+    k8sNodeCount,
+  }
+}
 
 type ScaleMode = 'relative' | 'absolute'
 
@@ -306,6 +364,27 @@ function buildTopologyGraph(
 
   /* ---------- 3. Service & Pod graph-nodes + placement edges -------- */
   const addedServices = new Set<string>()
+  const serviceNodeIdByKey = new Map<string, string>()
+  const serviceKeysByName = new Map<string, string[]>()
+  const addedPods = new Set<string>()
+
+  const rememberServiceKey = (serviceName: string, serviceKey: string) => {
+    const list = serviceKeysByName.get(serviceName) ?? []
+    if (!list.includes(serviceKey)) {
+      list.push(serviceKey)
+      serviceKeysByName.set(serviceName, list)
+    }
+  }
+
+  const resolveServiceKeyFromEdge = (serviceName: string, namespace?: string): string | null => {
+    if (namespace) {
+      const key = graphServiceKey(serviceName, namespace)
+      return addedServices.has(key) ? key : null
+    }
+    const matching = serviceKeysByName.get(serviceName) ?? []
+    if (matching.length === 1) return matching[0]
+    return null
+  }
 
   /* Apply namespace & health filters */
   const filteredServices = services.filter((svc) => {
@@ -320,24 +399,32 @@ function buildTopologyGraph(
 
   filteredServices.forEach((svc) => {
     /* ---------- Add service node even if placement is empty (down service) ---------- */
-    const hasPlacement = svc.placement?.nodes && svc.placement.nodes.length > 0
+    const placementNodes = svc.placement?.nodes ?? []
+    const svcKey = graphServiceKey(svc.name, svc.namespace)
+    const serviceNodeId = svcId(svc.name, svc.namespace)
+    const declaredPodCount = typeof svc.podCount === 'number' ? Math.max(0, svc.podCount) : 0
+    const observedPodCount = placementNodes.reduce((sum, np) => sum + (np.pods?.length ?? 0), 0)
+    const effectivePodCount = Math.max(declaredPodCount, observedPodCount)
+    const missingPodCount = Math.max(0, effectivePodCount - observedPodCount)
 
-    if (!addedServices.has(svc.name)) {
-      addedServices.add(svc.name)
-      const avail = typeof svc.availability === 'number' ? svc.availability : (hasPlacement ? 1 : 0)
-      const isDown = !hasPlacement || svc.podCount === 0
+    if (!addedServices.has(svcKey)) {
+      addedServices.add(svcKey)
+      serviceNodeIdByKey.set(svcKey, serviceNodeId)
+      rememberServiceKey(svc.name, svcKey)
+      const avail = typeof svc.availability === 'number' ? svc.availability : (effectivePodCount > 0 ? 1 : 0)
+      const isDown = effectivePodCount <= 0
       let fill = '#ef4444' // red = critical / down
       if (!isDown) {
         if (avail >= 0.95) fill = '#10b981'
         else if (avail >= 0.8) fill = '#f59e0b'
       }
 
-      const metrics = serviceMetrics?.get(svc.name)
+      const metrics = serviceMetrics?.get(svcKey)
       const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
-      const alertData = alertRollups?.get(svc.name)
+      const alertData = alertRollups?.get(svcKey)
 
       nodes.push({
-        id: svcId(svc.name),
+        id: serviceNodeId,
         label: isDown ? `${svc.name} ⛔` : svc.name,
         fill,
         size: isDown ? 36 : 40,
@@ -345,7 +432,7 @@ function buildTopologyGraph(
           kind: 'service' as EntityKind,
           name: svc.name,
           namespace: svc.namespace,
-          podCount: svc.podCount ?? 0,
+          podCount: effectivePodCount,
           availability: avail,
           rps: metrics?.rps,
           errorRate: metrics?.errorRate,
@@ -359,57 +446,117 @@ function buildTopologyGraph(
       })
     }
 
-    if (!hasPlacement) return // no placement edges/pods to add
-
-    svc.placement!.nodes.forEach((np) => {
-      if (!visibleNodeSet.has(np.node)) return
-
-      /* Node → Service edge */
+    const addPodNodeAndEdge = ({
+      podStableName,
+      podDisplayName,
+      nodeName,
+      cpuUsagePercent,
+      ramUsedMB,
+      uptimeSeconds,
+      fallbackOrdinal,
+      synthetic = false,
+    }: {
+      podStableName: string
+      podDisplayName: string
+      nodeName: string
+      cpuUsagePercent?: number
+      ramUsedMB?: number
+      uptimeSeconds?: number
+      fallbackOrdinal?: number
+      synthetic?: boolean
+    }) => {
+      const normalizedPodStableName =
+        podStableName.trim() || `anon-${svcKey}-${nodeName}-${fallbackOrdinal ?? 0}`
+      const pid = podId(svcKey, normalizedPodStableName)
+      if (!addedPods.has(pid)) {
+        addedPods.add(pid)
+        const podLabel = synthetic
+          ? `pending-${podDisplayName.split('-').pop()}`
+          : (() => {
+              const parts = podDisplayName.split('-')
+              if (parts.length <= 2) return podDisplayName
+              // Keep the service-meaningful prefix, truncate the hash suffixes
+              const prefix = parts.slice(0, Math.max(parts.length - 2, 2)).join('-')
+              return prefix.length > 18 ? prefix.slice(0, 18) + '…' : prefix + '…'
+            })()
+        nodes.push({
+          id: pid,
+          label: podLabel,
+          fill: synthetic ? '#94a3b8' : podCpuFill(cpuUsagePercent), // synthetic pods are neutral until metrics arrive
+          size: 20,
+          data: {
+            kind: 'pod' as EntityKind,
+            name: podDisplayName,
+            nodeName,
+            serviceName: svc.name,
+            namespace: svc.namespace,
+            podCount: effectivePodCount,
+            cpuUsagePercent,
+            ramUsedMB,
+            uptimeSeconds,
+            isSynthetic: synthetic,
+          },
+        })
+      }
       edges.push({
-        id: `place::${np.node}->${svc.name}`,
-        source: nodeId(np.node),
-        target: svcId(svc.name),
+        id: `owns::${svcKey}->${pid}`,
+        source: serviceNodeId,
+        target: pid,
         label: '',
       })
+    }
+
+    placementNodes.forEach((np) => {
+      const nodeIsVisible = visibleNodeSet.has(np.node)
+
+      /* Node → Service edge */
+      if (nodeIsVisible) {
+        edges.push({
+          id: `place::${np.node}->${svcKey}`,
+          source: nodeId(np.node),
+          target: serviceNodeId,
+          label: '',
+        })
+      }
 
       /* Pod nodes + Service → Pod edges */
-      np.pods?.forEach((pod) => {
-        const pid = podId(pod.name)
-        if (!nodes.find((n) => n.id === pid)) {
-          /* Show prefix of pod name + "..." suffix for readability */
-          const podLabel = (() => {
-            const parts = pod.name.split('-')
-            if (parts.length <= 2) return pod.name
-            // Keep the service-meaningful prefix, truncate the hash suffixes
-            const prefix = parts.slice(0, Math.max(parts.length - 2, 2)).join('-')
-            return prefix.length > 18 ? prefix.slice(0, 18) + '…' : prefix + '…'
-          })()
-          nodes.push({
-            id: pid,
-            label: podLabel,
-            fill: podCpuFill(pod.cpuUsagePercent), // heatmap: lavender → red
-            size: 20,
-            data: {
-              kind: 'pod' as EntityKind,
-              name: pod.name,
-              nodeName: np.node,
-              serviceName: svc.name,
-              namespace: svc.namespace,
-              podCount: svc.podCount ?? 0,
-              cpuUsagePercent: pod.cpuUsagePercent,
-              ramUsedMB: pod.ramUsedMB,
-              uptimeSeconds: pod.uptimeSeconds,
-            },
-          })
-        }
-        edges.push({
-          id: `owns::${svc.name}->${pod.name}`,
-          source: svcId(svc.name),
-          target: pid,
-          label: '',
+      np.pods?.forEach((pod, podIndex) => {
+        const rawPodName = (pod.name || '').trim()
+        const fallbackPodName = `${svc.name}-pod-${podIndex + 1}`
+        const podDisplayName = rawPodName || fallbackPodName
+        const podStableName = rawPodName || `live-${np.node}-${podIndex + 1}`
+        addPodNodeAndEdge({
+          podStableName,
+          podDisplayName,
+          nodeName: np.node,
+          cpuUsagePercent: pod.cpuUsagePercent,
+          ramUsedMB: pod.ramUsedMB,
+          uptimeSeconds: pod.uptimeSeconds,
+          fallbackOrdinal: podIndex + 1,
         })
       })
     })
+
+    // Placement details can lag briefly after scale events.
+    // If podCount says N but only M pods are materialized, render synthetic placeholders.
+    if (missingPodCount > 0) {
+      const syntheticNodeName =
+        placementNodes.find((np) => visibleNodeSet.has(np.node))?.node ??
+        placementNodes[0]?.node ??
+        'Pending placement'
+
+      for (let index = 1; index <= missingPodCount; index += 1) {
+        const syntheticDisplayName = `${svc.name}-pending-${index}`
+        const syntheticStableName = `__pending__${svcKey}::${index}`
+        addPodNodeAndEdge({
+          podStableName: syntheticStableName,
+          podDisplayName: syntheticDisplayName,
+          nodeName: syntheticNodeName,
+          fallbackOrdinal: index,
+          synthetic: true,
+        })
+      }
+    }
   })
 
   /* ---------- 4. Service → Service dependency edges ----------------- */
@@ -417,12 +564,19 @@ function buildTopologyGraph(
   const maxRps = dependencyEdges.reduce((m, e) => Math.max(m, e.rps ?? 0), 0)
 
   dependencyEdges.forEach((de, idx) => {
-    if (!addedServices.has(de.source) || !addedServices.has(de.target)) return
+    const sourceServiceKey = resolveServiceKeyFromEdge(de.source, de.sourceNamespace)
+    const targetServiceKey = resolveServiceKeyFromEdge(de.target, de.targetNamespace)
+    if (!sourceServiceKey || !targetServiceKey) return
+
+    const sourceServiceNodeId = serviceNodeIdByKey.get(sourceServiceKey)
+    const targetServiceNodeId = serviceNodeIdByKey.get(targetServiceKey)
+    if (!sourceServiceNodeId || !targetServiceNodeId) return
+
     edges.push({
-      id: `dep::${idx}::${de.source}->${de.target}`,
-      source: svcId(de.source),
-      target: svcId(de.target),
-      label: de.rps != null ? `${de.rps.toFixed(0)} rps` : '',
+      id: `dep::${idx}::${sourceServiceKey}->${targetServiceKey}`,
+      source: sourceServiceNodeId,
+      target: targetServiceNodeId,
+      label: formatEdgeRps(de.rps),
       size: edgeSizeFromRps(de.rps, maxRps),
       data: { rps: de.rps, errorRate: de.errorRate },
     })
@@ -1690,7 +1844,8 @@ function copyTopologyYaml(
     depEdges.forEach((e) => {
       const src = typeof e.source === 'string' ? e.source.replace('svc::', '') : ''
       const tgt = typeof e.target === 'string' ? e.target.replace('svc::', '') : ''
-      const rps = e.data?.rps != null ? ` # ${e.data.rps.toFixed(0)} rps` : ''
+      const edgeRpsLabel = formatEdgeRps(e.data?.rps)
+      const rps = edgeRpsLabel ? ` # ${edgeRpsLabel}` : ''
       lines.push(`  - ${src} -> ${tgt}${rps}`)
     })
     lines.push('')
@@ -1799,7 +1954,7 @@ export default function ClusterTopologyMap() {
         .then(({ services: svcRollups }) => {
           if (!active) return
           const map = new Map<string, ServiceRollup>()
-          svcRollups.forEach((r) => map.set(r.service, r))
+          svcRollups.forEach((r) => map.set(graphServiceKey(r.service, r.namespace), r))
           setAlertRollups(map)
         })
         .catch(() => { /* ignore — alerts are non-critical */ })
@@ -1861,22 +2016,85 @@ export default function ClusterTopologyMap() {
     return Array.from(ns).sort()
   }, [services])
 
-  /* Auto-zoom to fit all nodes on initial load and after structural changes */
+  /* One-time initial fit; subsequent camera control is manual via toolbar */
   const hasAutoZoomed = useRef(false)
-  const lastStructureKeyRef = useRef<string>('')
+  const stableLayoutPositionCacheRef = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
+  const appliedLayoutCacheVersionRef = useRef<string>('')
+  const stableFrameRef = useRef<{
+    nodes: ReagraphNode[]
+    edges: ReagraphEdge[]
+    stats: TopologyFrameStats
+  } | null>(null)
+  const anomalyWindowStartedAtRef = useRef<number | null>(null)
+  const lastFilterSignatureRef = useRef<string>('')
 
   const graphTheme = useMemo(() => createTopologyTheme(resolvedTheme === 'dark'), [resolvedTheme])
+  useEffect(() => {
+    if (appliedLayoutCacheVersionRef.current === TOPOLOGY_LAYOUT_CACHE_VERSION) return
+    stableLayoutPositionCacheRef.current.clear()
+    appliedLayoutCacheVersionRef.current = TOPOLOGY_LAYOUT_CACHE_VERSION
+  }, [])
+  const filterSignature = useMemo(
+    () => `${filters.namespace}|${filters.health}|${filters.depthOrigin ?? ''}|${filters.depthHops}`,
+    [filters.depthHops, filters.depthOrigin, filters.health, filters.namespace]
+  )
 
-  const { nodes: rawNodes, edges: rawEdges } = useMemo(
+  const { nodes: candidateNodes, edges: candidateEdges } = useMemo(
     () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups),
     [services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups]
   )
 
+  const { nodes: rawNodes, edges: rawEdges } = useMemo(() => {
+    const currentStats = computeTopologyFrameStats(candidateNodes)
+    const currentFrame = { nodes: candidateNodes, edges: candidateEdges, stats: currentStats }
+
+    if (lastFilterSignatureRef.current !== filterSignature) {
+      lastFilterSignatureRef.current = filterSignature
+      anomalyWindowStartedAtRef.current = null
+      stableFrameRef.current = currentFrame
+      return { nodes: candidateNodes, edges: candidateEdges }
+    }
+
+    const previousStableFrame = stableFrameRef.current
+    if (!previousStableFrame) {
+      stableFrameRef.current = currentFrame
+      anomalyWindowStartedAtRef.current = null
+      return { nodes: candidateNodes, edges: candidateEdges }
+    }
+
+    const massDownSpike =
+      previousStableFrame.stats.serviceCount >= 4 &&
+      currentStats.serviceCount >= 4 &&
+      currentStats.downRatio >= MASS_DOWN_RATIO_THRESHOLD &&
+      currentStats.downRatio - previousStableFrame.stats.downRatio >= MASS_DOWN_RATIO_SPIKE
+
+    const infrastructureCollapsed =
+      previousStableFrame.stats.k8sNodeCount >= 2 &&
+      currentStats.k8sNodeCount <= Math.floor(previousStableFrame.stats.k8sNodeCount * INFRA_COLLAPSE_RATIO)
+
+    const isAnomalousFrame = massDownSpike || infrastructureCollapsed
+
+    if (isAnomalousFrame) {
+      const now = Date.now()
+      if (anomalyWindowStartedAtRef.current == null) {
+        anomalyWindowStartedAtRef.current = now
+      }
+
+      const elapsed = now - anomalyWindowStartedAtRef.current
+      if (elapsed < TOPOLOGY_FLICKER_GUARD_MS) {
+        return { nodes: previousStableFrame.nodes, edges: previousStableFrame.edges }
+      }
+    }
+
+    anomalyWindowStartedAtRef.current = null
+    stableFrameRef.current = currentFrame
+    return { nodes: candidateNodes, edges: candidateEdges }
+  }, [candidateEdges, candidateNodes, filterSignature])
+
   /**
    * Stable node / edge references: only create new JS objects for nodes whose
    * visual properties actually changed.  Unchanged nodes keep the previous
-   * object identity so reagraph’s internal diff sees “no change” and the
-   * force-directed layout keeps its positions instead of “dancing.”
+   * object identity so reagraph’s internal diff sees “no change”.
    */
   const prevNodesRef = useRef<Map<string, ReagraphNode>>(new Map())
   const prevEdgesRef = useRef<Map<string, ReagraphEdge>>(new Map())
@@ -1926,37 +2144,16 @@ export default function ClusterTopologyMap() {
     return stable
   }, [rawEdges])
 
-  /**
-   * Compute a stable "structural key" from node/edge IDs so auto-zoom
-   * fires only when the actual topology structure changes (nodes added/removed),
-   * NOT when properties (cpu%, labels, colours) update from polling.
-   */
-  const graphStructureKey = useMemo(() => {
-    const nodeIds = gNodes.map((n) => n.id).sort().join('|')
-    const edgeIds = gEdges.map((e) => e.id).sort().join('|')
-    return `${nodeIds}::${edgeIds}`
-  }, [gNodes, gEdges])
-
   useEffect(() => {
-    if (!graphRef.current || gNodes.length === 0) return
-    // Initial zoom
-    if (!hasAutoZoomed.current) {
-      const timer = setTimeout(() => {
-        graphRef.current?.fitNodesInView?.()
-        hasAutoZoomed.current = true
-        lastStructureKeyRef.current = graphStructureKey
-      }, 600)
-      return () => clearTimeout(timer)
-    }
-    // On structure change (new pods added/removed), do a gentle fit after a delay
-    if (lastStructureKeyRef.current && lastStructureKeyRef.current !== graphStructureKey) {
-      lastStructureKeyRef.current = graphStructureKey
-      const timer = setTimeout(() => {
-        graphRef.current?.fitNodesInView?.()
-      }, 800)
-      return () => clearTimeout(timer)
-    }
-  }, [gNodes.length, graphStructureKey])
+    if (!graphRef.current || gNodes.length === 0 || hasAutoZoomed.current) return
+
+    const timer = setTimeout(() => {
+      graphRef.current?.fitNodesInView?.()
+      hasAutoZoomed.current = true
+    }, 600)
+
+    return () => clearTimeout(timer)
+  }, [gNodes.length])
 
   /** BFS shortest path between two node IDs across all edges */
   const tracedPath = useMemo(() => {
@@ -2073,6 +2270,11 @@ export default function ClusterTopologyMap() {
       tracedEdgeIds.has(e.id) ? { ...e, fill: '#22d3ee', size: (e.size ?? 1) + 3 } : e
     )
   }, [gEdges, tracedEdgeIds])
+
+  const stableLayoutOverrides = useMemo(
+    () => createTopologyStableLayoutOverrides(displayNodes, displayEdges, stableLayoutPositionCacheRef.current),
+    [displayEdges, displayNodes]
+  )
 
   const activeSelections = useMemo(() => {
     // Hover neighborhood takes priority; else path trace; else search matches
@@ -2247,6 +2449,9 @@ export default function ClusterTopologyMap() {
       )
       toast.success(`Scale ${direction} drill started: ${intent.currentPods} → ${intent.targetReplicas} pods`, { id: toastId })
 
+      // Immediate refresh so newly created pods appear without waiting for the first poll tick.
+      await refetch()
+
       // Start polling to reflect the scale drill's effect on the topology map.
       startDrillRefreshPolling(drillPlan.id)
     } catch (err: unknown) {
@@ -2254,7 +2459,7 @@ export default function ClusterTopologyMap() {
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg, drillStatus: `Error: ${msg}` } : null)
       toast.error(`Scale drill failed: ${msg}`, { id: toastId })
     }
-  }, [startDrillRefreshPolling])
+  }, [refetch, startDrillRefreshPolling])
 
   /* ---- Migrate Service handler (enter migration mode) ---- */
   const handleMigrateService = useCallback((serviceName: string, namespace: string) => {
@@ -2585,7 +2790,9 @@ export default function ClusterTopologyMap() {
               nodes={displayNodes}
               edges={displayEdges}
               selections={activeSelections}
-              layoutType="forceDirected2d"
+              layoutType="custom"
+              animated={false}
+              layoutOverrides={stableLayoutOverrides}
               labelType="all"
               draggable={!!migrationMode}
               theme={graphTheme}

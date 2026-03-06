@@ -249,19 +249,48 @@ export default function Metrics() {
   }, [data?.datapoints])
 
   // Latest datapoint per service in the selected window.
+  // Prefers the most recent datapoint that carries actual telemetry (requestRate > 0)
+  // so that brief traffic gaps don't blank out the dashboard.  Falls back to the
+  // chronologically latest datapoint when no traffic was seen in the entire window.
   const latestPerService = useMemo((): TelemetryDatapoint[] => {
     if (sortedDatapoints.length === 0) return []
 
-    const byService = new Map<string, TelemetryDatapoint>()
+    const latestOverall = new Map<string, TelemetryDatapoint>()
+    const latestWithTraffic = new Map<string, TelemetryDatapoint>()
+
     for (const point of sortedDatapoints) {
       const key = `${point.namespace}:${point.service}`
-      const previous = byService.get(key)
-      if (!previous || toTimestampMs(point.timestamp) >= toTimestampMs(previous.timestamp)) {
-        byService.set(key, point)
+      const ts = toTimestampMs(point.timestamp)
+
+      // Always track the chronologically latest datapoint
+      const prev = latestOverall.get(key)
+      if (!prev || ts >= toTimestampMs(prev.timestamp)) {
+        latestOverall.set(key, point)
+      }
+
+      // Additionally track the latest datapoint that has actual traffic
+      const rr = toFiniteNumber(point.requestRate)
+      if (rr !== null && rr > 0) {
+        const prevTraffic = latestWithTraffic.get(key)
+        if (!prevTraffic || ts >= toTimestampMs(prevTraffic.timestamp)) {
+          latestWithTraffic.set(key, point)
+        }
       }
     }
 
-    return Array.from(byService.values())
+    return Array.from(latestOverall.keys()).map((key) => {
+      const withTraffic = latestWithTraffic.get(key)
+      const overall = latestOverall.get(key)!
+      if (!withTraffic) return overall
+
+      // Use the traffic-bearing datapoint but keep the latest availability
+      // (availability reflects pod readiness which is always reported)
+      const latestAvail = toFiniteNumber(overall.availability)
+      if (latestAvail !== null && latestAvail !== toFiniteNumber(withTraffic.availability)) {
+        return { ...withTraffic, availability: latestAvail }
+      }
+      return withTraffic
+    })
   }, [sortedDatapoints])
 
   // Summary cards: global mode aggregates latest per service; service mode reflects selected scope.

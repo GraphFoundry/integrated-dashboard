@@ -130,7 +130,9 @@ function friendlyNodeHealth(cpuPct: number, ramPct: number): { label: string; co
 }
 
 function friendlyTrafficLabel(rps?: number): { label: string; color: string } {
-  if (rps == null || rps < 1) return { label: 'No traffic', color: 'text-gray-400' }
+  if (rps == null || rps <= 0) return { label: 'No traffic', color: 'text-gray-400' }
+  if (rps < 0.01) return { label: 'Trace traffic', color: 'text-blue-200' }
+  if (rps < 1) return { label: 'Very low', color: 'text-blue-300' }
   if (rps < 10) return { label: 'Very low', color: 'text-blue-300' }
   if (rps < 100) return { label: 'Low', color: 'text-blue-400' }
   if (rps < 500) return { label: 'Moderate', color: 'text-green-400' }
@@ -188,9 +190,23 @@ const podId = (serviceKey: string, podStableName: string) => `pod::${serviceKey}
 function formatEdgeRps(rps?: number): string {
   if (rps == null || Number.isNaN(rps)) return ''
   if (rps <= 0) return '0 rps'
+  if (rps < 0.0001) return '<0.0001 rps'
+  if (rps < 0.01) return `${rps.toFixed(4)} rps`
+  if (rps < 0.1) return `${rps.toFixed(3)} rps`
   if (rps < 1) return `${rps.toFixed(2)} rps`
   if (rps < 10) return `${rps.toFixed(1)} rps`
   return `${rps.toFixed(0)} rps`
+}
+
+function formatRpsValue(rps?: number): string {
+  if (rps == null || Number.isNaN(rps)) return '0'
+  if (rps <= 0) return '0'
+  if (rps < 0.0001) return '<0.0001'
+  if (rps < 0.01) return rps.toFixed(4)
+  if (rps < 0.1) return rps.toFixed(3)
+  if (rps < 1) return rps.toFixed(2)
+  if (rps < 10) return rps.toFixed(1)
+  return rps.toFixed(0)
 }
 
 const TOPOLOGY_FLICKER_GUARD_MS = 2500
@@ -885,7 +901,7 @@ function TopologyTooltip({
                 <span className="text-[var(--text-muted)]">Traffic:</span>
                 <span className={cn('font-semibold', traffic.color)}>
                   {traffic.label}
-                  {node.data.rps != null && <span className="text-[var(--text-dim)] text-[10px] ml-1">({node.data.rps.toFixed(0)} req/s)</span>}
+                  {node.data.rps != null && <span className="text-[var(--text-dim)] text-[10px] ml-1">({formatRpsValue(node.data.rps)} req/s)</span>}
                 </span>
               </div>
               {/* Speed */}
@@ -1371,7 +1387,7 @@ function TopologyDetailsDrawer({
               <DrawerRow label="Namespace" value={node.data?.namespace} />
               <DrawerRow label="Pods" value={node.data?.podCount} />
               <DrawerRow label="Availability" value={node.data?.availability != null ? `${(node.data.availability * 100).toFixed(1)}%` : 'N/A'} />
-              {node.data?.rps != null && <DrawerRow label="RPS" value={node.data.rps.toFixed(1)} />}
+              {node.data?.rps != null && <DrawerRow label="RPS" value={formatRpsValue(node.data.rps)} />}
               {node.data?.errorRate != null && <DrawerRow label="Error rate" value={`${(node.data.errorRate * 100).toFixed(2)}%`} highlight={node.data.errorRate > 0.05} />}
               {node.data?.p95 != null && <DrawerRow label="p95 latency" value={`${node.data.p95.toFixed(0)} ms`} />}
               {node.data?.openIncidents > 0 && (
@@ -1830,7 +1846,7 @@ function copyTopologyYaml(
       if (n.data?.namespace) lines.push(`    namespace: ${n.data.namespace}`)
       if (n.data?.availability != null) lines.push(`    availability: ${(n.data.availability * 100).toFixed(1)}%`)
       if (n.data?.podCount != null) lines.push(`    podCount: ${n.data.podCount}`)
-      if (n.data?.rps != null) lines.push(`    rps: ${n.data.rps.toFixed(1)}`)
+      if (n.data?.rps != null) lines.push(`    rps: ${formatRpsValue(n.data.rps)}`)
       if (n.data?.errorRate != null) lines.push(`    errorRate: ${(n.data.errorRate * 100).toFixed(2)}%`)
       if (n.data?.openIncidents > 0) lines.push(`    openIncidents: ${n.data.openIncidents}`)
     })

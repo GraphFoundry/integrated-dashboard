@@ -16,19 +16,6 @@ COPY tailwind.config.ts    ./
 COPY eslint.config.js      ./
 COPY src/                  ./src/
 
-# ── Vite build-time variables (VITE_* are baked into the JS bundle) ──────────
-# In production Docker, VITE_BFF_URL must be empty so that fetch("/api/...")
-# goes to the same origin and nginx proxies it to the BFF container.
-ARG VITE_BFF_URL=""
-ARG VITE_ENABLE_GRAPH_DIRECT_FALLBACK="false"
-ARG VITE_GRAPH_CACHE_REFRESH_MS="5000"
-ARG VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE="false"
-
-ENV VITE_BFF_URL=$VITE_BFF_URL
-ENV VITE_ENABLE_GRAPH_DIRECT_FALLBACK=$VITE_ENABLE_GRAPH_DIRECT_FALLBACK
-ENV VITE_GRAPH_CACHE_REFRESH_MS=$VITE_GRAPH_CACHE_REFRESH_MS
-ENV VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE=$VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE
-
 RUN npm run build
 
 # ─── Stage 2: Serve with nginx ───────────────────────────────────────────────
@@ -43,9 +30,11 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # Copy custom nginx config
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Copy entrypoint script that generates /env-config.js from env vars at startup
+COPY env.sh /docker-entrypoint.d/90-env-config.sh
+RUN chmod +x /docker-entrypoint.d/90-env-config.sh
+
 EXPOSE 80
 
-# nginx runs as non-root (nginx user) by default in the official image.
-# The config below uses "user nginx;" to make this explicit.
-
+ENTRYPOINT ["/docker-entrypoint.d/90-env-config.sh"]
 CMD ["nginx", "-g", "daemon off;"]

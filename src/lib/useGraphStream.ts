@@ -8,8 +8,10 @@ import {
 import { getDependencyGraphSnapshot, getServicesWithPlacement, getNodes, isInfrastructureService } from '@/lib/api'
 import type { GraphSnapshot, GraphRiskLevel, ServiceWithPlacement, NodeWithResources } from '@/lib/types'
 
-const enableDirectFallback = import.meta.env.VITE_ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
-const graphCacheRefreshMs = Number.parseInt(import.meta.env.VITE_GRAPH_CACHE_REFRESH_MS || '5000', 10) || 5000
+import { env } from '@/lib/env'
+
+const enableDirectFallback = env.ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
+const graphCacheRefreshMs = Number.parseInt(env.GRAPH_CACHE_REFRESH_MS || '5000', 10) || 5000
 
 function namespacedServiceKey(name: string, namespace?: string): string {
   return `${(namespace || 'default').trim() || 'default'}:${name}`

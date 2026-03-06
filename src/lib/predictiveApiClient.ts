@@ -1,6 +1,7 @@
 import { createApiClient } from '@/lib/httpClient'
+import { env } from '@/lib/env'
 
-const BFF_BASE_URL = import.meta.env.VITE_BFF_URL || ''
+const BFF_BASE_URL = env.BFF_URL
 
 /**
  * Axios client for Predictive Analysis Engine API

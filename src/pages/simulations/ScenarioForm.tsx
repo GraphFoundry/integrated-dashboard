@@ -115,7 +115,8 @@ export default function ScenarioForm({
   const allowUnsafeDemoConstraintOverrides =
     mode === 'demo' &&
     import.meta.env.DEV &&
-    import.meta.env.VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true'
+    (window.__ENV__?.ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true' ||
+      import.meta.env.VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true')
   const effectiveDemoConstraints = demoConstraints ?? DEFAULT_DEMO_CONSTRAINTS
   const activeDemoScenarioConstraint =
     mode !== 'demo' || allowUnsafeDemoConstraintOverrides

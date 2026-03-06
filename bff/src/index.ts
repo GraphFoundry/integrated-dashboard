@@ -31,6 +31,7 @@ loadEnvFile()
 
 import cors from 'cors'
 import morgan from 'morgan'
+import { createProxyMiddleware } from 'http-proxy-middleware'
 import http from 'http'
 import WebSocket, { WebSocketServer } from 'ws'
 import { Storage } from './storage'
@@ -51,6 +52,58 @@ interface RawBodyRequest extends Request {
 
 const app = express()
 app.use(cors())
+app.use(morgan('dev'))
+
+// ── Downstream microservice proxies ─────────────────────────────────────────
+// Mounted BEFORE express.json() so request bodies stream through unmodified.
+const PREDICTIVE_API_BASE_URL = process.env.PREDICTIVE_API_BASE_URL || 'http://localhost:7000'
+const SCHEDULER_API_BASE_URL = process.env.SCHEDULER_API_BASE_URL || 'http://localhost:9020'
+
+app.use(
+  '/api/predictive',
+  createProxyMiddleware({
+    target: PREDICTIVE_API_BASE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/predictive': '' },
+    on: {
+      proxyReq: (proxyReq, req) => {
+        // Forward X-Request-Id if present
+        const rid = req.headers['x-request-id']
+        if (rid) proxyReq.setHeader('X-Request-Id', rid as string)
+      },
+      error: (err, _req, res) => {
+        console.error('[Proxy:predictive] error:', err.message)
+        if ('writeHead' in res && typeof res.writeHead === 'function') {
+          ;(res as import('http').ServerResponse).writeHead(502, { 'Content-Type': 'application/json' })
+          ;(res as import('http').ServerResponse).end(JSON.stringify({ error: 'Predictive API unavailable' }))
+        }
+      },
+    },
+  })
+)
+
+app.use(
+  '/api/scheduler',
+  createProxyMiddleware({
+    target: SCHEDULER_API_BASE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/scheduler': '' },
+    on: {
+      proxyReq: (proxyReq, req) => {
+        const rid = req.headers['x-request-id']
+        if (rid) proxyReq.setHeader('X-Request-Id', rid as string)
+      },
+      error: (err, _req, res) => {
+        console.error('[Proxy:scheduler] error:', err.message)
+        if ('writeHead' in res && typeof res.writeHead === 'function') {
+          ;(res as import('http').ServerResponse).writeHead(502, { 'Content-Type': 'application/json' })
+          ;(res as import('http').ServerResponse).end(JSON.stringify({ error: 'Scheduler API unavailable' }))
+        }
+      },
+    },
+  })
+)
+
 app.use(
   express.json({
     limit: '10mb',
@@ -59,7 +112,6 @@ app.use(
     },
   })
 )
-app.use(morgan('dev'))
 
 const PORT = process.env.PORT || 3001
 const DB_PATH = process.env.DB_PATH || './alerts.db'

@@ -1,12 +1,11 @@
 import { createApiClient } from '@/lib/httpClient'
 
-const SCHEDULER_API_BASE_URL = import.meta.env.VITE_SCHEDULER_API_BASE_URL || 'http://localhost:9020'
+const BFF_BASE_URL = import.meta.env.VITE_BFF_URL || ''
 
 /**
  * Axios client for Kubernetes Scheduler Extender API
  *
- * Endpoints:
- * - GET /decisions
- * - POST /restart
+ * All requests are routed through the BFF gateway.
+ * The BFF proxies /api/scheduler/* to the downstream Scheduler Extender API.
  */
-export const schedulerApi = createApiClient(SCHEDULER_API_BASE_URL)
+export const schedulerApi = createApiClient(`${BFF_BASE_URL}/api/scheduler`)

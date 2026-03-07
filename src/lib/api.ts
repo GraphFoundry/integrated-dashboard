@@ -256,15 +256,12 @@ export async function healthCheck(signal?: AbortSignal): Promise<{ status: strin
 
 /**
  * Fetch current predictive anomaly recommendation for operator actioning.
- * Routed via BFF path: /api/predictive/predictive/actions/current
+ * Routed via BFF path: /api/predictive/actions/current
  */
 export async function getCurrentPredictiveAction(
   signal?: AbortSignal
 ): Promise<PredictiveCurrentActionResponse> {
-  const { data } = await predictiveApi.get<PredictiveCurrentActionResponse>(
-    '/predictive/actions/current',
-    { signal }
-  )
+  const { data } = await predictiveApi.get<PredictiveCurrentActionResponse>('/actions/current', { signal })
   return data
 }
 

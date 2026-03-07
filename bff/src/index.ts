@@ -50,6 +50,18 @@ interface RawBodyRequest extends Request {
   rawBody?: Buffer
 }
 
+interface PredictiveCurrentActionPayload {
+  anomalyActive: boolean
+  healthScore: number
+  primaryBottleneck: Record<string, unknown> | null
+  timeToImpactSec: number | null
+  recommendation: Record<string, unknown> | null
+  evidence: {
+    timestamp: string
+    [key: string]: unknown
+  }
+}
+
 const app = express()
 app.use(cors())
 app.use(morgan('dev'))
@@ -58,6 +70,52 @@ app.use(morgan('dev'))
 // Mounted BEFORE express.json() so request bodies stream through unmodified.
 const PREDICTIVE_API_BASE_URL = process.env.PREDICTIVE_API_BASE_URL || 'http://localhost:7000'
 const SCHEDULER_API_BASE_URL = process.env.SCHEDULER_API_BASE_URL || 'http://localhost:9020'
+const PREDICTIVE_CURRENT_ACTION_ROUTES = [
+  '/api/predictive/actions/current',
+  '/api/predictive/predictive/actions/current',
+]
+
+function buildPredictiveCurrentActionUrl(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/+$/, '')
+  return normalized.endsWith('/predictive')
+    ? `${normalized}/actions/current`
+    : `${normalized}/predictive/actions/current`
+}
+
+function defaultPredictiveCurrentActionPayload(): PredictiveCurrentActionPayload {
+  return {
+    anomalyActive: false,
+    healthScore: 100,
+    primaryBottleneck: null,
+    timeToImpactSec: null,
+    recommendation: null,
+    evidence: {
+      timestamp: new Date().toISOString(),
+    },
+  }
+}
+
+// Dedicated handler avoids path-prefix duplication and shields UI from upstream 503 bursts.
+app.get(PREDICTIVE_CURRENT_ACTION_ROUTES, async (req: Request, res: Response) => {
+  const requestId = req.header('X-Request-Id')
+
+  try {
+    const response = await axios.get<PredictiveCurrentActionPayload>(
+      buildPredictiveCurrentActionUrl(PREDICTIVE_API_BASE_URL),
+      {
+        timeout: 3000,
+        headers: requestId ? { 'X-Request-Id': requestId } : undefined,
+      }
+    )
+    return res.status(200).json(response.data)
+  } catch (error) {
+    console.warn('[BFF:predictive-current-action] upstream unavailable, serving safe fallback')
+    if (axios.isAxiosError(error)) {
+      console.warn('[BFF:predictive-current-action] details:', error.message)
+    }
+    return res.status(200).json(defaultPredictiveCurrentActionPayload())
+  }
+})
 
 app.use(
   '/api/predictive',

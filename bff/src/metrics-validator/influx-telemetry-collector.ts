@@ -25,6 +25,17 @@ type InfluxTelemetryCollection = {
   serviceScope: string
   stepSeconds: number
   rawPoints: ReadonlyArray<Record<string, unknown>>
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+}
+
+type LatestPerServiceSelectionReason =
+  | 'latestPositiveTraffic'
+  | 'latestOverallFallback'
+
+type LatestPerServiceTelemetryPoint = {
+  serviceKey: string
+  selectionReason: LatestPerServiceSelectionReason
+  datapoint: Record<string, unknown>
 }
 
 function buildInfluxTelemetryEndpoint(vmHost: string): string {
@@ -121,6 +132,170 @@ function parseRawTelemetryPoints(
   })
 }
 
+function toTimestampMs(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 1_000_000_000_000 ? value * 1000 : value
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Date.parse(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+
+    const numeric = Number(value)
+    if (Number.isFinite(numeric)) {
+      return toTimestampMs(numeric)
+    }
+  }
+
+  return Number.NEGATIVE_INFINITY
+}
+
+function toFiniteNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  return null
+}
+
+function coerceNonEmptyString(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim()
+  return normalized.length > 0 ? normalized : null
+}
+
+function buildServiceKey(point: Record<string, unknown>): string | null {
+  const rawServiceId = coerceNonEmptyString(point.serviceId)
+
+  let service = coerceNonEmptyString(point.service)
+  let namespace = coerceNonEmptyString(point.namespace)
+
+  if (rawServiceId !== null) {
+    const [scopeNamespace, ...scopeServiceParts] = rawServiceId.split(':')
+    const scopedService = scopeServiceParts.join(':').trim()
+    if (service === null && scopedService.length > 0) {
+      service = scopedService
+    }
+    if (namespace === null && scopeNamespace.trim().length > 0) {
+      namespace = scopeNamespace.trim()
+    }
+    if (service === null && scopeServiceParts.length === 0) {
+      service = rawServiceId
+    }
+  }
+
+  if (service === null) {
+    return null
+  }
+
+  return `${namespace ?? ''}:${service}`
+}
+
+function sortPointsByTimestamp(
+  points: ReadonlyArray<Record<string, unknown>>
+): ReadonlyArray<Record<string, unknown>> {
+  return points
+    .map((point, index) => ({
+      point,
+      index,
+      timestampMs: toTimestampMs(point.timestamp)
+    }))
+    .sort((a, b) => {
+      const aIsValid = Number.isFinite(a.timestampMs)
+      const bIsValid = Number.isFinite(b.timestampMs)
+
+      if (aIsValid && bIsValid) {
+        return a.timestampMs - b.timestampMs || a.index - b.index
+      }
+
+      if (aIsValid) {
+        return -1
+      }
+
+      if (bIsValid) {
+        return 1
+      }
+
+      return a.index - b.index
+    })
+    .map(({ point }) => point)
+}
+
+function extractLatestPerServicePoints(
+  rawPoints: ReadonlyArray<Record<string, unknown>>
+): ReadonlyArray<LatestPerServiceTelemetryPoint> {
+  if (rawPoints.length === 0) {
+    return []
+  }
+
+  const sortedPoints = sortPointsByTimestamp(rawPoints)
+  const latestOverall = new Map<string, Record<string, unknown>>()
+  const latestWithTraffic = new Map<string, Record<string, unknown>>()
+
+  for (const point of sortedPoints) {
+    const serviceKey = buildServiceKey(point)
+    if (serviceKey === null) {
+      continue
+    }
+
+    const timestampMs = toTimestampMs(point.timestamp)
+    const previousOverall = latestOverall.get(serviceKey)
+    if (
+      !previousOverall ||
+      timestampMs >= toTimestampMs(previousOverall.timestamp)
+    ) {
+      latestOverall.set(serviceKey, point)
+    }
+
+    const requestRate = toFiniteNumber(point.requestRate)
+    if (requestRate !== null && requestRate > 0) {
+      const previousWithTraffic = latestWithTraffic.get(serviceKey)
+      if (
+        !previousWithTraffic ||
+        timestampMs >= toTimestampMs(previousWithTraffic.timestamp)
+      ) {
+        latestWithTraffic.set(serviceKey, point)
+      }
+    }
+  }
+
+  return Array.from(latestOverall.keys()).map((serviceKey) => {
+    const overall = latestOverall.get(serviceKey)!
+    const withTraffic = latestWithTraffic.get(serviceKey)
+
+    if (!withTraffic) {
+      return {
+        serviceKey,
+        selectionReason: 'latestOverallFallback' as const,
+        datapoint: { ...overall }
+      }
+    }
+
+    const latestAvailability = toFiniteNumber(overall.availability)
+    const withTrafficAvailability = toFiniteNumber(withTraffic.availability)
+    const selectedDatapoint =
+      latestAvailability !== null && latestAvailability !== withTrafficAvailability
+        ? { ...withTraffic, availability: latestAvailability }
+        : { ...withTraffic }
+
+    return {
+      serviceKey,
+      selectionReason: 'latestPositiveTraffic' as const,
+      datapoint: selectedDatapoint
+    }
+  })
+}
+
 async function collectInfluxTelemetry(
   input: InfluxTelemetryCollectorInput,
   executeRequest: HttpRequestExecutor<HttpJsonResponseLike> = createJsonHttpClient(),
@@ -160,6 +335,7 @@ async function collectInfluxTelemetry(
 
     const payload = await response.json()
     const rawPoints = parseRawTelemetryPoints(payload)
+    const latestPerServicePoints = extractLatestPerServicePoints(rawPoints)
 
     return {
       endpoint,
@@ -168,7 +344,8 @@ async function collectInfluxTelemetry(
       windowEndUtc: input.windowEndUtc,
       serviceScope: input.serviceScope,
       stepSeconds,
-      rawPoints
+      rawPoints,
+      latestPerServicePoints
     }
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
@@ -190,6 +367,9 @@ async function collectInfluxTelemetry(
 export {
   collectInfluxTelemetry,
   buildInfluxTelemetryEndpoint,
+  extractLatestPerServicePoints,
   type InfluxTelemetryCollection,
-  type InfluxTelemetryCollectorInput
+  type InfluxTelemetryCollectorInput,
+  type LatestPerServiceTelemetryPoint,
+  type LatestPerServiceSelectionReason
 }

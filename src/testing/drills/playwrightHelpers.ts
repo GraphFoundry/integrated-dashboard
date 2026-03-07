@@ -87,6 +87,29 @@ export interface RunStatusObservation {
   attempts: number
 }
 
+export interface CatalogScenario {
+  scenarioType: string
+  title: string
+}
+
+export interface CatalogIterationContext {
+  index: number
+  total: number
+}
+
+export interface CatalogIterationOptions {
+  timeoutMs?: number
+  onScenario: (
+    scenario: CatalogScenario,
+    context: CatalogIterationContext
+  ) => void | Promise<void>
+}
+
+export interface CatalogIterationResult {
+  scenarios: CatalogScenario[]
+  iteratedAt: string
+}
+
 export type ScenarioBannerState = 'verified' | 'not-verified' | 'unknown'
 
 export interface ScenarioBannerObservation {
@@ -249,6 +272,59 @@ async function enforceSingleActiveScenario(page: PlaywrightLikePage, timeoutMs: 
 
   await exitRoomButton.click({ timeout: timeoutMs })
   await runStatusBadge.waitFor({ state: 'hidden', timeout: timeoutMs })
+}
+
+export async function getScenarioCatalog(page: PlaywrightLikePage, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<CatalogScenario[]> {
+  const cards = page.locator('[data-testid="drill-catalog-card"]')
+  await cards.first().waitFor({ state: 'visible', timeout: timeoutMs })
+
+  const cardCount = await cards.count()
+  if (cardCount === 0) {
+    throw new Error('Scenario catalog is empty; no scenarios are available to iterate.')
+  }
+
+  const scenarios: CatalogScenario[] = []
+  const seenScenarioTypes = new Set<string>()
+  for (let i = 0; i < cardCount; i += 1) {
+    const card = cards.nth(i)
+    const scenarioType = normalizeText(await card.getAttribute('data-drill-type'))
+    if (!scenarioType || seenScenarioTypes.has(scenarioType)) {
+      continue
+    }
+
+    const title = normalizeText(await card.getByRole('heading').first().textContent()) || scenarioType
+    scenarios.push({
+      scenarioType,
+      title,
+    })
+    seenScenarioTypes.add(scenarioType)
+  }
+
+  if (scenarios.length === 0) {
+    throw new Error('Scenario catalog cards were found, but none exposed a valid scenario type.')
+  }
+
+  return scenarios
+}
+
+export async function iterateScenarioCatalog(
+  page: PlaywrightLikePage,
+  options: CatalogIterationOptions
+): Promise<CatalogIterationResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const scenarios = await getScenarioCatalog(page, timeoutMs)
+
+  for (let i = 0; i < scenarios.length; i += 1) {
+    await options.onScenario(scenarios[i], {
+      index: i + 1,
+      total: scenarios.length,
+    })
+  }
+
+  return {
+    scenarios,
+    iteratedAt: new Date().toISOString(),
+  }
 }
 
 export async function startScenarioFromCatalog(

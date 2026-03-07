@@ -741,7 +741,12 @@ export default function RunPanel({
 
         {isTerminal && (
           <div className="grid w-full grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
-            <Button variant="outline" className={secondaryButtonClass} onPress={onClear}>
+            <Button
+              variant="outline"
+              data-testid="drill-exit-room"
+              className={secondaryButtonClass}
+              onPress={onClear}
+            >
               Exit Room
             </Button>
             <Button

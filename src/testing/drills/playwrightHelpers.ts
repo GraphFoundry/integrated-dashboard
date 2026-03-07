@@ -40,6 +40,8 @@ const DEFAULT_POLL_INTERVAL_MS = 400
 const DEFAULT_STABLE_POLLS = 2
 
 const DEFAULT_ROLLBACK_CONFIRMED_STATUSES = ['Recovering', 'Completed', 'Failed', 'Accepted', 'Aborted'] as const
+const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'accepted', 'aborted'])
+const ACTIVE_RUN_STATUSES = new Set(['planned', 'running', 'observing', 'awaitingrecovery', 'recovering'])
 
 export interface StartScenarioOptions {
   scenarioType: string
@@ -129,6 +131,41 @@ async function waitForEnabled(
   throw new Error('Timed out waiting for scenario engage button to become enabled.')
 }
 
+async function enforceSingleActiveScenario(page: PlaywrightLikePage, timeoutMs: number): Promise<void> {
+  const runStatusBadge = page.getByTestId('drill-run-status').first()
+  if (!(await isVisible(runStatusBadge))) {
+    return
+  }
+
+  const currentStatus = normalizeText(await runStatusBadge.textContent())
+  if (!currentStatus) {
+    throw new Error('Current run status could not be determined; refusing to start a new scenario.')
+  }
+
+  const normalizedStatus = normalizeStatus(currentStatus)
+  if (ACTIVE_RUN_STATUSES.has(normalizedStatus)) {
+    throw new Error(
+      `Cannot start a new scenario while run status "${currentStatus}" is active. Helpers enforce one active scenario at a time.`
+    )
+  }
+
+  if (!TERMINAL_RUN_STATUSES.has(normalizedStatus)) {
+    throw new Error(
+      `Cannot start a new scenario because existing run status "${currentStatus}" is not recognized as terminal.`
+    )
+  }
+
+  const exitRoomButton = page.getByTestId('drill-exit-room').first()
+  if (!(await isVisible(exitRoomButton))) {
+    throw new Error(
+      `Run status "${currentStatus}" is terminal, but no "Exit Room" control is available to clear run context.`
+    )
+  }
+
+  await exitRoomButton.click({ timeout: timeoutMs })
+  await runStatusBadge.waitFor({ state: 'hidden', timeout: timeoutMs })
+}
+
 export async function startScenarioFromCatalog(
   page: PlaywrightLikePage,
   options: StartScenarioOptions
@@ -139,6 +176,8 @@ export async function startScenarioFromCatalog(
   if (!scenarioType) {
     throw new Error('startScenarioFromCatalog requires a non-empty scenarioType.')
   }
+
+  await enforceSingleActiveScenario(page, timeoutMs)
 
   const scenarioCard = page
     .locator(`[data-testid="drill-catalog-card"][data-drill-type="${scenarioType}"]`)

@@ -69,6 +69,7 @@ type ExpectedActualField = {
   metricName: string
   expectedValue: string
   actualValue: string
+  isMismatch: boolean
 }
 
 const serviceMetricDescriptors: Array<{ key: keyof DrillRunServiceMetricValues; metricName: string }> = [
@@ -95,52 +96,47 @@ function buildMetricComparisonRows(
       metricName,
       expectedValue: formatComparableValue(expectedRaw as string | number | undefined),
       actualValue: formatComparableValue(actualRaw as string | number | undefined),
+      isMismatch: Boolean(mismatch),
     }
   })
 }
 
 function buildVMComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualField[] {
+  const statusMismatch = getMismatchByMetric(snapshot.comparison.vm, 'status')
+  const verdictMismatch = getMismatchByMetric(snapshot.comparison.vm, 'verdict')
+
   return [
     {
       metricName: 'status',
-      expectedValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.vm, 'status')?.expectedValue ?? 'Completed'
-      ),
-      actualValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.vm, 'status')?.actualValue ?? snapshot.vmState.status
-      ),
+      expectedValue: formatComparableValue(statusMismatch?.expectedValue ?? 'Completed'),
+      actualValue: formatComparableValue(statusMismatch?.actualValue ?? snapshot.vmState.status),
+      isMismatch: Boolean(statusMismatch),
     },
     {
       metricName: 'verdict',
-      expectedValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.vm, 'verdict')?.expectedValue ?? 'Success'
-      ),
-      actualValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.vm, 'verdict')?.actualValue ?? snapshot.vmState.verdict
-      ),
+      expectedValue: formatComparableValue(verdictMismatch?.expectedValue ?? 'Success'),
+      actualValue: formatComparableValue(verdictMismatch?.actualValue ?? snapshot.vmState.verdict),
+      isMismatch: Boolean(verdictMismatch),
     },
   ]
 }
 
 function buildAPIComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualField[] {
+  const errorStepsMismatch = getMismatchByMetric(snapshot.comparison.api, 'timeline.errorSteps')
+  const runStatusMismatch = getMismatchByMetric(snapshot.comparison.api, 'run.status')
+
   return [
     {
       metricName: 'timeline.errorSteps',
-      expectedValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.api, 'timeline.errorSteps')?.expectedValue ?? '0'
-      ),
-      actualValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.api, 'timeline.errorSteps')?.actualValue ?? '0'
-      ),
+      expectedValue: formatComparableValue(errorStepsMismatch?.expectedValue ?? '0'),
+      actualValue: formatComparableValue(errorStepsMismatch?.actualValue ?? '0'),
+      isMismatch: Boolean(errorStepsMismatch),
     },
     {
       metricName: 'run.status',
-      expectedValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.api, 'run.status')?.expectedValue ?? 'Completed'
-      ),
-      actualValue: formatComparableValue(
-        getMismatchByMetric(snapshot.comparison.api, 'run.status')?.actualValue ?? snapshot.vmState.status
-      ),
+      expectedValue: formatComparableValue(runStatusMismatch?.expectedValue ?? 'Completed'),
+      actualValue: formatComparableValue(runStatusMismatch?.actualValue ?? snapshot.vmState.status),
+      isMismatch: Boolean(runStatusMismatch),
     },
   ]
 }
@@ -308,7 +304,12 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
               {layerCards.map((layer) => (
                 <article
                   key={layer.key}
-                  className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)]/30 p-4"
+                  className={cn(
+                    'rounded-xl border bg-[var(--surface-soft)]/30 p-4',
+                    layer.status === 'mismatch'
+                      ? 'border-rose-400/35 bg-rose-500/5 shadow-[0_0_0_1px_rgba(244,63,94,0.08)]'
+                      : 'border-[var(--border)]'
+                  )}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
@@ -359,15 +360,33 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
                       {layer.comparedFields.map((field) => (
                         <div
                           key={`${layer.key}-${field.metricName}`}
-                          className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-2"
+                          className={cn(
+                            'grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 rounded px-1 py-0.5',
+                            field.isMismatch && 'bg-rose-500/10'
+                          )}
                         >
-                          <span className="truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                          <span
+                            className={cn(
+                              'truncate font-mono text-[10px] text-[var(--text-secondary)]',
+                              field.isMismatch && 'font-semibold text-rose-500'
+                            )}
+                          >
                             {field.metricName}
                           </span>
-                          <span className="truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                          <span
+                            className={cn(
+                              'truncate font-mono text-[10px] text-[var(--text-secondary)]',
+                              field.isMismatch && 'font-semibold text-rose-500'
+                            )}
+                          >
                             {field.expectedValue}
                           </span>
-                          <span className="truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                          <span
+                            className={cn(
+                              'truncate font-mono text-[10px] text-[var(--text-secondary)]',
+                              field.isMismatch && 'font-semibold text-rose-500'
+                            )}
+                          >
                             {field.actualValue}
                           </span>
                         </div>

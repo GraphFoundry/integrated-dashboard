@@ -302,12 +302,7 @@ export default function DrillCatalog({
         config: plannedConfig,
         bannerVerified: scenarioBannerSeenAt !== null,
       })
-      const planWithBannerCapture: DrillRun = {
-        ...plan,
-        scenarioBannerSeen: scenarioBannerSeenAt !== null,
-        scenarioBannerSeenAt: scenarioBannerSeenAt ?? undefined,
-      }
-      onDrillSelect(planWithBannerCapture)
+      onDrillSelect(plan)
       setSelectedDrill(null)
       setCountdown(0)
       setIsConfirmed(false)

@@ -363,11 +363,7 @@ export default function RunPanel({
     const pollRun = async () => {
       try {
         const updated = await getDrillRun(run.id)
-        onUpdate({
-          ...updated,
-          scenarioBannerSeen: run.scenarioBannerSeen,
-          scenarioBannerSeenAt: run.scenarioBannerSeenAt,
-        })
+        onUpdate(updated)
       } catch (e) {
         console.error('Failed to poll run', e)
       }
@@ -503,14 +499,13 @@ export default function RunPanel({
             </span>
           </div>
         </div>
-        {typeof run.scenarioBannerSeen === 'boolean' && (
+        {typeof run.bannerVerified === 'boolean' && (
           <div className="mt-3 flex items-center justify-between rounded-lg border border-[var(--border)]/80 bg-[var(--surface-soft)] px-3 py-2">
             <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               Scenario Banner
             </span>
             <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-              {run.scenarioBannerSeen ? 'Observed in UI' : 'Not observed in UI'}
-              {run.scenarioBannerSeenAt && ` · ${new Date(run.scenarioBannerSeenAt).toLocaleTimeString()}`}
+              {run.bannerVerified ? 'Verified' : 'Not Verified'}
             </span>
           </div>
         )}

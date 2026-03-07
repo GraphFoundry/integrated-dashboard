@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   assertAnalysisEnginePollWorkerActive,
   assertAllPreflightServiceChecksHealthy,
+  buildReportMetadata,
   buildDefaultServiceHealthTargets,
   runAnalysisEnginePollWorkerActivityCheck,
   runPipelinePreflightHealthChecks
@@ -77,7 +78,8 @@ test('confirms analysis-engine poll worker activity from health telemetry eviden
       statusText: 'OK',
       json: async () => ({
         telemetry: {
-          workerEnabled: true
+          workerEnabled: true,
+          pollIntervalMs: 30000
         }
       })
     }),
@@ -86,6 +88,14 @@ test('confirms analysis-engine poll worker activity from health telemetry eviden
 
   assert.equal(evidence.active, true)
   assert.equal(evidence.evidence, 'health')
+  assert.equal(evidence.pollIntervalMs, 30000)
+  assert.equal(evidence.pollIntervalSource, 'telemetry.pollIntervalMs')
+  const reportMetadata = buildReportMetadata(evidence)
+  assert.equal(reportMetadata.analysisEnginePollIntervalMs, 30000)
+  assert.equal(
+    reportMetadata.analysisEnginePollIntervalSource,
+    'telemetry.pollIntervalMs'
+  )
   assert.doesNotThrow(() => assertAnalysisEnginePollWorkerActive(evidence))
 })
 
@@ -105,9 +115,39 @@ test('fails when analysis-engine health evidence does not confirm workerEnabled'
   )
 
   assert.equal(evidence.active, false)
+  assert.equal(evidence.pollIntervalMs, null)
+  assert.equal(evidence.pollIntervalSource, null)
   assert.match(evidence.detail, /workerEnabled=false/)
   assert.throws(
     () => assertAnalysisEnginePollWorkerActive(evidence),
     /Analysis Engine poll worker activity check failed/
+  )
+})
+
+test('extracts poll interval from seconds field and records milliseconds in metadata', async () => {
+  const evidence = await runAnalysisEnginePollWorkerActivityCheck(
+    'vm.example.internal',
+    async () => ({
+      status: 200,
+      statusText: 'OK',
+      json: async () => ({
+        telemetry: {
+          workerEnabled: true,
+          pollIntervalSeconds: 45
+        }
+      })
+    }),
+    50
+  )
+
+  assert.equal(evidence.active, true)
+  assert.equal(evidence.pollIntervalMs, 45000)
+  assert.equal(evidence.pollIntervalSource, 'telemetry.pollIntervalSeconds')
+
+  const reportMetadata = buildReportMetadata(evidence)
+  assert.equal(reportMetadata.analysisEnginePollIntervalMs, 45000)
+  assert.equal(
+    reportMetadata.analysisEnginePollIntervalSource,
+    'telemetry.pollIntervalSeconds'
   )
 })

@@ -57,7 +57,21 @@ type PollWorkerActivityEvidence = {
   endpoint: string
   active: boolean
   evidence: 'health'
+  pollIntervalMs: number | null
+  pollIntervalSource: PollIntervalSource
   detail: string
+}
+
+type PollIntervalSource =
+  | 'telemetry.pollIntervalMs'
+  | 'telemetry.workerPollIntervalMs'
+  | 'telemetry.pollIntervalSeconds'
+  | 'telemetry.workerPollIntervalSeconds'
+  | null
+
+type ReportMetadata = {
+  analysisEnginePollIntervalMs: number | null
+  analysisEnginePollIntervalSource: PollIntervalSource
 }
 
 type HttpJsonResponseLike = {
@@ -328,7 +342,7 @@ function createJsonHttpClient(): HttpRequestExecutor<HttpJsonResponseLike> {
     })
 }
 
-function extractTelemetryWorkerEnabled(payload: unknown): boolean | null {
+function extractTelemetryPayload(payload: unknown): Record<string, unknown> | null {
   if (payload === null || typeof payload !== 'object') {
     return null
   }
@@ -338,11 +352,99 @@ function extractTelemetryWorkerEnabled(payload: unknown): boolean | null {
     return null
   }
 
+  return telemetryValue as Record<string, unknown>
+}
+
+function extractTelemetryWorkerEnabled(payload: unknown): boolean | null {
+  const telemetryValue = extractTelemetryPayload(payload)
+  if (!telemetryValue) {
+    return null
+  }
+
   const workerEnabledValue = (
-    telemetryValue as { workerEnabled?: unknown }
+    telemetryValue as Record<'workerEnabled', unknown>
   ).workerEnabled
 
   return typeof workerEnabledValue === 'boolean' ? workerEnabledValue : null
+}
+
+function coercePositiveNumber(value: unknown): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : null
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }
+
+  return null
+}
+
+function extractTelemetryPollInterval(payload: unknown): {
+  pollIntervalMs: number | null
+  pollIntervalSource: PollIntervalSource
+} {
+  const telemetryValue = extractTelemetryPayload(payload)
+  if (!telemetryValue) {
+    return {
+      pollIntervalMs: null,
+      pollIntervalSource: null
+    }
+  }
+
+  const millisecondCandidates: Array<{
+    source: Exclude<PollIntervalSource, null>
+    value: unknown
+  }> = [
+    {
+      source: 'telemetry.pollIntervalMs',
+      value: telemetryValue.pollIntervalMs
+    },
+    {
+      source: 'telemetry.workerPollIntervalMs',
+      value: telemetryValue.workerPollIntervalMs
+    }
+  ]
+
+  for (const candidate of millisecondCandidates) {
+    const numericValue = coercePositiveNumber(candidate.value)
+    if (numericValue !== null) {
+      return {
+        pollIntervalMs: numericValue,
+        pollIntervalSource: candidate.source
+      }
+    }
+  }
+
+  const secondsCandidates: Array<{
+    source: Exclude<PollIntervalSource, null>
+    value: unknown
+  }> = [
+    {
+      source: 'telemetry.pollIntervalSeconds',
+      value: telemetryValue.pollIntervalSeconds
+    },
+    {
+      source: 'telemetry.workerPollIntervalSeconds',
+      value: telemetryValue.workerPollIntervalSeconds
+    }
+  ]
+
+  for (const candidate of secondsCandidates) {
+    const secondsValue = coercePositiveNumber(candidate.value)
+    if (secondsValue !== null) {
+      return {
+        pollIntervalMs: secondsValue * 1000,
+        pollIntervalSource: candidate.source
+      }
+    }
+  }
+
+  return {
+    pollIntervalMs: null,
+    pollIntervalSource: null
+  }
 }
 
 async function runAnalysisEnginePollWorkerActivityCheck(
@@ -371,20 +473,32 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         endpoint,
         active: false,
         evidence: 'health',
+        pollIntervalMs: null,
+        pollIntervalSource: null,
         detail: `Analysis Engine health endpoint returned HTTP ${response.status} ${response.statusText}`
       }
     }
 
     const payload = await response.json()
     const workerEnabled = extractTelemetryWorkerEnabled(payload)
+    const { pollIntervalMs, pollIntervalSource } = extractTelemetryPollInterval(
+      payload
+    )
 
     if (workerEnabled === true) {
+      const pollIntervalDetail =
+        pollIntervalMs === null
+          ? 'poll interval metadata unavailable in health response'
+          : `poll interval=${pollIntervalMs}ms via ${pollIntervalSource}`
+
       return {
         endpoint,
         active: true,
         evidence: 'health',
+        pollIntervalMs,
+        pollIntervalSource,
         detail:
-          'Analysis Engine health evidence confirmed telemetry.workerEnabled=true'
+          `Analysis Engine health evidence confirmed telemetry.workerEnabled=true; ${pollIntervalDetail}`
       }
     }
 
@@ -393,6 +507,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         endpoint,
         active: false,
         evidence: 'health',
+        pollIntervalMs,
+        pollIntervalSource,
         detail:
           'Analysis Engine health evidence reported telemetry.workerEnabled=false'
       }
@@ -402,6 +518,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
       endpoint,
       active: false,
       evidence: 'health',
+      pollIntervalMs,
+      pollIntervalSource,
       detail:
         'Analysis Engine health evidence missing telemetry.workerEnabled field'
     }
@@ -411,6 +529,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         endpoint,
         active: false,
         evidence: 'health',
+        pollIntervalMs: null,
+        pollIntervalSource: null,
         detail: `Timed out after ${timeoutMs}ms while checking poll worker activity`
       }
     }
@@ -421,10 +541,21 @@ async function runAnalysisEnginePollWorkerActivityCheck(
       endpoint,
       active: false,
       evidence: 'health',
+      pollIntervalMs: null,
+      pollIntervalSource: null,
       detail: `Failed to verify poll worker activity from health evidence: ${message}`
     }
   } finally {
     clearTimeout(timeout)
+  }
+}
+
+function buildReportMetadata(
+  pollWorkerActivity: PollWorkerActivityEvidence
+): ReportMetadata {
+  return {
+    analysisEnginePollIntervalMs: pollWorkerActivity.pollIntervalMs,
+    analysisEnginePollIntervalSource: pollWorkerActivity.pollIntervalSource
   }
 }
 
@@ -582,6 +713,7 @@ async function run(argv: string[]): Promise<number> {
 
     if (dryRun) {
       const connectivity = await runDryRunConnectivityChecks(args)
+      const reportMetadata = buildReportMetadata(connectivity.pollWorkerActivity)
       process.stdout.write(
         `${JSON.stringify(
           {
@@ -590,6 +722,7 @@ async function run(argv: string[]): Promise<number> {
             comparisonsExecuted: false,
             args,
             runContext,
+            reportMetadata,
             connectivity
           },
           null,
@@ -605,6 +738,7 @@ async function run(argv: string[]): Promise<number> {
     ])
     assertAllPreflightServiceChecksHealthy(preflight)
     assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
+    const reportMetadata = buildReportMetadata(pollWorkerActivity)
 
     process.stdout.write(
       `${JSON.stringify(
@@ -613,6 +747,7 @@ async function run(argv: string[]): Promise<number> {
           mode: 'full',
           args,
           runContext,
+          reportMetadata,
           preflight: {
             serviceHealthChecks: preflight,
             pollWorkerActivity
@@ -648,12 +783,14 @@ export {
   buildDefaultServiceHealthTargets,
   runPipelinePreflightHealthChecks,
   runAnalysisEnginePollWorkerActivityCheck,
+  buildReportMetadata,
   assertAllPreflightServiceChecksHealthy,
   assertAnalysisEnginePollWorkerActive,
   run,
   type CliArgs,
   type ParsedCliArgs,
   type RunContext,
+  type ReportMetadata,
   type ServiceHealthCheckResult,
   type PollWorkerActivityEvidence
 }

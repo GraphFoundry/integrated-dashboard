@@ -7,6 +7,10 @@ type CliArgs = {
   outputPath: string
 }
 
+type RunContext = {
+  pageLoadReferenceTimestampUtc: string
+}
+
 const REQUIRED_FLAGS: ReadonlyArray<keyof CliArgs> = [
   'vmHost',
   'dashboardUrl',
@@ -105,6 +109,12 @@ function printUsage(): void {
   process.stdout.write(`${usage}\n`)
 }
 
+function createRunContext(referenceDate: Date = new Date()): RunContext {
+  return {
+    pageLoadReferenceTimestampUtc: referenceDate.toISOString()
+  }
+}
+
 function run(argv: string[]): number {
   if (argv.includes('--help') || argv.includes('-h')) {
     printUsage()
@@ -113,7 +123,10 @@ function run(argv: string[]): number {
 
   try {
     const args = parseCliArgs(argv)
-    process.stdout.write(`${JSON.stringify({ accepted: true, args }, null, 2)}\n`)
+    const runContext = createRunContext()
+    process.stdout.write(
+      `${JSON.stringify({ accepted: true, args, runContext }, null, 2)}\n`
+    )
     return 0
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown CLI error'
@@ -128,4 +141,4 @@ if (require.main === module) {
   process.exit(exitCode)
 }
 
-export { parseCliArgs, run, type CliArgs }
+export { parseCliArgs, createRunContext, run, type CliArgs, type RunContext }

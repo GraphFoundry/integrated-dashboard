@@ -25,7 +25,7 @@ export default function DashboardLayout() {
         >
           <Topbar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((prev) => !prev)} />
           <div className="h-16 shrink-0" aria-hidden />
-          <PredictiveActionBanner />
+          <PredictiveActionBanner sidebarOpen={sidebarOpen} />
           <main className={shellMainClass}>
             <Outlet />
           </main>

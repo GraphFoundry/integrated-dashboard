@@ -1901,8 +1901,9 @@ export default function ClusterTopologyMap() {
 
   /**
    * Start polling the graph data to pick up cluster changes from a drill.
-   * Polls every 3 s for up to `durationMs` (default 90 s), then stops.
-   * Also polls drill status and updates simulationState accordingly.
+   * Polls every 2 s for up to `durationMs` (default 90 s).
+   * Even after drill completion, keep polling briefly so scale-up/down pod
+   * placement changes are visible without requiring a manual page refresh.
    */
   const startDrillRefreshPolling = useCallback((drillRunId?: string, durationMs = 90_000) => {
     // Clear any prior polling
@@ -1910,6 +1911,8 @@ export default function ClusterTopologyMap() {
     drillPollTickInFlightRef.current = false
 
     const started = Date.now()
+    const completionGraceMs = 45_000
+    let terminalStatusObservedAt: number | null = null
     drillPollRef.current = setInterval(() => {
       if (drillPollTickInFlightRef.current) return
       drillPollTickInFlightRef.current = true
@@ -1943,12 +1946,16 @@ export default function ClusterTopologyMap() {
                   return { ...prev, awaitingRecovery: true }
                 })
               }
-              // Stop polling once drill is completed, aborted, failed, or accepted.
+              // Keep polling for a short grace period after terminal states so
+              // delayed Kubernetes pod/node updates still render in the graph.
               if (['completed', 'aborted', 'failed', 'accepted'].includes(run.status.toLowerCase())) {
-                // One final refetch after a short delay to capture post-rollback state
-                setTimeout(() => void refetch(), 3000)
-                if (drillPollRef.current) clearInterval(drillPollRef.current)
-                drillPollRef.current = null
+                if (terminalStatusObservedAt == null) {
+                  terminalStatusObservedAt = Date.now()
+                  setTimeout(() => void refetch(), 3000)
+                } else if (Date.now() - terminalStatusObservedAt >= completionGraceMs) {
+                  if (drillPollRef.current) clearInterval(drillPollRef.current)
+                  drillPollRef.current = null
+                }
               }
             } catch {
               // Drill status fetch failed — continue polling graph data
@@ -1958,7 +1965,7 @@ export default function ClusterTopologyMap() {
           drillPollTickInFlightRef.current = false
         }
       })()
-    }, 3000)
+    }, 2000)
   }, [refetch])
 
   /* Fetch open alerts grouped by service (lightweight polling every 30 s) */

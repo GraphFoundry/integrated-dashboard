@@ -19,6 +19,10 @@ type SnoozeState = {
   severity: PredictiveSeverity
 }
 
+interface PredictiveActionBannerProps {
+  readonly sidebarOpen?: boolean
+}
+
 function recommendationKey(recommendation: PredictiveRecommendation): string {
   return [
     recommendation.drillType,
@@ -78,7 +82,7 @@ function formatBottleneckLocation(payload: PredictiveCurrentActionResponse): str
   return 'Active bottleneck'
 }
 
-export default function PredictiveActionBanner() {
+export default function PredictiveActionBanner({ sidebarOpen = false }: PredictiveActionBannerProps) {
   const navigate = useNavigate()
   const [payload, setPayload] = useState<PredictiveCurrentActionResponse | null>(null)
   const [visible, setVisible] = useState(false)
@@ -148,10 +152,15 @@ export default function PredictiveActionBanner() {
   }
 
   return (
-    <div className="sticky top-16 z-40 px-4 pb-4 pt-3 sm:px-6 lg:px-8">
+    <div
+      className={cn(
+        'fixed right-0 top-16 z-[70] px-4 pb-4 pt-3 transition-[left] duration-300 ease-out sm:px-6 lg:px-8',
+        sidebarOpen ? 'left-72' : 'left-0'
+      )}
+    >
       <div
         className={cn(
-          'relative overflow-hidden rounded-[var(--radius-md)] border shadow-[0_22px_55px_rgba(2,8,23,0.35)]',
+          'relative overflow-hidden rounded-[var(--radius-md)] border shadow-[0_22px_55px_rgba(2,8,23,0.4)] animate-in fade-in slide-in-from-top-2 duration-300',
           severityTone(severity)
         )}
         role="alert"

@@ -12,6 +12,7 @@ import { env } from '@/lib/env'
 
 const enableDirectFallback = env.ENABLE_GRAPH_DIRECT_FALLBACK === 'true'
 const graphCacheRefreshMs = Number.parseInt(env.GRAPH_CACHE_REFRESH_MS || '5000', 10) || 5000
+const topologyReconcileMs = 5000
 
 function namespacedServiceKey(name: string, namespace?: string): string {
   return `${(namespace || 'default').trim() || 'default'}:${name}`
@@ -608,6 +609,28 @@ export function useServicesWithPlacement() {
       // Direct fetch failed — rely on BFF-level data
     }
   }, [refetchGraph])
+
+  // Keep topology fresh even when webhook/cache timing lags after drill actions.
+  // This reconciles from analysis-engine every few seconds while the page is visible.
+  useEffect(() => {
+    let isMounted = true
+    let tickInFlight = false
+
+    const tick = () => {
+      if (!isMounted || tickInFlight) return
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      tickInFlight = true
+      void refetch().finally(() => {
+        tickInFlight = false
+      })
+    }
+
+    const timer = setInterval(tick, topologyReconcileMs)
+    return () => {
+      isMounted = false
+      clearInterval(timer)
+    }
+  }, [refetch])
 
   return {
     services,

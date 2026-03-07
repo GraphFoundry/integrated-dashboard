@@ -265,7 +265,7 @@ interface ScaleIntent {
 }
 
 function resolveNamespace(namespace?: string): string {
-  return namespace?.trim() || 'onlineboutique'
+  return namespace?.trim() || 'default'
 }
 
 function toNamespacedServiceId(serviceName: string, namespace?: string): string {

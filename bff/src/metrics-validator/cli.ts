@@ -5,6 +5,7 @@ import {
   type HttpRequestExecutor
 } from './http-client-wrapper'
 import { collectInfluxTelemetry } from './influx-telemetry-collector'
+import { openMetricsPageWithSelectedWindowAndScope } from './metrics-page-browser'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
 
 type CliArgs = {
@@ -914,10 +915,16 @@ async function run(argv: string[]): Promise<number> {
     assertAllPreflightServiceChecksHealthy(preflight)
     assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
     const reportMetadata = buildReportMetadata(pollWorkerActivity)
-    const [sgeSnapshot, influxTelemetry] = await Promise.all([
+    const [sgeSnapshot, influxTelemetry, metricsPageOpen] = await Promise.all([
       collectSgeSnapshot(args.vmHost),
       collectInfluxTelemetry({
         vmHost: args.vmHost,
+        windowStartUtc: runContext.selectedTimeWindowUtc.start,
+        windowEndUtc: runContext.selectedTimeWindowUtc.end,
+        serviceScope: runContext.selectedServiceScope
+      }),
+      openMetricsPageWithSelectedWindowAndScope({
+        dashboardUrl: args.dashboardUrl,
         windowStartUtc: runContext.selectedTimeWindowUtc.start,
         windowEndUtc: runContext.selectedTimeWindowUtc.end,
         serviceScope: runContext.selectedServiceScope
@@ -935,6 +942,9 @@ async function run(argv: string[]): Promise<number> {
           collectors: {
             sgeSnapshot,
             influxTelemetry
+          },
+          browserAutomation: {
+            metricsPageOpen
           },
           preflight: {
             serviceHealthChecks: preflight,

@@ -210,22 +210,22 @@ export default function SchedulerDecisions() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Scheduled':
-        return 'bg-green-900/30 text-green-300 border-green-700/50'
+        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:bg-emerald-500/20 dark:border-emerald-500/30'
       case 'NoPeers':
-        return 'bg-yellow-900/30 text-yellow-300 border-yellow-700/50'
+        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:bg-amber-500/20 dark:border-amber-500/30'
       case 'NoMetrics':
-        return 'bg-orange-900/30 text-orange-300 border-orange-700/50'
+        return 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20 dark:bg-orange-500/20 dark:border-orange-500/30'
       case 'StaleMetrics':
-        return 'bg-red-900/30 text-red-300 border-red-700/50'
+        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 dark:bg-rose-500/20 dark:border-rose-500/30'
       default:
         return 'bg-[var(--surface-subtle)] text-[var(--text-secondary)] border-[var(--border)]'
     }
   }
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-400'
-    if (score >= 50) return 'text-yellow-400'
-    return 'text-red-400'
+    if (score >= 80) return 'text-emerald-600 dark:text-emerald-400'
+    if (score >= 50) return 'text-amber-600 dark:text-amber-400'
+    return 'text-rose-600 dark:text-rose-400'
   }
 
   const filteredDecisions = decisions.filter((d) => {
@@ -335,7 +335,7 @@ export default function SchedulerDecisions() {
                   disabled={isOptimized}
                   className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
                     ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-dim)]'
-                    : 'border-emerald-300/35 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/18'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20'
                     }`}
                 >
                   {isOptimized ? <CheckCircle className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -375,7 +375,7 @@ export default function SchedulerDecisions() {
 
                   {/* Best Node */}
                   <DecisionMetricCard label="Best Node">
-                    <div className="text-sm font-semibold text-green-400 font-mono">
+                    <div className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
                       {decision.bestNode || 'N/A'}
                     </div>
                   </DecisionMetricCard>

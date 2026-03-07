@@ -7,6 +7,7 @@ type ReadOnlyHttpRequest = {
 type HttpRequestExecutor<T> = (request: ReadOnlyHttpRequest) => Promise<T>
 
 const READ_ONLY_HTTP_METHOD = 'GET'
+const MUTATING_HTTP_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 function normalizeHttpMethod(method: string | undefined): string {
   if (typeof method !== 'string' || method.trim().length === 0) {
@@ -48,8 +49,14 @@ function assertReadOnlyHttpRequest(
 
   const normalizedMethod = normalizeHttpMethod(request.method)
   if (normalizedMethod !== READ_ONLY_HTTP_METHOD) {
+    if (MUTATING_HTTP_METHODS.has(normalizedMethod)) {
+      throw new Error(
+        `Mutating HTTP method "${normalizedMethod}" is blocked in read-only mode; only GET requests are permitted`
+      )
+    }
+
     throw new Error(
-      `HTTP method "${normalizedMethod}" is not allowed; only GET requests are permitted`
+      `HTTP method "${normalizedMethod}" is not allowed in read-only mode; only GET requests are permitted`
     )
   }
 

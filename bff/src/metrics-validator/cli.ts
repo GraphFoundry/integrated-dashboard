@@ -9,6 +9,11 @@ type CliArgs = {
 
 type RunContext = {
   pageLoadReferenceTimestampUtc: string
+  selectedTimeWindowUtc: {
+    start: string
+    end: string
+  }
+  selectedServiceScope: string
 }
 
 const REQUIRED_FLAGS: ReadonlyArray<keyof CliArgs> = [
@@ -109,9 +114,21 @@ function printUsage(): void {
   process.stdout.write(`${usage}\n`)
 }
 
-function createRunContext(referenceDate: Date = new Date()): RunContext {
+function toUtcIsoTimestamp(value: string): string {
+  return new Date(value).toISOString()
+}
+
+function createRunContext(
+  args: Pick<CliArgs, 'windowStart' | 'windowEnd' | 'serviceScope'>,
+  referenceDate: Date = new Date()
+): RunContext {
   return {
-    pageLoadReferenceTimestampUtc: referenceDate.toISOString()
+    pageLoadReferenceTimestampUtc: referenceDate.toISOString(),
+    selectedTimeWindowUtc: {
+      start: toUtcIsoTimestamp(args.windowStart),
+      end: toUtcIsoTimestamp(args.windowEnd)
+    },
+    selectedServiceScope: args.serviceScope
   }
 }
 
@@ -123,7 +140,7 @@ function run(argv: string[]): number {
 
   try {
     const args = parseCliArgs(argv)
-    const runContext = createRunContext()
+    const runContext = createRunContext(args)
     process.stdout.write(
       `${JSON.stringify({ accepted: true, args, runContext }, null, 2)}\n`
     )

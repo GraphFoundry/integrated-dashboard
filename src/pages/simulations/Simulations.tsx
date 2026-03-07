@@ -418,10 +418,10 @@ export default function Simulations() {
     const healthLabel = healthScore >= 85 ? 'Stable' : healthScore >= 70 ? 'Watch closely' : 'Immediate action required'
     const healthTone =
       healthScore >= 85
-        ? 'border-emerald-400/45 bg-emerald-500/14 text-emerald-200'
+        ? 'border-emerald-400/45 bg-emerald-500/20 text-[var(--text-primary)]'
         : healthScore >= 70
-          ? 'border-amber-400/45 bg-amber-500/16 text-amber-100'
-          : 'border-rose-400/50 bg-rose-500/18 text-rose-100'
+          ? 'border-amber-400/45 bg-amber-500/20 text-[var(--text-primary)]'
+          : 'border-rose-400/50 bg-rose-500/20 text-[var(--text-primary)]'
 
     const bottleneckLocation =
       formatPredictiveBottleneck(contextPrediction) ??
@@ -445,7 +445,7 @@ export default function Simulations() {
           </p>
         )}
 
-        <div className="relative overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-gradient-to-br from-cyan-500/15 via-emerald-500/10 to-sky-500/12 p-5">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--border-strong)] bg-[var(--surface-panel)] p-5">
           <div className="pointer-events-none absolute inset-0 opacity-70">
             <div className="absolute -left-8 top-0 h-24 w-24 rounded-full bg-white/10 blur-2xl" />
             <div className="absolute right-0 top-0 h-24 w-24 rounded-full bg-black/20 blur-2xl" />
@@ -457,7 +457,7 @@ export default function Simulations() {
                 <TrendingUp className="h-3.5 w-3.5" />
                 Live Scenario Pulse
               </span>
-              <span className="rounded border border-[var(--border)] bg-black/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider">
+              <span className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
                 Refresh every {Math.round(CONTEXT_REFRESH_MS / 1000)}s
               </span>
             </div>
@@ -472,12 +472,12 @@ export default function Simulations() {
                 <p className="mt-1 text-xs">{healthLabel}</p>
               </div>
 
-              <div className="rounded-xl border border-[var(--border)] bg-black/10 px-4 py-3 text-[var(--text-primary)]">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   Primary Bottleneck
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
-                  <AlertTriangle className="h-4 w-4 text-amber-300" />
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
                   <span className="truncate">{bottleneckLocation}</span>
                 </div>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
@@ -485,12 +485,12 @@ export default function Simulations() {
                 </p>
               </div>
 
-              <div className="rounded-xl border border-[var(--border)] bg-black/10 px-4 py-3 text-[var(--text-primary)]">
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   Time To Impact
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-2xl font-black">
-                  <Clock3 className="h-5 w-5 text-cyan-200" />
+                  <Clock3 className="h-5 w-5 text-cyan-600" />
                   <span>{timeToImpactLabel}</span>
                 </div>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">Estimated time before user-facing instability.</p>
@@ -538,7 +538,7 @@ export default function Simulations() {
               <p className="mt-1 text-base font-bold text-[var(--text-primary)]">{recommendationTitle}</p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{recommendationMessage}</p>
             </div>
-            <span className="inline-flex items-center gap-1 rounded-full border border-cyan-400/45 bg-cyan-500/12 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-100">
+            <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/50 bg-cyan-500/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-700">
               <Zap className="h-3 w-3" />
               Live
             </span>
@@ -546,7 +546,7 @@ export default function Simulations() {
 
           <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-[var(--text-secondary)]">
             <span className="inline-flex items-center gap-1">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-300" />
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
               Target health:{' '}
               {formatPercent(
                 ((contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)?.availability ??
@@ -555,12 +555,12 @@ export default function Simulations() {
             </span>
             {hottestEdge && (
               <span className="inline-flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-300" />
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                 Peak error exposure: {formatPercent(hottestEdge.maxErrorRate * 100)}
               </span>
             )}
             {contextLoading && (
-              <span className="inline-flex items-center gap-1 text-cyan-200">
+              <span className="inline-flex items-center gap-1 text-cyan-600">
                 <Clock3 className="h-3.5 w-3.5" />
                 Refreshing...
               </span>

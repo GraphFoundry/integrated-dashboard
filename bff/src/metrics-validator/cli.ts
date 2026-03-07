@@ -1,3 +1,6 @@
+import { lookup } from 'node:dns/promises'
+import { createConnection } from 'node:net'
+
 type CliArgs = {
   vmHost: string
   dashboardUrl: string
@@ -5,6 +8,11 @@ type CliArgs = {
   windowEnd: string
   serviceScope: string
   outputPath: string
+}
+
+type ParsedCliArgs = {
+  args: CliArgs
+  dryRun: boolean
 }
 
 type RunContext = {
@@ -48,12 +56,20 @@ function isValidTimestamp(value: string): boolean {
   return !Number.isNaN(time)
 }
 
-function parseCliArgs(argv: string[]): CliArgs {
+function parseCliArgs(argv: string[]): ParsedCliArgs {
   const parsed: Partial<CliArgs> = {}
+  let dryRun = false
   let index = 0
 
   while (index < argv.length) {
     const token = argv[index]
+
+    if (token === '--dry-run') {
+      dryRun = true
+      index += 1
+      continue
+    }
+
     const mapped = FLAG_MAP[token]
 
     if (!mapped) {
@@ -95,7 +111,10 @@ function parseCliArgs(argv: string[]): CliArgs {
     throw new Error('Invalid --window-end: expected parseable date/time string')
   }
 
-  return parsed as CliArgs
+  return {
+    args: parsed as CliArgs,
+    dryRun
+  }
 }
 
 function printUsage(): void {
@@ -108,7 +127,10 @@ function printUsage(): void {
     '  --window-start <iso-or-parseable-time>',
     '  --window-end <iso-or-parseable-time>',
     '  --service-scope <scope>',
-    '  --output-path <path>'
+    '  --output-path <path>',
+    '',
+    'Optional flags:',
+    '  --dry-run'
   ].join('\n')
 
   process.stdout.write(`${usage}\n`)
@@ -132,17 +154,130 @@ function createRunContext(
   }
 }
 
-function run(argv: string[]): number {
+async function checkSshReachability(
+  host: string,
+  port: number = 22,
+  timeoutMs: number = 5000
+): Promise<string> {
+  const resolved = await lookup(host)
+
+  await new Promise<void>((resolve, reject) => {
+    const socket = createConnection({ host, port })
+    let settled = false
+
+    const finalize = (error?: Error): void => {
+      if (settled) {
+        return
+      }
+      settled = true
+      socket.destroy()
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve()
+    }
+
+    socket.setTimeout(timeoutMs, () => {
+      finalize(
+        new Error(
+          `Timed out connecting to ${host}:${port} after ${timeoutMs}ms`
+        )
+      )
+    })
+    socket.once('connect', () => finalize())
+    socket.once('error', (error) => {
+      finalize(new Error(`Failed to connect to ${host}:${port}: ${error.message}`))
+    })
+  })
+
+  return `${host} resolved to ${resolved.address} and accepted TCP ${port}`
+}
+
+async function checkDashboardReachability(
+  dashboardUrl: string,
+  timeoutMs: number = 5000
+): Promise<string> {
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(dashboardUrl, {
+      method: 'GET',
+      signal: abortController.signal
+    })
+    if (response.status >= 500) {
+      throw new Error(
+        `Dashboard URL responded with HTTP ${response.status} ${response.statusText}`
+      )
+    }
+
+    return `Dashboard URL reachable with HTTP ${response.status} ${response.statusText}`
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(
+        `Timed out requesting dashboard URL after ${timeoutMs}ms: ${dashboardUrl}`
+      )
+    }
+    const message = error instanceof Error ? error.message : 'Unknown connectivity failure'
+    throw new Error(`Unable to reach dashboard URL: ${message}`)
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function runDryRunConnectivityChecks(
+  args: Pick<CliArgs, 'vmHost' | 'dashboardUrl'>
+): Promise<{
+  vmHost: string
+  dashboardUrl: string
+}> {
+  const [vmHost, dashboardUrl] = await Promise.all([
+    checkSshReachability(args.vmHost),
+    checkDashboardReachability(args.dashboardUrl)
+  ])
+
+  return {
+    vmHost,
+    dashboardUrl
+  }
+}
+
+async function run(argv: string[]): Promise<number> {
   if (argv.includes('--help') || argv.includes('-h')) {
     printUsage()
     return 0
   }
 
   try {
-    const args = parseCliArgs(argv)
+    const { args, dryRun } = parseCliArgs(argv)
     const runContext = createRunContext(args)
+
+    if (dryRun) {
+      const connectivity = await runDryRunConnectivityChecks(args)
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            accepted: true,
+            mode: 'dry-run',
+            comparisonsExecuted: false,
+            args,
+            runContext,
+            connectivity
+          },
+          null,
+          2
+        )}\n`
+      )
+      return 0
+    }
+
     process.stdout.write(
-      `${JSON.stringify({ accepted: true, args, runContext }, null, 2)}\n`
+      `${JSON.stringify(
+        { accepted: true, mode: 'full', args, runContext },
+        null,
+        2
+      )}\n`
     )
     return 0
   } catch (error) {
@@ -154,8 +289,21 @@ function run(argv: string[]): number {
 }
 
 if (require.main === module) {
-  const exitCode = run(process.argv.slice(2))
-  process.exit(exitCode)
+  run(process.argv.slice(2))
+    .then((exitCode) => process.exit(exitCode))
+    .catch((error) => {
+      const message =
+        error instanceof Error ? error.message : 'Unknown CLI error'
+      process.stderr.write(`${message}\n\n`)
+      process.exit(1)
+    })
 }
 
-export { parseCliArgs, createRunContext, run, type CliArgs, type RunContext }
+export {
+  parseCliArgs,
+  createRunContext,
+  run,
+  type CliArgs,
+  type ParsedCliArgs,
+  type RunContext
+}

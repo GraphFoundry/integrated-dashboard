@@ -4,6 +4,7 @@ import {
   createReadOnlyHttpClientWrapper,
   type HttpRequestExecutor
 } from './http-client-wrapper'
+import { collectInfluxTelemetry } from './influx-telemetry-collector'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
 
 type CliArgs = {
@@ -913,7 +914,15 @@ async function run(argv: string[]): Promise<number> {
     assertAllPreflightServiceChecksHealthy(preflight)
     assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
     const reportMetadata = buildReportMetadata(pollWorkerActivity)
-    const sgeSnapshot = await collectSgeSnapshot(args.vmHost)
+    const [sgeSnapshot, influxTelemetry] = await Promise.all([
+      collectSgeSnapshot(args.vmHost),
+      collectInfluxTelemetry({
+        vmHost: args.vmHost,
+        windowStartUtc: runContext.selectedTimeWindowUtc.start,
+        windowEndUtc: runContext.selectedTimeWindowUtc.end,
+        serviceScope: runContext.selectedServiceScope
+      })
+    ])
 
     process.stdout.write(
       `${JSON.stringify(
@@ -924,7 +933,8 @@ async function run(argv: string[]): Promise<number> {
           runContext,
           reportMetadata,
           collectors: {
-            sgeSnapshot
+            sgeSnapshot,
+            influxTelemetry
           },
           preflight: {
             serviceHealthChecks: preflight,

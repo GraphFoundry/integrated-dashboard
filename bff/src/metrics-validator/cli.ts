@@ -1,6 +1,9 @@
 import { lookup } from 'node:dns/promises'
 import { createConnection } from 'node:net'
-import { createReadOnlyHttpClientWrapper } from './http-client-wrapper'
+import {
+  createReadOnlyHttpClientWrapper,
+  type HttpRequestExecutor
+} from './http-client-wrapper'
 
 type CliArgs = {
   vmHost: string
@@ -23,6 +26,44 @@ type RunContext = {
     end: string
   }
   selectedServiceScope: string
+}
+
+type PreflightServiceName =
+  | 'prometheus'
+  | 'sge'
+  | 'analysisEngine'
+  | 'influxdb'
+  | 'bff'
+
+type PreflightServiceHealthTarget = {
+  service: PreflightServiceName
+  endpoint: string
+}
+
+type ServiceHealthCheckResult = {
+  service: PreflightServiceName
+  endpoint: string
+  healthy: boolean
+  statusCode: number | null
+  detail: string
+}
+
+type HttpStatusLike = {
+  status: number
+  statusText: string
+}
+
+type PollWorkerActivityEvidence = {
+  endpoint: string
+  active: boolean
+  evidence: 'health'
+  detail: string
+}
+
+type HttpJsonResponseLike = {
+  status: number
+  statusText: string
+  json: () => Promise<unknown>
 }
 
 const REQUIRED_FLAGS: ReadonlyArray<keyof CliArgs> = [
@@ -155,6 +196,272 @@ function createRunContext(
   }
 }
 
+function buildHealthEndpointUrl(
+  vmHost: string,
+  port: number,
+  pathname: string
+): string {
+  return new URL(pathname, `http://${vmHost}:${port}`).toString()
+}
+
+function buildDefaultServiceHealthTargets(
+  vmHost: string
+): ReadonlyArray<PreflightServiceHealthTarget> {
+  return [
+    {
+      service: 'prometheus',
+      endpoint: buildHealthEndpointUrl(vmHost, 9090, '/-/healthy')
+    },
+    {
+      service: 'sge',
+      endpoint: buildHealthEndpointUrl(vmHost, 3000, '/graph/health')
+    },
+    {
+      service: 'analysisEngine',
+      endpoint: buildHealthEndpointUrl(vmHost, 7000, '/health')
+    },
+    {
+      service: 'influxdb',
+      endpoint: buildHealthEndpointUrl(vmHost, 8086, '/health')
+    },
+    {
+      service: 'bff',
+      endpoint: buildHealthEndpointUrl(vmHost, 3001, '/health')
+    }
+  ]
+}
+
+function createServiceHealthHttpClient(): HttpRequestExecutor<HttpStatusLike> {
+  return async (request) => {
+    const response = await fetch(request.url, {
+      method: request.method,
+      signal: request.signal
+    })
+
+    return {
+      status: response.status,
+      statusText: response.statusText
+    }
+  }
+}
+
+async function checkServiceHealthTarget(
+  httpClient: HttpRequestExecutor<HttpStatusLike>,
+  target: PreflightServiceHealthTarget,
+  timeoutMs: number
+): Promise<ServiceHealthCheckResult> {
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs)
+
+  try {
+    const response = await httpClient({
+      url: target.endpoint,
+      method: 'GET',
+      signal: abortController.signal
+    })
+
+    if (response.status >= 400) {
+      return {
+        service: target.service,
+        endpoint: target.endpoint,
+        healthy: false,
+        statusCode: response.status,
+        detail: `HTTP ${response.status} ${response.statusText}`
+      }
+    }
+
+    return {
+      service: target.service,
+      endpoint: target.endpoint,
+      healthy: true,
+      statusCode: response.status,
+      detail: `HTTP ${response.status} ${response.statusText}`
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        service: target.service,
+        endpoint: target.endpoint,
+        healthy: false,
+        statusCode: null,
+        detail: `Timed out after ${timeoutMs}ms`
+      }
+    }
+
+    const message =
+      error instanceof Error ? error.message : 'Unknown connectivity failure'
+    return {
+      service: target.service,
+      endpoint: target.endpoint,
+      healthy: false,
+      statusCode: null,
+      detail: message
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function runPipelinePreflightHealthChecks(
+  vmHost: string,
+  executeRequest: HttpRequestExecutor<HttpStatusLike> = createServiceHealthHttpClient(),
+  timeoutMs: number = 5000
+): Promise<ServiceHealthCheckResult[]> {
+  const targets = buildDefaultServiceHealthTargets(vmHost)
+  const readOnlyHttpClient = createReadOnlyHttpClientWrapper<HttpStatusLike>(
+    executeRequest,
+    targets.map((target) => target.endpoint)
+  )
+
+  return Promise.all(
+    targets.map((target) =>
+      checkServiceHealthTarget(readOnlyHttpClient, target, timeoutMs)
+    )
+  )
+}
+
+function createJsonHttpClient(): HttpRequestExecutor<HttpJsonResponseLike> {
+  return async (request) =>
+    fetch(request.url, {
+      method: request.method,
+      signal: request.signal
+    })
+}
+
+function extractTelemetryWorkerEnabled(payload: unknown): boolean | null {
+  if (payload === null || typeof payload !== 'object') {
+    return null
+  }
+
+  const telemetryValue = (payload as { telemetry?: unknown }).telemetry
+  if (telemetryValue === null || typeof telemetryValue !== 'object') {
+    return null
+  }
+
+  const workerEnabledValue = (
+    telemetryValue as { workerEnabled?: unknown }
+  ).workerEnabled
+
+  return typeof workerEnabledValue === 'boolean' ? workerEnabledValue : null
+}
+
+async function runAnalysisEnginePollWorkerActivityCheck(
+  vmHost: string,
+  executeRequest: HttpRequestExecutor<HttpJsonResponseLike> = createJsonHttpClient(),
+  timeoutMs: number = 5000
+): Promise<PollWorkerActivityEvidence> {
+  const endpoint = buildHealthEndpointUrl(vmHost, 7000, '/health')
+  const readOnlyHttpClient = createReadOnlyHttpClientWrapper<HttpJsonResponseLike>(
+    executeRequest,
+    [endpoint]
+  )
+
+  const abortController = new AbortController()
+  const timeout = setTimeout(() => abortController.abort(), timeoutMs)
+
+  try {
+    const response = await readOnlyHttpClient({
+      url: endpoint,
+      method: 'GET',
+      signal: abortController.signal
+    })
+
+    if (response.status >= 400) {
+      return {
+        endpoint,
+        active: false,
+        evidence: 'health',
+        detail: `Analysis Engine health endpoint returned HTTP ${response.status} ${response.statusText}`
+      }
+    }
+
+    const payload = await response.json()
+    const workerEnabled = extractTelemetryWorkerEnabled(payload)
+
+    if (workerEnabled === true) {
+      return {
+        endpoint,
+        active: true,
+        evidence: 'health',
+        detail:
+          'Analysis Engine health evidence confirmed telemetry.workerEnabled=true'
+      }
+    }
+
+    if (workerEnabled === false) {
+      return {
+        endpoint,
+        active: false,
+        evidence: 'health',
+        detail:
+          'Analysis Engine health evidence reported telemetry.workerEnabled=false'
+      }
+    }
+
+    return {
+      endpoint,
+      active: false,
+      evidence: 'health',
+      detail:
+        'Analysis Engine health evidence missing telemetry.workerEnabled field'
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      return {
+        endpoint,
+        active: false,
+        evidence: 'health',
+        detail: `Timed out after ${timeoutMs}ms while checking poll worker activity`
+      }
+    }
+
+    const message =
+      error instanceof Error ? error.message : 'Unknown connectivity failure'
+    return {
+      endpoint,
+      active: false,
+      evidence: 'health',
+      detail: `Failed to verify poll worker activity from health evidence: ${message}`
+    }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+function assertAnalysisEnginePollWorkerActive(
+  evidence: PollWorkerActivityEvidence
+): void {
+  if (evidence.active) {
+    return
+  }
+
+  throw new Error(
+    `Analysis Engine poll worker activity check failed: ${evidence.detail}`
+  )
+}
+
+function assertAllPreflightServiceChecksHealthy(
+  checks: ReadonlyArray<ServiceHealthCheckResult>
+): void {
+  const unhealthyChecks = checks.filter((check) => !check.healthy)
+  if (unhealthyChecks.length === 0) {
+    return
+  }
+
+  const failures = unhealthyChecks
+    .map(
+      (check) =>
+        `${check.service} (${check.endpoint}) -> ${check.detail}${
+          check.statusCode === null ? '' : ` [${check.statusCode}]`
+        }`
+    )
+    .join('; ')
+
+  throw new Error(
+    `Preflight health checks failed for ${unhealthyChecks.length} service(s): ${failures}`
+  )
+}
+
 async function checkSshReachability(
   host: string,
   port: number = 22,
@@ -242,15 +549,24 @@ async function runDryRunConnectivityChecks(
 ): Promise<{
   vmHost: string
   dashboardUrl: string
+  serviceHealthChecks: ServiceHealthCheckResult[]
+  pollWorkerActivity: PollWorkerActivityEvidence
 }> {
-  const [vmHost, dashboardUrl] = await Promise.all([
-    checkSshReachability(args.vmHost),
-    checkDashboardReachability(args.dashboardUrl)
-  ])
+  const [vmHost, dashboardUrl, serviceHealthChecks, pollWorkerActivity] =
+    await Promise.all([
+      checkSshReachability(args.vmHost),
+      checkDashboardReachability(args.dashboardUrl),
+      runPipelinePreflightHealthChecks(args.vmHost),
+      runAnalysisEnginePollWorkerActivityCheck(args.vmHost)
+    ])
+  assertAllPreflightServiceChecksHealthy(serviceHealthChecks)
+  assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
 
   return {
     vmHost,
-    dashboardUrl
+    dashboardUrl,
+    serviceHealthChecks,
+    pollWorkerActivity
   }
 }
 
@@ -283,9 +599,25 @@ async function run(argv: string[]): Promise<number> {
       return 0
     }
 
+    const [preflight, pollWorkerActivity] = await Promise.all([
+      runPipelinePreflightHealthChecks(args.vmHost),
+      runAnalysisEnginePollWorkerActivityCheck(args.vmHost)
+    ])
+    assertAllPreflightServiceChecksHealthy(preflight)
+    assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
+
     process.stdout.write(
       `${JSON.stringify(
-        { accepted: true, mode: 'full', args, runContext },
+        {
+          accepted: true,
+          mode: 'full',
+          args,
+          runContext,
+          preflight: {
+            serviceHealthChecks: preflight,
+            pollWorkerActivity
+          }
+        },
         null,
         2
       )}\n`
@@ -313,8 +645,15 @@ if (require.main === module) {
 export {
   parseCliArgs,
   createRunContext,
+  buildDefaultServiceHealthTargets,
+  runPipelinePreflightHealthChecks,
+  runAnalysisEnginePollWorkerActivityCheck,
+  assertAllPreflightServiceChecksHealthy,
+  assertAnalysisEnginePollWorkerActive,
   run,
   type CliArgs,
   type ParsedCliArgs,
-  type RunContext
+  type RunContext,
+  type ServiceHealthCheckResult,
+  type PollWorkerActivityEvidence
 }

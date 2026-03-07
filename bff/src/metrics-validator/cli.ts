@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { createConnection } from 'node:net'
+import path from 'node:path'
 import {
   createReadOnlyHttpClientWrapper,
   type HttpRequestExecutor
@@ -234,6 +235,23 @@ function createRunContext(
     },
     selectedServiceScope: args.serviceScope
   }
+}
+
+function buildMetricsPageAuditScreenshotPath(outputPath: string): string {
+  const resolvedOutputPath = path.resolve(outputPath)
+  const outputExtension = path.extname(resolvedOutputPath)
+  const outputDirectory =
+    outputExtension.length > 0 ? path.dirname(resolvedOutputPath) : resolvedOutputPath
+  const outputBaseName =
+    outputExtension.length > 0
+      ? path.basename(resolvedOutputPath, outputExtension)
+      : 'metrics-validator-report'
+  const timestampSegment = new Date().toISOString().replace(/[:.]/g, '-')
+
+  return path.join(
+    outputDirectory,
+    `${outputBaseName}.metrics-page-audit-${timestampSegment}.png`
+  )
 }
 
 function buildHealthEndpointUrl(
@@ -915,6 +933,7 @@ async function run(argv: string[]): Promise<number> {
     assertAllPreflightServiceChecksHealthy(preflight)
     assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
     const reportMetadata = buildReportMetadata(pollWorkerActivity)
+    const metricsPageAuditScreenshotPath = buildMetricsPageAuditScreenshotPath(args.outputPath)
     const [sgeSnapshot, influxTelemetry, metricsPageOpen] = await Promise.all([
       collectSgeSnapshot(args.vmHost),
       collectInfluxTelemetry({
@@ -927,7 +946,8 @@ async function run(argv: string[]): Promise<number> {
         dashboardUrl: args.dashboardUrl,
         windowStartUtc: runContext.selectedTimeWindowUtc.start,
         windowEndUtc: runContext.selectedTimeWindowUtc.end,
-        serviceScope: runContext.selectedServiceScope
+        serviceScope: runContext.selectedServiceScope,
+        auditScreenshotPath: metricsPageAuditScreenshotPath
       })
     ])
 

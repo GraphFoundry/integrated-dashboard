@@ -100,6 +100,77 @@ function average(values: number[]): number | null {
   return values.reduce((sum, v) => sum + v, 0) / values.length
 }
 
+type MetricsValidatorRiskLevel = 'high' | 'medium' | 'low'
+
+type MetricsValidatorCapturePayload = {
+  loading: boolean
+  selectedServiceId: string
+  selectedTimeRange: string
+  capturedAtUtc: string
+  summaryCards: {
+    trafficVolume: string
+    systemHealth: string
+    speed: string
+    uptimeReliability: string
+  }
+  tableRows: Array<{
+    serviceId: string
+    componentName: string
+    namespace: string
+    traffic: string
+    successRate: string
+    slowEndResponseTime: string
+    uptime: string
+    riskBadge: {
+      level: MetricsValidatorRiskLevel
+      label: string
+      reason: string
+    }
+  }>
+  simulationPanel: {
+    runs7d: string
+    failureRuns: string
+    scaleRuns: string
+    avgAffected: string
+    avgLatencyDelta: string
+    lowConfidenceRuns: string
+    runTrend: Array<{
+      date: string
+      runs: string
+      failureRuns: string
+      scaleRuns: string
+    }>
+  } | null
+  chartSeries: {
+    traffic: Array<{ timestamp: string; value: number | null }>
+    failureRate: Array<{ timestamp: string; value: number | null }>
+    responseSpeed: Array<{
+      timestamp: string
+      p50?: number
+      p95?: number
+      p99?: number
+    }>
+    uptime: Array<{ timestamp: string; value: number }>
+    hasP50Data: boolean
+    hasP99Data: boolean
+  }
+}
+
+type MetricsValidatorWindow = Window & {
+  __METRICS_VALIDATOR_CAPTURE__?: MetricsValidatorCapturePayload
+}
+
+function toRiskBadgeLabel(level: MetricsValidatorRiskLevel): string {
+  switch (level) {
+    case 'high':
+      return 'High Risk'
+    case 'medium':
+      return 'Medium Risk'
+    case 'low':
+      return 'Low Risk'
+  }
+}
+
 interface ChartPanelProps {
   readonly icon: React.ComponentType<{ className?: string }>
   readonly iconWrapperClassName: string
@@ -446,6 +517,116 @@ export default function Metrics() {
         .filter((point): point is { timestamp: string; value: number } => point.value !== null),
     [sortedDatapoints]
   )
+
+  const validatorSummaryCards = useMemo(
+    () => ({
+      trafficVolume: formatRps(summaryStats?.requestRate),
+      systemHealth: formatPercent(summaryStats?.healthScore),
+      speed: formatMs(summaryStats?.p95),
+      uptimeReliability: formatPercent(summaryStats?.availability),
+    }),
+    [summaryStats]
+  )
+
+  const validatorTableRows = useMemo(
+    () =>
+      systemStatus.map((point) => {
+        const errorRate = normalizeErrorRatePercent(toFiniteNumber(point.errorRate))
+        const uptime = getDisplayUptime(point)
+        const slowEndResponseTime = toFiniteNumber(point.p95)
+        return {
+          serviceId: `${point.namespace}:${point.service}`,
+          componentName: point.service,
+          namespace: point.namespace,
+          traffic: formatRps(point.requestRate),
+          successRate: errorRate === null ? 'N/A' : formatPercent(100 - errorRate),
+          slowEndResponseTime: formatMs(slowEndResponseTime),
+          uptime: uptime === null ? 'N/A' : formatPercent(uptime),
+          riskBadge: {
+            level: point.risk.riskLevel,
+            label: toRiskBadgeLabel(point.risk.riskLevel),
+            reason: point.risk.reason,
+          },
+        }
+      }),
+    [getDisplayUptime, systemStatus]
+  )
+
+  const validatorSimulationPanel = useMemo(() => {
+    if (!simulationMetrics) {
+      return null
+    }
+
+    return {
+      runs7d: simulationMetrics.runs.toString(),
+      failureRuns: simulationMetrics.failureRuns.toString(),
+      scaleRuns: simulationMetrics.scaleRuns.toString(),
+      avgAffected: simulationMetrics.avgAffectedServices.toFixed(2),
+      avgLatencyDelta: `${simulationMetrics.avgLatencyDeltaMs >= 0 ? '+' : ''}${simulationMetrics.avgLatencyDeltaMs.toFixed(2)} ms`,
+      lowConfidenceRuns: simulationMetrics.lowConfidenceRuns.toString(),
+      runTrend: simulationMetrics.trend.map((point) => ({
+        date: point.date,
+        runs: point.runs.toString(),
+        failureRuns: point.failureRuns.toString(),
+        scaleRuns: point.scaleRuns.toString(),
+      })),
+    }
+  }, [simulationMetrics])
+
+  const validatorChartSeries = useMemo(
+    () => ({
+      traffic: sortedDatapoints.map((point) => ({
+        timestamp: point.timestamp,
+        value: toFiniteNumber(point.requestRate),
+      })),
+      failureRate: sortedDatapoints.map((point) => ({
+        timestamp: point.timestamp,
+        value: normalizeErrorRatePercent(toFiniteNumber(point.errorRate)),
+      })),
+      responseSpeed: latencySeries.map((point) => ({
+        timestamp: point.timestamp,
+        p50: point.p50,
+        p95: point.p95,
+        p99: point.p99,
+      })),
+      uptime: availabilitySeries.map((point) => ({
+        timestamp: point.timestamp,
+        value: point.value,
+      })),
+      hasP50Data,
+      hasP99Data,
+    }),
+    [availabilitySeries, hasP50Data, hasP99Data, latencySeries, sortedDatapoints]
+  )
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    ;(window as MetricsValidatorWindow).__METRICS_VALIDATOR_CAPTURE__ = {
+      loading,
+      selectedServiceId,
+      selectedTimeRange: timeRange,
+      capturedAtUtc: new Date().toISOString(),
+      summaryCards: validatorSummaryCards,
+      tableRows: validatorTableRows,
+      simulationPanel: validatorSimulationPanel,
+      chartSeries: validatorChartSeries,
+    }
+
+    return () => {
+      delete (window as MetricsValidatorWindow).__METRICS_VALIDATOR_CAPTURE__
+    }
+  }, [
+    loading,
+    selectedServiceId,
+    timeRange,
+    validatorSummaryCards,
+    validatorTableRows,
+    validatorSimulationPanel,
+    validatorChartSeries,
+  ])
 
   return (
     <div className="max-w-7xl mx-auto space-y-8">

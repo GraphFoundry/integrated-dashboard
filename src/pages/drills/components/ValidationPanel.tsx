@@ -255,6 +255,7 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
   return (
     <Card
       id={sectionId}
+      data-testid="drill-validation-panel"
       className={cn(
         glassSurfaceClass,
         'relative overflow-hidden rounded-[var(--radius-lg)] bg-[var(--surface-contrast)]/30 backdrop-blur-xl'
@@ -278,6 +279,7 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
 
           <Badge
             variant="outline"
+            data-testid="drill-validation-verdict"
             className={cn(
               'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
               getVerdictClass(snapshot?.comparison.scenarioVerdict ?? 'missing')
@@ -306,6 +308,8 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
               {layerCards.map((layer) => (
                 <article
                   key={layer.key}
+                  data-testid="drill-validation-layer-card"
+                  data-layer-key={layer.key}
                   className={cn(
                     'rounded-xl border bg-[var(--surface-soft)]/30 p-4',
                     layer.status === 'mismatch'
@@ -325,6 +329,7 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
 
                     <Badge
                       variant="outline"
+                      data-testid="drill-validation-layer-status"
                       className={cn(
                         'px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
                         getLayerStatusClass(layer.status)
@@ -338,7 +343,10 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
                     <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
                       Source Timestamp
                     </p>
-                    <p className="mt-1 font-mono text-[11px] font-semibold text-[var(--text-secondary)]">
+                    <p
+                      data-testid="drill-validation-layer-source-timestamp"
+                      className="mt-1 font-mono text-[11px] font-semibold text-[var(--text-secondary)]"
+                    >
                       {formatTimestamp(layer.timestamp)}
                     </p>
                   </div>
@@ -362,12 +370,16 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
                       {layer.comparedFields.map((field) => (
                         <div
                           key={`${layer.key}-${field.metricName}`}
+                          data-testid="drill-validation-metric-row"
+                          data-metric-name={field.metricName}
+                          data-is-mismatch={field.isMismatch ? 'true' : 'false'}
                           className={cn(
                             'grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-2 rounded px-1 py-0.5',
                             field.isMismatch && 'bg-rose-500/10'
                           )}
                         >
                           <span
+                            data-testid="drill-validation-metric-name"
                             className={cn(
                               'truncate font-mono text-[10px] text-[var(--text-secondary)]',
                               field.isMismatch && 'font-semibold text-rose-500'
@@ -376,6 +388,7 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
                             {field.metricName}
                           </span>
                           <span
+                            data-testid="drill-validation-metric-expected"
                             className={cn(
                               'truncate font-mono text-[10px] text-[var(--text-secondary)]',
                               field.isMismatch && 'font-semibold text-rose-500'
@@ -384,6 +397,7 @@ export default function ValidationPanel({ runId, runStatus, sectionId }: Validat
                             {field.expectedValue}
                           </span>
                           <span
+                            data-testid="drill-validation-metric-actual"
                             className={cn(
                               'truncate font-mono text-[10px] text-[var(--text-secondary)]',
                               field.isMismatch && 'font-semibold text-rose-500'

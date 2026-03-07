@@ -352,6 +352,8 @@ export default function DrillCatalog({
       {DRILLS.map((drill) => (
         <Card
           key={drill.id}
+          data-testid="drill-catalog-card"
+          data-drill-type={drill.type}
           className={cn(
             glassInteractiveCardClass,
             'group relative flex flex-col justify-between cursor-pointer',
@@ -418,6 +420,7 @@ export default function DrillCatalog({
       {selectedDrill && (
         <DialogContent
           isOpen={Boolean(selectedDrill)}
+          data-testid="drill-safety-gate"
           onOpenChange={(open) => {
             if (!open) {
               setSelectedDrill(null)
@@ -646,6 +649,7 @@ export default function DrillCatalog({
             </Button>
             <Button
               onPress={handlePlan}
+              data-testid="drill-engage-sequence"
               isDisabled={
                 isPlanning ||
                 !isConfirmed ||

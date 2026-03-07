@@ -478,6 +478,7 @@ export default function RunPanel({
           </div>
           <Badge
             variant="outline"
+            data-testid="drill-run-status"
             className={cn('px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider', getStatusBadgeClass(run.status))}
           >
             {run.status}
@@ -500,7 +501,10 @@ export default function RunPanel({
           </div>
         </div>
         {typeof run.bannerVerified === 'boolean' && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-[var(--border)]/80 bg-[var(--surface-soft)] px-3 py-2">
+          <div
+            data-testid="drill-banner-verification"
+            className="mt-3 flex items-center justify-between rounded-lg border border-[var(--border)]/80 bg-[var(--surface-soft)] px-3 py-2"
+          >
             <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               Scenario Banner
             </span>

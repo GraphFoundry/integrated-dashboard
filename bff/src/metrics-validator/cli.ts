@@ -4,6 +4,7 @@ import {
   createReadOnlyHttpClientWrapper,
   type HttpRequestExecutor
 } from './http-client-wrapper'
+import { collectSgeSnapshot } from './sge-snapshot-collector'
 
 type CliArgs = {
   vmHost: string
@@ -912,6 +913,7 @@ async function run(argv: string[]): Promise<number> {
     assertAllPreflightServiceChecksHealthy(preflight)
     assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
     const reportMetadata = buildReportMetadata(pollWorkerActivity)
+    const sgeSnapshot = await collectSgeSnapshot(args.vmHost)
 
     process.stdout.write(
       `${JSON.stringify(
@@ -921,6 +923,9 @@ async function run(argv: string[]): Promise<number> {
           args,
           runContext,
           reportMetadata,
+          collectors: {
+            sgeSnapshot
+          },
           preflight: {
             serviceHealthChecks: preflight,
             pollWorkerActivity

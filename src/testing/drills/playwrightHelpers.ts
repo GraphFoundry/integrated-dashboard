@@ -40,8 +40,31 @@ const DEFAULT_POLL_INTERVAL_MS = 400
 const DEFAULT_STABLE_POLLS = 2
 
 const DEFAULT_ROLLBACK_CONFIRMED_STATUSES = ['Recovering', 'Completed', 'Failed', 'Accepted', 'Aborted'] as const
+const KNOWN_RUN_STATUSES = new Set([
+  'planned',
+  'running',
+  'observing',
+  'awaitingrecovery',
+  'recovering',
+  'completed',
+  'failed',
+  'accepted',
+  'aborted',
+])
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'accepted', 'aborted'])
 const ACTIVE_RUN_STATUSES = new Set(['planned', 'running', 'observing', 'awaitingrecovery', 'recovering'])
+const RUN_STATUS_ORDER: Record<string, number> = {
+  planned: 0,
+  running: 1,
+  observing: 2,
+  awaitingrecovery: 3,
+  recovering: 4,
+  completed: 5,
+  failed: 5,
+  accepted: 5,
+  aborted: 5,
+}
+const MISMATCH_LAYER_STATUSES = new Set(['mismatch', 'missing'])
 
 export interface StartScenarioOptions {
   scenarioType: string
@@ -55,6 +78,7 @@ export interface RunStatusPollOptions {
   timeoutMs?: number
   pollIntervalMs?: number
   stablePolls?: number
+  failFastStatuses?: readonly string[]
 }
 
 export interface RunStatusObservation {
@@ -82,9 +106,15 @@ export interface ValidationMetricRow {
   mismatch: boolean
 }
 
+export interface ValidationLayerStatus {
+  layerKey: string
+  layerStatus: string
+}
+
 export interface ValidationMetricsSnapshot {
   verdict: string | null
   collectedAt: string
+  layers: ValidationLayerStatus[]
   metrics: ValidationMetricRow[]
 }
 
@@ -100,6 +130,61 @@ function normalizeText(value: string | null | undefined): string {
 
 function normalizeStatus(status: string): string {
   return status.trim().toLowerCase()
+}
+
+function buildDefaultFailFastStatuses(expectedStatuses: Set<string>): Set<string> {
+  const failFastStatuses = new Set<string>()
+  for (const terminalStatus of TERMINAL_RUN_STATUSES) {
+    if (!expectedStatuses.has(terminalStatus)) {
+      failFastStatuses.add(terminalStatus)
+    }
+  }
+  return failFastStatuses
+}
+
+function assertRunStatusIsKnown(status: string): void {
+  if (!KNOWN_RUN_STATUSES.has(status)) {
+    throw new Error(`Inconsistent run state detected: unrecognized status "${status}".`)
+  }
+}
+
+function assertRunStatusTransitionIsConsistent(previousStatus: string, currentStatus: string): void {
+  if (!previousStatus || previousStatus === currentStatus) {
+    return
+  }
+
+  if (TERMINAL_RUN_STATUSES.has(previousStatus)) {
+    throw new Error(
+      `Inconsistent run state detected: status changed from terminal "${previousStatus}" to "${currentStatus}".`
+    )
+  }
+
+  const previousOrder = RUN_STATUS_ORDER[previousStatus]
+  const currentOrder = RUN_STATUS_ORDER[currentStatus]
+  if (currentOrder < previousOrder) {
+    throw new Error(`Inconsistent run state detected: status regressed from "${previousStatus}" to "${currentStatus}".`)
+  }
+}
+
+function describeValidationMismatch(snapshot: ValidationMetricsSnapshot): string | null {
+  const verdict = normalizeStatus(snapshot.verdict ?? '')
+  if (verdict === 'failed') {
+    return 'validation verdict is failed'
+  }
+
+  const mismatchLayer = snapshot.layers.find((layer) => MISMATCH_LAYER_STATUSES.has(normalizeStatus(layer.layerStatus)))
+  if (mismatchLayer) {
+    return `layer "${mismatchLayer.layerKey}" reported status "${mismatchLayer.layerStatus}"`
+  }
+
+  const mismatchMetric = snapshot.metrics.find((metric) => metric.mismatch)
+  if (mismatchMetric) {
+    const expectedValue = mismatchMetric.expectedValue || '--'
+    const actualValue = mismatchMetric.actualValue || '--'
+    return `metric "${mismatchMetric.metricName}" mismatched (expected "${expectedValue}", actual "${actualValue}")`
+  }
+
+  return null
 }
 
 async function isVisible(locator: PlaywrightLikeLocator, timeoutMs = 150): Promise<boolean> {
@@ -222,6 +307,13 @@ export async function pollRunStatus(
   if (expectedStatuses.size === 0) {
     throw new Error('pollRunStatus requires at least one expected status.')
   }
+  const failFastStatuses = buildDefaultFailFastStatuses(expectedStatuses)
+  for (const status of options.failFastStatuses ?? []) {
+    const normalized = normalizeStatus(status)
+    if (normalized) {
+      failFastStatuses.add(normalized)
+    }
+  }
 
   const statusBadge = page.getByTestId('drill-run-status').first()
   await statusBadge.waitFor({ state: 'visible', timeout: timeoutMs })
@@ -229,6 +321,7 @@ export async function pollRunStatus(
   const deadline = Date.now() + timeoutMs
   let attempts = 0
   let lastStatus = ''
+  let lastNormalizedStatus = ''
   let stableCount = 0
   while (Date.now() < deadline) {
     attempts += 1
@@ -237,15 +330,25 @@ export async function pollRunStatus(
       await page.waitForTimeout(pollIntervalMs)
       continue
     }
+    const normalizedStatus = normalizeStatus(status)
+    assertRunStatusIsKnown(normalizedStatus)
+    assertRunStatusTransitionIsConsistent(lastNormalizedStatus, normalizedStatus)
 
     if (status === lastStatus) {
       stableCount += 1
     } else {
       lastStatus = status
+      lastNormalizedStatus = normalizedStatus
       stableCount = 1
     }
 
-    if (expectedStatuses.has(normalizeStatus(status)) && stableCount >= stablePolls) {
+    if (failFastStatuses.has(normalizedStatus)) {
+      throw new Error(
+        `Run reached fail-fast status "${status}" while waiting for (${Array.from(expectedStatuses).join(', ')}).`
+      )
+    }
+
+    if (expectedStatuses.has(normalizedStatus) && stableCount >= stablePolls) {
       return {
         status,
         observedAt: new Date().toISOString(),
@@ -321,12 +424,14 @@ export async function extractValidationMetrics(
   const verdictText = normalizeText(await panel.getByTestId('drill-validation-verdict').first().textContent())
   const cards = panel.locator('[data-testid="drill-validation-layer-card"]')
   const cardCount = await cards.count()
+  const layers: ValidationLayerStatus[] = []
   const metrics: ValidationMetricRow[] = []
 
   for (let i = 0; i < cardCount; i += 1) {
     const card = cards.nth(i)
     const layerKey = (await card.getAttribute('data-layer-key')) ?? `layer-${i}`
     const layerStatus = normalizeText(await card.getByTestId('drill-validation-layer-status').first().textContent())
+    layers.push({ layerKey, layerStatus })
     const sourceTimestamp = normalizeText(
       await card.getByTestId('drill-validation-layer-source-timestamp').first().textContent()
     )
@@ -352,8 +457,21 @@ export async function extractValidationMetrics(
   return {
     verdict: verdictText || null,
     collectedAt: new Date().toISOString(),
+    layers,
     metrics,
   }
+}
+
+export async function assertValidationSnapshotPasses(
+  page: PlaywrightLikePage,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<ValidationMetricsSnapshot> {
+  const snapshot = await extractValidationMetrics(page, timeoutMs)
+  const mismatchMessage = describeValidationMismatch(snapshot)
+  if (mismatchMessage) {
+    throw new Error(`Validation mismatch detected: ${mismatchMessage}.`)
+  }
+  return snapshot
 }
 
 export async function waitForRollbackConfirmation(

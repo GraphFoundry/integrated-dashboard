@@ -79,7 +79,8 @@ test('confirms analysis-engine poll worker activity from health telemetry eviden
       json: async () => ({
         telemetry: {
           workerEnabled: true,
-          pollIntervalMs: 30000
+          pollIntervalMs: 30000,
+          latestSuccessfulPollWriteTimestampUtc: '2026-03-07T10:30:00Z'
         }
       })
     }),
@@ -90,11 +91,27 @@ test('confirms analysis-engine poll worker activity from health telemetry eviden
   assert.equal(evidence.evidence, 'health')
   assert.equal(evidence.pollIntervalMs, 30000)
   assert.equal(evidence.pollIntervalSource, 'telemetry.pollIntervalMs')
+  assert.equal(
+    evidence.latestSuccessfulPollWriteTimestampUtc,
+    '2026-03-07T10:30:00.000Z'
+  )
+  assert.equal(
+    evidence.latestSuccessfulPollWriteTimestampSource,
+    'telemetry.latestSuccessfulPollWriteTimestampUtc'
+  )
   const reportMetadata = buildReportMetadata(evidence)
   assert.equal(reportMetadata.analysisEnginePollIntervalMs, 30000)
   assert.equal(
     reportMetadata.analysisEnginePollIntervalSource,
     'telemetry.pollIntervalMs'
+  )
+  assert.equal(
+    reportMetadata.analysisEngineLatestSuccessfulPollWriteTimestampUtc,
+    '2026-03-07T10:30:00.000Z'
+  )
+  assert.equal(
+    reportMetadata.analysisEngineLatestSuccessfulPollWriteTimestampSource,
+    'telemetry.latestSuccessfulPollWriteTimestampUtc'
   )
   assert.doesNotThrow(() => assertAnalysisEnginePollWorkerActive(evidence))
 })
@@ -117,6 +134,8 @@ test('fails when analysis-engine health evidence does not confirm workerEnabled'
   assert.equal(evidence.active, false)
   assert.equal(evidence.pollIntervalMs, null)
   assert.equal(evidence.pollIntervalSource, null)
+  assert.equal(evidence.latestSuccessfulPollWriteTimestampUtc, null)
+  assert.equal(evidence.latestSuccessfulPollWriteTimestampSource, null)
   assert.match(evidence.detail, /workerEnabled=false/)
   assert.throws(
     () => assertAnalysisEnginePollWorkerActive(evidence),
@@ -124,7 +143,7 @@ test('fails when analysis-engine health evidence does not confirm workerEnabled'
   )
 })
 
-test('extracts poll interval from seconds field and records milliseconds in metadata', async () => {
+test('extracts poll interval and latest poll write timestamp from seconds fields', async () => {
   const evidence = await runAnalysisEnginePollWorkerActivityCheck(
     'vm.example.internal',
     async () => ({
@@ -133,7 +152,8 @@ test('extracts poll interval from seconds field and records milliseconds in meta
       json: async () => ({
         telemetry: {
           workerEnabled: true,
-          pollIntervalSeconds: 45
+          pollIntervalSeconds: 45,
+          latestSuccessfulPollWriteTimestampSeconds: 1704067200
         }
       })
     }),
@@ -143,11 +163,27 @@ test('extracts poll interval from seconds field and records milliseconds in meta
   assert.equal(evidence.active, true)
   assert.equal(evidence.pollIntervalMs, 45000)
   assert.equal(evidence.pollIntervalSource, 'telemetry.pollIntervalSeconds')
+  assert.equal(
+    evidence.latestSuccessfulPollWriteTimestampUtc,
+    '2024-01-01T00:00:00.000Z'
+  )
+  assert.equal(
+    evidence.latestSuccessfulPollWriteTimestampSource,
+    'telemetry.latestSuccessfulPollWriteTimestampSeconds'
+  )
 
   const reportMetadata = buildReportMetadata(evidence)
   assert.equal(reportMetadata.analysisEnginePollIntervalMs, 45000)
   assert.equal(
     reportMetadata.analysisEnginePollIntervalSource,
     'telemetry.pollIntervalSeconds'
+  )
+  assert.equal(
+    reportMetadata.analysisEngineLatestSuccessfulPollWriteTimestampUtc,
+    '2024-01-01T00:00:00.000Z'
+  )
+  assert.equal(
+    reportMetadata.analysisEngineLatestSuccessfulPollWriteTimestampSource,
+    'telemetry.latestSuccessfulPollWriteTimestampSeconds'
   )
 })

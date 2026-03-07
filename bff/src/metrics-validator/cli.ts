@@ -59,6 +59,8 @@ type PollWorkerActivityEvidence = {
   evidence: 'health'
   pollIntervalMs: number | null
   pollIntervalSource: PollIntervalSource
+  latestSuccessfulPollWriteTimestampUtc: string | null
+  latestSuccessfulPollWriteTimestampSource: PollWriteTimestampSource
   detail: string
 }
 
@@ -69,9 +71,30 @@ type PollIntervalSource =
   | 'telemetry.workerPollIntervalSeconds'
   | null
 
+type PollWriteTimestampSource =
+  | 'telemetry.latestSuccessfulPollWriteTimestampUtc'
+  | 'telemetry.lastSuccessfulPollWriteTimestampUtc'
+  | 'telemetry.latestSuccessfulWriteTimestampUtc'
+  | 'telemetry.lastSuccessfulWriteTimestampUtc'
+  | 'telemetry.latestSuccessfulPollWriteAt'
+  | 'telemetry.lastSuccessfulPollWriteAt'
+  | 'telemetry.latestSuccessfulWriteAt'
+  | 'telemetry.lastSuccessfulWriteAt'
+  | 'telemetry.latestSuccessfulPollWriteTimestampMs'
+  | 'telemetry.lastSuccessfulPollWriteTimestampMs'
+  | 'telemetry.latestSuccessfulWriteTimestampMs'
+  | 'telemetry.lastSuccessfulWriteTimestampMs'
+  | 'telemetry.latestSuccessfulPollWriteTimestampSeconds'
+  | 'telemetry.lastSuccessfulPollWriteTimestampSeconds'
+  | 'telemetry.latestSuccessfulWriteTimestampSeconds'
+  | 'telemetry.lastSuccessfulWriteTimestampSeconds'
+  | null
+
 type ReportMetadata = {
   analysisEnginePollIntervalMs: number | null
   analysisEnginePollIntervalSource: PollIntervalSource
+  analysisEngineLatestSuccessfulPollWriteTimestampUtc: string | null
+  analysisEngineLatestSuccessfulPollWriteTimestampSource: PollWriteTimestampSource
 }
 
 type HttpJsonResponseLike = {
@@ -381,6 +404,34 @@ function coercePositiveNumber(value: unknown): number | null {
   return null
 }
 
+function coerceTimestampToUtcIso(value: unknown): string | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString()
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value) || value <= 0) {
+      return null
+    }
+
+    const millis = value < 1_000_000_000_000 ? value * 1000 : value
+    const parsed = new Date(millis)
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString()
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const direct = new Date(value)
+    if (!Number.isNaN(direct.getTime())) {
+      return direct.toISOString()
+    }
+
+    const numeric = Number(value)
+    return coerceTimestampToUtcIso(numeric)
+  }
+
+  return null
+}
+
 function extractTelemetryPollInterval(payload: unknown): {
   pollIntervalMs: number | null
   pollIntervalSource: PollIntervalSource
@@ -447,6 +498,104 @@ function extractTelemetryPollInterval(payload: unknown): {
   }
 }
 
+function extractTelemetryLatestSuccessfulPollWriteTimestamp(payload: unknown): {
+  latestSuccessfulPollWriteTimestampUtc: string | null
+  latestSuccessfulPollWriteTimestampSource: PollWriteTimestampSource
+} {
+  const telemetryValue = extractTelemetryPayload(payload)
+  if (!telemetryValue) {
+    return {
+      latestSuccessfulPollWriteTimestampUtc: null,
+      latestSuccessfulPollWriteTimestampSource: null
+    }
+  }
+
+  const timestampCandidates: Array<{
+    source: Exclude<PollWriteTimestampSource, null>
+    value: unknown
+  }> = [
+    {
+      source: 'telemetry.latestSuccessfulPollWriteTimestampUtc',
+      value: telemetryValue.latestSuccessfulPollWriteTimestampUtc
+    },
+    {
+      source: 'telemetry.lastSuccessfulPollWriteTimestampUtc',
+      value: telemetryValue.lastSuccessfulPollWriteTimestampUtc
+    },
+    {
+      source: 'telemetry.latestSuccessfulWriteTimestampUtc',
+      value: telemetryValue.latestSuccessfulWriteTimestampUtc
+    },
+    {
+      source: 'telemetry.lastSuccessfulWriteTimestampUtc',
+      value: telemetryValue.lastSuccessfulWriteTimestampUtc
+    },
+    {
+      source: 'telemetry.latestSuccessfulPollWriteAt',
+      value: telemetryValue.latestSuccessfulPollWriteAt
+    },
+    {
+      source: 'telemetry.lastSuccessfulPollWriteAt',
+      value: telemetryValue.lastSuccessfulPollWriteAt
+    },
+    {
+      source: 'telemetry.latestSuccessfulWriteAt',
+      value: telemetryValue.latestSuccessfulWriteAt
+    },
+    {
+      source: 'telemetry.lastSuccessfulWriteAt',
+      value: telemetryValue.lastSuccessfulWriteAt
+    },
+    {
+      source: 'telemetry.latestSuccessfulPollWriteTimestampMs',
+      value: telemetryValue.latestSuccessfulPollWriteTimestampMs
+    },
+    {
+      source: 'telemetry.lastSuccessfulPollWriteTimestampMs',
+      value: telemetryValue.lastSuccessfulPollWriteTimestampMs
+    },
+    {
+      source: 'telemetry.latestSuccessfulWriteTimestampMs',
+      value: telemetryValue.latestSuccessfulWriteTimestampMs
+    },
+    {
+      source: 'telemetry.lastSuccessfulWriteTimestampMs',
+      value: telemetryValue.lastSuccessfulWriteTimestampMs
+    },
+    {
+      source: 'telemetry.latestSuccessfulPollWriteTimestampSeconds',
+      value: telemetryValue.latestSuccessfulPollWriteTimestampSeconds
+    },
+    {
+      source: 'telemetry.lastSuccessfulPollWriteTimestampSeconds',
+      value: telemetryValue.lastSuccessfulPollWriteTimestampSeconds
+    },
+    {
+      source: 'telemetry.latestSuccessfulWriteTimestampSeconds',
+      value: telemetryValue.latestSuccessfulWriteTimestampSeconds
+    },
+    {
+      source: 'telemetry.lastSuccessfulWriteTimestampSeconds',
+      value: telemetryValue.lastSuccessfulWriteTimestampSeconds
+    }
+  ]
+
+  for (const candidate of timestampCandidates) {
+    const timestampUtc = coerceTimestampToUtcIso(candidate.value)
+    if (timestampUtc !== null) {
+      return {
+        latestSuccessfulPollWriteTimestampUtc: timestampUtc,
+        latestSuccessfulPollWriteTimestampSource: candidate.source
+      }
+    }
+  }
+
+  return {
+    latestSuccessfulPollWriteTimestampUtc: null,
+    latestSuccessfulPollWriteTimestampSource: null
+  }
+}
+
 async function runAnalysisEnginePollWorkerActivityCheck(
   vmHost: string,
   executeRequest: HttpRequestExecutor<HttpJsonResponseLike> = createJsonHttpClient(),
@@ -475,6 +624,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         evidence: 'health',
         pollIntervalMs: null,
         pollIntervalSource: null,
+        latestSuccessfulPollWriteTimestampUtc: null,
+        latestSuccessfulPollWriteTimestampSource: null,
         detail: `Analysis Engine health endpoint returned HTTP ${response.status} ${response.statusText}`
       }
     }
@@ -484,12 +635,20 @@ async function runAnalysisEnginePollWorkerActivityCheck(
     const { pollIntervalMs, pollIntervalSource } = extractTelemetryPollInterval(
       payload
     )
+    const {
+      latestSuccessfulPollWriteTimestampUtc,
+      latestSuccessfulPollWriteTimestampSource
+    } = extractTelemetryLatestSuccessfulPollWriteTimestamp(payload)
 
     if (workerEnabled === true) {
       const pollIntervalDetail =
         pollIntervalMs === null
           ? 'poll interval metadata unavailable in health response'
           : `poll interval=${pollIntervalMs}ms via ${pollIntervalSource}`
+      const freshnessDetail =
+        latestSuccessfulPollWriteTimestampUtc === null
+          ? 'latest successful poll write timestamp unavailable in health response'
+          : `latest successful poll write=${latestSuccessfulPollWriteTimestampUtc} via ${latestSuccessfulPollWriteTimestampSource}`
 
       return {
         endpoint,
@@ -497,8 +656,10 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         evidence: 'health',
         pollIntervalMs,
         pollIntervalSource,
+        latestSuccessfulPollWriteTimestampUtc,
+        latestSuccessfulPollWriteTimestampSource,
         detail:
-          `Analysis Engine health evidence confirmed telemetry.workerEnabled=true; ${pollIntervalDetail}`
+          `Analysis Engine health evidence confirmed telemetry.workerEnabled=true; ${pollIntervalDetail}; ${freshnessDetail}`
       }
     }
 
@@ -509,6 +670,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         evidence: 'health',
         pollIntervalMs,
         pollIntervalSource,
+        latestSuccessfulPollWriteTimestampUtc,
+        latestSuccessfulPollWriteTimestampSource,
         detail:
           'Analysis Engine health evidence reported telemetry.workerEnabled=false'
       }
@@ -520,6 +683,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
       evidence: 'health',
       pollIntervalMs,
       pollIntervalSource,
+      latestSuccessfulPollWriteTimestampUtc,
+      latestSuccessfulPollWriteTimestampSource,
       detail:
         'Analysis Engine health evidence missing telemetry.workerEnabled field'
     }
@@ -531,6 +696,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
         evidence: 'health',
         pollIntervalMs: null,
         pollIntervalSource: null,
+        latestSuccessfulPollWriteTimestampUtc: null,
+        latestSuccessfulPollWriteTimestampSource: null,
         detail: `Timed out after ${timeoutMs}ms while checking poll worker activity`
       }
     }
@@ -543,6 +710,8 @@ async function runAnalysisEnginePollWorkerActivityCheck(
       evidence: 'health',
       pollIntervalMs: null,
       pollIntervalSource: null,
+      latestSuccessfulPollWriteTimestampUtc: null,
+      latestSuccessfulPollWriteTimestampSource: null,
       detail: `Failed to verify poll worker activity from health evidence: ${message}`
     }
   } finally {
@@ -555,7 +724,11 @@ function buildReportMetadata(
 ): ReportMetadata {
   return {
     analysisEnginePollIntervalMs: pollWorkerActivity.pollIntervalMs,
-    analysisEnginePollIntervalSource: pollWorkerActivity.pollIntervalSource
+    analysisEnginePollIntervalSource: pollWorkerActivity.pollIntervalSource,
+    analysisEngineLatestSuccessfulPollWriteTimestampUtc:
+      pollWorkerActivity.latestSuccessfulPollWriteTimestampUtc,
+    analysisEngineLatestSuccessfulPollWriteTimestampSource:
+      pollWorkerActivity.latestSuccessfulPollWriteTimestampSource
   }
 }
 

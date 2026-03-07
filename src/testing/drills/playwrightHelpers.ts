@@ -40,6 +40,16 @@ const DEFAULT_POLL_INTERVAL_MS = 400
 const DEFAULT_STABLE_POLLS = 2
 
 const DEFAULT_ROLLBACK_CONFIRMED_STATUSES = ['Recovering', 'Completed', 'Failed', 'Accepted', 'Aborted'] as const
+const DEFAULT_SCENARIO_VALIDATION_READY_STATUSES = [
+  'Observing',
+  'AwaitingRecovery',
+  'Recovering',
+  'Completed',
+  'Failed',
+  'Accepted',
+  'Aborted',
+] as const
+const DEFAULT_SCENARIO_VALIDATION_ROLLBACK_STATUSES = ['Completed', 'Failed', 'Accepted', 'Aborted'] as const
 const KNOWN_RUN_STATUSES = new Set([
   'planned',
   'running',
@@ -147,6 +157,73 @@ export interface RollbackWaitOptions {
   confirmedStatuses?: readonly string[]
 }
 
+export interface BackendComparisonMismatch {
+  metricName: string
+  expectedValue: string
+  actualValue: string
+}
+
+export interface BackendLayerComparison {
+  status: string
+  mismatches?: BackendComparisonMismatch[]
+}
+
+export interface BackendComparisonSnapshot {
+  comparison: {
+    vm: BackendLayerComparison
+    api: BackendLayerComparison
+    uiMetrics: BackendLayerComparison
+    graph: BackendLayerComparison
+    scenarioVerdict?: string
+  }
+}
+
+export interface ScenarioComparisonValidationOptions {
+  scenarioType: string
+  targetComponent?: string
+  timeoutMs?: number
+  pollIntervalMs?: number
+  preValidationStatuses?: readonly string[]
+  rollbackConfirmationStatuses?: readonly string[]
+  readBackendSnapshot: (runId: string) => Promise<BackendComparisonSnapshot>
+}
+
+export interface ScenarioComparisonValidationResult {
+  scenarioType: string
+  runId: string
+  validationSnapshot: ValidationMetricsSnapshot
+  rollbackObservation: RunStatusObservation
+  validatedAt: string
+}
+
+export interface SequentialCatalogComparisonValidationOptions {
+  timeoutMs?: number
+  pollIntervalMs?: number
+  preValidationStatuses?: readonly string[]
+  rollbackConfirmationStatuses?: readonly string[]
+  readBackendSnapshot: (runId: string) => Promise<BackendComparisonSnapshot>
+  targetComponentForScenario?: (
+    scenario: CatalogScenario,
+    context: CatalogIterationContext
+  ) => string | undefined | Promise<string | undefined>
+  onScenarioValidated?: (
+    result: SequentialCatalogComparisonValidationResultEntry,
+    context: CatalogIterationContext
+  ) => void | Promise<void>
+}
+
+export interface SequentialCatalogComparisonValidationResultEntry extends ScenarioComparisonValidationResult {
+  scenario: CatalogScenario
+  index: number
+  total: number
+}
+
+export interface SequentialCatalogComparisonValidationResult extends CatalogIterationResult {
+  results: SequentialCatalogComparisonValidationResultEntry[]
+}
+
+type BackendLayerKey = 'vm' | 'api' | 'uiMetrics' | 'graph'
+
 function normalizeText(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim()
 }
@@ -208,6 +285,118 @@ function describeValidationMismatch(snapshot: ValidationMetricsSnapshot): string
   }
 
   return null
+}
+
+function normalizeComparableValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '--'
+  }
+  const normalized = normalizeText(String(value))
+  return normalized || '--'
+}
+
+function getBackendLayerKey(layerKey: string): BackendLayerKey | null {
+  switch (layerKey) {
+    case 'vm':
+      return 'vm'
+    case 'api':
+      return 'api'
+    case 'ui':
+      return 'uiMetrics'
+    case 'graph':
+      return 'graph'
+    default:
+      return null
+  }
+}
+
+function assertUiValidationMatchesBackendComparison(
+  uiSnapshot: ValidationMetricsSnapshot,
+  backendSnapshot: BackendComparisonSnapshot
+): void {
+  if (!backendSnapshot.comparison) {
+    throw new Error('Backend snapshot did not include a comparison payload.')
+  }
+
+  const uiVerdict = normalizeStatus(uiSnapshot.verdict ?? '')
+  const backendVerdict = normalizeStatus(backendSnapshot.comparison.scenarioVerdict ?? '')
+  if (backendVerdict && uiVerdict !== backendVerdict) {
+    throw new Error(
+      `Validation verdict mismatch: UI shows "${uiSnapshot.verdict ?? '--'}" but backend comparison reports "${backendSnapshot.comparison.scenarioVerdict}".`
+    )
+  }
+
+  const uiLayerByKey = new Map<string, ValidationLayerStatus>()
+  for (const layer of uiSnapshot.layers) {
+    uiLayerByKey.set(layer.layerKey, layer)
+  }
+
+  for (const uiLayer of uiSnapshot.layers) {
+    const backendLayerKey = getBackendLayerKey(uiLayer.layerKey)
+    if (!backendLayerKey) {
+      continue
+    }
+    const backendLayer = backendSnapshot.comparison[backendLayerKey]
+    const backendStatus = normalizeStatus(backendLayer?.status ?? '')
+    const uiStatus = normalizeStatus(uiLayer.layerStatus)
+    if (backendStatus && uiStatus !== backendStatus) {
+      throw new Error(
+        `Layer status mismatch for "${uiLayer.layerKey}": UI shows "${uiLayer.layerStatus}" but backend comparison reports "${backendLayer.status}".`
+      )
+    }
+  }
+
+  const requiredUiLayers: readonly string[] = ['vm', 'api', 'ui', 'graph']
+  for (const layerKey of requiredUiLayers) {
+    if (!uiLayerByKey.has(layerKey)) {
+      throw new Error(`Validation UI is missing required layer "${layerKey}".`)
+    }
+    const backendLayerKey = getBackendLayerKey(layerKey)
+    if (!backendLayerKey || !backendSnapshot.comparison[backendLayerKey]) {
+      throw new Error(`Backend comparison is missing required layer "${layerKey}".`)
+    }
+
+    const uiMetricsForLayer = uiSnapshot.metrics.filter((metric) => metric.layerKey === layerKey)
+    const uiMetricsByName = new Map<string, ValidationMetricRow>()
+    for (const uiMetric of uiMetricsForLayer) {
+      uiMetricsByName.set(normalizeText(uiMetric.metricName), uiMetric)
+    }
+
+    const backendMismatches = backendSnapshot.comparison[backendLayerKey].mismatches ?? []
+    const backendMismatchNames = new Set<string>()
+
+    for (const backendMismatch of backendMismatches) {
+      const metricName = normalizeText(backendMismatch.metricName)
+      if (!metricName) {
+        continue
+      }
+      backendMismatchNames.add(metricName)
+      const uiMetric = uiMetricsByName.get(metricName)
+      if (!uiMetric) {
+        throw new Error(`UI is missing backend mismatch metric "${layerKey}.${backendMismatch.metricName}".`)
+      }
+      if (!uiMetric.mismatch) {
+        throw new Error(`UI metric "${layerKey}.${backendMismatch.metricName}" is not marked as mismatch.`)
+      }
+
+      const expectedUi = normalizeComparableValue(uiMetric.expectedValue)
+      const actualUi = normalizeComparableValue(uiMetric.actualValue)
+      const expectedBackend = normalizeComparableValue(backendMismatch.expectedValue)
+      const actualBackend = normalizeComparableValue(backendMismatch.actualValue)
+      if (expectedUi !== expectedBackend || actualUi !== actualBackend) {
+        throw new Error(
+          `Mismatch detail divergence for "${layerKey}.${backendMismatch.metricName}": UI (${expectedUi} -> ${actualUi}) vs backend (${expectedBackend} -> ${actualBackend}).`
+        )
+      }
+    }
+
+    for (const uiMetric of uiMetricsForLayer) {
+      const metricName = normalizeText(uiMetric.metricName)
+      if (uiMetric.mismatch && !backendMismatchNames.has(metricName)) {
+        throw new Error(`UI flagged "${layerKey}.${uiMetric.metricName}" as mismatch but backend comparison did not.`)
+      }
+    }
+  }
 }
 
 async function isVisible(locator: PlaywrightLikeLocator, timeoutMs = 150): Promise<boolean> {
@@ -272,6 +461,16 @@ async function enforceSingleActiveScenario(page: PlaywrightLikePage, timeoutMs: 
 
   await exitRoomButton.click({ timeout: timeoutMs })
   await runStatusBadge.waitFor({ state: 'hidden', timeout: timeoutMs })
+}
+
+async function readActiveRunId(page: PlaywrightLikePage, timeoutMs: number): Promise<string> {
+  const runPanel = page.getByTestId('drill-run-panel').first()
+  await runPanel.waitFor({ state: 'visible', timeout: timeoutMs })
+  const runId = normalizeText(await runPanel.getAttribute('data-run-id'))
+  if (!runId) {
+    throw new Error('Active run id is unavailable in the drill run panel.')
+  }
+  return runId
 }
 
 export async function getScenarioCatalog(page: PlaywrightLikePage, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<CatalogScenario[]> {
@@ -561,4 +760,93 @@ export async function waitForRollbackConfirmation(
     pollIntervalMs: options.pollIntervalMs,
     stablePolls: 1,
   })
+}
+
+export async function validateScenarioAgainstBackendComparison(
+  page: PlaywrightLikePage,
+  options: ScenarioComparisonValidationOptions
+): Promise<ScenarioComparisonValidationResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS
+  const scenarioType = options.scenarioType.trim()
+  if (!scenarioType) {
+    throw new Error('validateScenarioAgainstBackendComparison requires a non-empty scenarioType.')
+  }
+
+  await startScenarioFromCatalog(page, {
+    scenarioType,
+    targetComponent: options.targetComponent,
+    timeoutMs,
+    pollIntervalMs,
+  })
+
+  await pollRunStatus(page, {
+    expectedStatuses: options.preValidationStatuses ?? DEFAULT_SCENARIO_VALIDATION_READY_STATUSES,
+    timeoutMs,
+    pollIntervalMs,
+    stablePolls: 1,
+  })
+
+  const runId = await readActiveRunId(page, timeoutMs)
+  const validationSnapshot = await extractValidationMetrics(page, timeoutMs)
+  const backendSnapshot = await options.readBackendSnapshot(runId)
+  assertUiValidationMatchesBackendComparison(validationSnapshot, backendSnapshot)
+
+  const rollbackObservation = await waitForRollbackConfirmation(page, {
+    timeoutMs,
+    pollIntervalMs,
+    confirmedStatuses: options.rollbackConfirmationStatuses ?? DEFAULT_SCENARIO_VALIDATION_ROLLBACK_STATUSES,
+  })
+
+  return {
+    scenarioType,
+    runId,
+    validationSnapshot,
+    rollbackObservation,
+    validatedAt: new Date().toISOString(),
+  }
+}
+
+export async function validateCatalogScenariosAgainstComparisonAndRollback(
+  page: PlaywrightLikePage,
+  options: SequentialCatalogComparisonValidationOptions
+): Promise<SequentialCatalogComparisonValidationResult> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const results: SequentialCatalogComparisonValidationResultEntry[] = []
+
+  const iteration = await iterateScenarioCatalog(page, {
+    timeoutMs,
+    onScenario: async (scenario, context) => {
+      const targetComponent = options.targetComponentForScenario
+        ? await options.targetComponentForScenario(scenario, context)
+        : undefined
+
+      const scenarioValidation = await validateScenarioAgainstBackendComparison(page, {
+        scenarioType: scenario.scenarioType,
+        targetComponent,
+        timeoutMs,
+        pollIntervalMs: options.pollIntervalMs,
+        preValidationStatuses: options.preValidationStatuses,
+        rollbackConfirmationStatuses: options.rollbackConfirmationStatuses,
+        readBackendSnapshot: options.readBackendSnapshot,
+      })
+
+      const resultEntry: SequentialCatalogComparisonValidationResultEntry = {
+        ...scenarioValidation,
+        scenario,
+        index: context.index,
+        total: context.total,
+      }
+      results.push(resultEntry)
+
+      if (options.onScenarioValidated) {
+        await options.onScenarioValidated(resultEntry, context)
+      }
+    },
+  })
+
+  return {
+    ...iteration,
+    results,
+  }
 }

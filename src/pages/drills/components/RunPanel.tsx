@@ -453,7 +453,11 @@ export default function RunPanel({
   const remainingRecoveryMs = hasRecoveryDeadline ? recoveryDeadlineMs - countdownNow : 0
 
   return (
-    <Card className={cn(glassPanelClass, 'relative flex h-full min-h-[720px] flex-col overflow-hidden')}>
+    <Card
+      data-testid="drill-run-panel"
+      data-run-id={run.id}
+      className={cn(glassPanelClass, 'relative flex h-full min-h-[720px] flex-col overflow-hidden')}
+    >
       {isActiveLifecycle && (
         <div
           className={cn(
@@ -631,6 +635,7 @@ export default function RunPanel({
             </div>
 
             <Button
+              data-testid="drill-recover-service"
               onPress={handleRecover}
               isDisabled={isRecoverSubmitting}
               className="h-11 w-full rounded-lg border border-emerald-300/20 bg-gradient-to-r from-emerald-500 to-green-500 text-xs font-bold uppercase tracking-widest text-white"

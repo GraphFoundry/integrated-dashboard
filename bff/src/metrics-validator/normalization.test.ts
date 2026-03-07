@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  formatLatencyForDisplay,
+  formatPercentForDisplay,
+  formatRequestRateForDisplay,
+  formatSuccessRateFromErrorRateForDisplay,
   normalizeAvailabilityForDisplay,
   normalizeErrorRateForDisplay
 } from './normalization'
@@ -29,4 +33,28 @@ test('normalizes availability using the same rule as error rate', () => {
   assert.equal(normalizeAvailabilityForDisplay(1.2), 1.2)
   assert.equal(normalizeAvailabilityForDisplay(101), 100)
   assert.equal(normalizeAvailabilityForDisplay(undefined), null)
+})
+
+test('formats request-rate values with dashboard rounding and tiny-value handling', () => {
+  assert.equal(formatRequestRateForDisplay(12.3456), '12.35')
+  assert.equal(formatRequestRateForDisplay(0.00001), '<0.0001')
+  assert.equal(formatRequestRateForDisplay(null), 'N/A')
+})
+
+test('formats percentages with dashboard suffix and rounding', () => {
+  assert.equal(formatPercentForDisplay(99.1234), '99.12%')
+  assert.equal(formatPercentForDisplay(99.1234, 1), '99.1%')
+  assert.equal(formatPercentForDisplay(undefined), 'N/A')
+})
+
+test('formats latency values with dashboard unit conventions', () => {
+  assert.equal(formatLatencyForDisplay(0.5), '500μs')
+  assert.equal(formatLatencyForDisplay(250.3), '250ms')
+  assert.equal(formatLatencyForDisplay(1234.56), '1.23s')
+  assert.equal(formatLatencyForDisplay(undefined), 'N/A')
+})
+
+test('formats table success-rate values from normalized error-rate', () => {
+  assert.equal(formatSuccessRateFromErrorRateForDisplay(2.345), '97.66%')
+  assert.equal(formatSuccessRateFromErrorRateForDisplay(undefined), 'N/A')
 })

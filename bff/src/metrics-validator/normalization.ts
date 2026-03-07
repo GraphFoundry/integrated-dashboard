@@ -50,3 +50,68 @@ export function normalizeAvailabilityForDisplay(
 ): number | null {
   return normalizePercentageMetricForDisplay(value)
 }
+
+/**
+ * Format request-rate values to match dashboard card/table display.
+ */
+export function formatRequestRateForDisplay(
+  value: number | null | undefined
+): string {
+  if (!isFiniteNumber(value)) {
+    return 'N/A'
+  }
+
+  if (value > 0 && value < 0.0001) {
+    return '<0.0001'
+  }
+
+  return value.toFixed(2)
+}
+
+/**
+ * Format percentage values to match dashboard card/table display.
+ */
+export function formatPercentForDisplay(
+  value: number | null | undefined,
+  decimals: number = 2
+): string {
+  if (!isFiniteNumber(value)) {
+    return 'N/A'
+  }
+
+  return `${value.toFixed(decimals)}%`
+}
+
+/**
+ * Format latency to match dashboard card/table display.
+ */
+export function formatLatencyForDisplay(
+  milliseconds: number | null | undefined
+): string {
+  if (!isFiniteNumber(milliseconds)) {
+    return 'N/A'
+  }
+
+  if (milliseconds < 1) {
+    return `${(milliseconds * 1000).toFixed(0)}μs`
+  }
+
+  if (milliseconds < 1000) {
+    return `${milliseconds.toFixed(0)}ms`
+  }
+
+  return `${(milliseconds / 1000).toFixed(2)}s`
+}
+
+/**
+ * Success-rate display in the dashboard table is derived from normalized error-rate.
+ */
+export function formatSuccessRateFromErrorRateForDisplay(
+  normalizedErrorRatePercent: number | null | undefined
+): string {
+  if (!isFiniteNumber(normalizedErrorRatePercent)) {
+    return 'N/A'
+  }
+
+  return formatPercentForDisplay(100 - normalizedErrorRatePercent)
+}

@@ -15,11 +15,11 @@ function clampToPercentageRange(value: number): number {
 }
 
 /**
- * Normalize error-rate telemetry to dashboard percentage form.
+ * Normalize telemetry values to dashboard percentage form.
  * Fractions in [0, 1] are converted to percentage points.
  * Values > 1 are treated as already-percent and clamped to 100 max.
  */
-export function normalizeErrorRateForDisplay(
+function normalizePercentageMetricForDisplay(
   value: number | null | undefined
 ): number | null {
   if (!isFiniteNumber(value)) {
@@ -33,3 +33,20 @@ export function normalizeErrorRateForDisplay(
   return clampToPercentageRange(value)
 }
 
+/**
+ * Normalize error-rate telemetry to dashboard percentage form.
+ */
+export function normalizeErrorRateForDisplay(
+  value: number | null | undefined
+): number | null {
+  return normalizePercentageMetricForDisplay(value)
+}
+
+/**
+ * Normalize availability telemetry to dashboard percentage form.
+ */
+export function normalizeAvailabilityForDisplay(
+  value: number | null | undefined
+): number | null {
+  return normalizePercentageMetricForDisplay(value)
+}

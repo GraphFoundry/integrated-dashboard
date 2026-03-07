@@ -162,9 +162,10 @@ function buildGraphComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualFie
 type ValidationPanelProps = {
   runId: string
   runStatus: string
+  sectionId?: string
 }
 
-export default function ValidationPanel({ runId, runStatus }: ValidationPanelProps) {
+export default function ValidationPanel({ runId, runStatus, sectionId }: ValidationPanelProps) {
   const [snapshot, setSnapshot] = useState<DrillRunSnapshot | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -253,6 +254,7 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
 
   return (
     <Card
+      id={sectionId}
       className={cn(
         glassSurfaceClass,
         'relative overflow-hidden rounded-[var(--radius-lg)] bg-[var(--surface-contrast)]/30 backdrop-blur-xl'

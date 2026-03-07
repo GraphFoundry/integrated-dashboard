@@ -13,7 +13,15 @@ type SgeSnapshotCollection = {
   endpoint: string
   collectedAtUtc: string
   snapshotTimestampUtc: string | null
+  queryParameters: Record<string, string>
+  rawPayloadExcerpt: SgeSnapshotRawPayloadExcerpt
   serviceMetricsPayload: ReadonlyArray<Record<string, unknown>>
+}
+
+type SgeSnapshotRawPayloadExcerpt = {
+  topLevelKeys: ReadonlyArray<string>
+  serviceCount: number
+  servicesSample: ReadonlyArray<Record<string, unknown>>
 }
 
 function buildSgeSnapshotEndpoint(vmHost: string): string {
@@ -34,6 +42,44 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   }
 
   return value as Record<string, unknown>
+}
+
+function buildQueryParametersRecordFromUrl(url: string): Record<string, string> {
+  const queryParameters: Record<string, string> = {}
+  const parsedUrl = new URL(url)
+
+  for (const [key, value] of parsedUrl.searchParams.entries()) {
+    queryParameters[key] = value
+  }
+
+  return queryParameters
+}
+
+function buildSgeSnapshotRawPayloadExcerpt(
+  payload: unknown
+): SgeSnapshotRawPayloadExcerpt {
+  const payloadRecord = asRecord(payload)
+  if (!payloadRecord) {
+    return {
+      topLevelKeys: [],
+      serviceCount: 0,
+      servicesSample: []
+    }
+  }
+
+  const servicesValue = Array.isArray(payloadRecord.services)
+    ? payloadRecord.services
+    : []
+  const servicesSample = servicesValue.slice(0, 3).flatMap((service) => {
+    const serviceRecord = asRecord(service)
+    return serviceRecord ? [{ ...serviceRecord }] : []
+  })
+
+  return {
+    topLevelKeys: Object.keys(payloadRecord),
+    serviceCount: servicesValue.length,
+    servicesSample
+  }
 }
 
 function coerceTimestampToUtcIso(value: unknown): string | null {
@@ -102,6 +148,7 @@ async function collectSgeSnapshot(
   collectedAt: Date = new Date()
 ): Promise<SgeSnapshotCollection> {
   const endpoint = buildSgeSnapshotEndpoint(vmHost)
+  const queryParameters = buildQueryParametersRecordFromUrl(endpoint)
   const readOnlyHttpClient = createReadOnlyHttpClientWrapper<HttpJsonResponseLike>(
     executeRequest,
     [endpoint]
@@ -124,6 +171,7 @@ async function collectSgeSnapshot(
     }
 
     const payload = await response.json()
+    const rawPayloadExcerpt = buildSgeSnapshotRawPayloadExcerpt(payload)
     const { snapshotTimestampUtc, serviceMetricsPayload } =
       parseServiceMetricsPayload(payload)
 
@@ -131,6 +179,8 @@ async function collectSgeSnapshot(
       endpoint,
       collectedAtUtc: collectedAt.toISOString(),
       snapshotTimestampUtc,
+      queryParameters,
+      rawPayloadExcerpt,
       serviceMetricsPayload
     }
   } catch (error) {

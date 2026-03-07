@@ -67,6 +67,19 @@ test('collects raw telemetry points for selected window and scoped service', asy
   assert.equal(collected.windowEndUtc, '2026-03-07T01:00:00.000Z')
   assert.equal(collected.serviceScope, 'default:frontend')
   assert.equal(collected.stepSeconds, 60)
+  assert.deepEqual(collected.queryParameters, {
+    from: '2026-03-07T00:00:00.000Z',
+    to: '2026-03-07T01:00:00.000Z',
+    step: '60',
+    service: 'frontend'
+  })
+  assert.deepEqual(collected.rawPayloadExcerpt.topLevelKeys, ['datapoints'])
+  assert.equal(collected.rawPayloadExcerpt.datapointCount, 2)
+  assert.equal(collected.rawPayloadExcerpt.datapointsSample.length, 2)
+  assert.equal(
+    collected.rawPayloadExcerpt.datapointsSample[0].timestamp,
+    '2026-03-07T00:00:00Z'
+  )
   assert.equal(collected.rawPoints.length, 2)
   assert.equal(collected.rawPoints[0].service, 'frontend')
   assert.equal(collected.latestPerServicePoints.length, 1)
@@ -83,7 +96,7 @@ test('collects raw telemetry points for selected window and scoped service', asy
 test('omits service filter for global scope', async () => {
   const observedRequests: Array<{ url: string; method?: string }> = []
 
-  await collectInfluxTelemetry(
+  const collected = await collectInfluxTelemetry(
     {
       vmHost: 'vm.example.internal',
       windowStartUtc: '2026-03-07T00:00:00.000Z',
@@ -106,6 +119,10 @@ test('omits service filter for global scope', async () => {
   assert.equal(observedRequests.length, 1)
   const requestUrl = new URL(observedRequests[0].url)
   assert.equal(requestUrl.searchParams.get('service'), null)
+  assert.equal(collected.queryParameters.service, undefined)
+  assert.deepEqual(collected.rawPayloadExcerpt.topLevelKeys, ['datapoints'])
+  assert.equal(collected.rawPayloadExcerpt.datapointCount, 0)
+  assert.equal(collected.rawPayloadExcerpt.datapointsSample.length, 0)
 })
 
 test(

@@ -24,8 +24,16 @@ type InfluxTelemetryCollection = {
   windowEndUtc: string
   serviceScope: string
   stepSeconds: number
+  queryParameters: Record<string, string>
+  rawPayloadExcerpt: InfluxTelemetryRawPayloadExcerpt
   rawPoints: ReadonlyArray<Record<string, unknown>>
   latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+}
+
+type InfluxTelemetryRawPayloadExcerpt = {
+  topLevelKeys: ReadonlyArray<string>
+  datapointCount: number
+  datapointsSample: ReadonlyArray<Record<string, unknown>>
 }
 
 type LatestPerServiceSelectionReason =
@@ -99,12 +107,53 @@ function buildInfluxTelemetryQuery(input: {
   return params
 }
 
+function buildQueryParametersRecord(
+  query: URLSearchParams
+): Record<string, string> {
+  const queryParameters: Record<string, string> = {}
+
+  for (const [key, value] of query.entries()) {
+    queryParameters[key] = value
+  }
+
+  return queryParameters
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     return null
   }
 
   return value as Record<string, unknown>
+}
+
+function buildInfluxTelemetryRawPayloadExcerpt(
+  payload: unknown
+): InfluxTelemetryRawPayloadExcerpt {
+  const payloadRecord = asRecord(payload)
+  if (!payloadRecord) {
+    return {
+      topLevelKeys: [],
+      datapointCount: 0,
+      datapointsSample: []
+    }
+  }
+
+  const datapointsValue = Array.isArray(payloadRecord.datapoints)
+    ? payloadRecord.datapoints
+    : []
+  const datapointsSample = datapointsValue
+    .slice(0, 3)
+    .flatMap((datapoint) => {
+      const datapointRecord = asRecord(datapoint)
+      return datapointRecord ? [{ ...datapointRecord }] : []
+    })
+
+  return {
+    topLevelKeys: Object.keys(payloadRecord),
+    datapointCount: datapointsValue.length,
+    datapointsSample
+  }
 }
 
 function parseRawTelemetryPoints(
@@ -310,6 +359,7 @@ async function collectInfluxTelemetry(
     serviceScope: input.serviceScope,
     stepSeconds
   })
+  const queryParameters = buildQueryParametersRecord(query)
   const requestUrl = `${endpoint}?${query.toString()}`
 
   const readOnlyHttpClient = createReadOnlyHttpClientWrapper<HttpJsonResponseLike>(
@@ -334,6 +384,7 @@ async function collectInfluxTelemetry(
     }
 
     const payload = await response.json()
+    const rawPayloadExcerpt = buildInfluxTelemetryRawPayloadExcerpt(payload)
     const rawPoints = parseRawTelemetryPoints(payload)
     const latestPerServicePoints = extractLatestPerServicePoints(rawPoints)
 
@@ -344,6 +395,8 @@ async function collectInfluxTelemetry(
       windowEndUtc: input.windowEndUtc,
       serviceScope: input.serviceScope,
       stepSeconds,
+      queryParameters,
+      rawPayloadExcerpt,
       rawPoints,
       latestPerServicePoints
     }

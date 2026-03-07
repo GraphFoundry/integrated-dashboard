@@ -58,6 +58,14 @@ test('collects timestamped service metrics payload from SGE snapshot endpoint', 
   )
   assert.equal(collected.collectedAtUtc, '2026-03-08T01:00:00.000Z')
   assert.equal(collected.snapshotTimestampUtc, '2026-03-08T00:45:00.000Z')
+  assert.deepEqual(collected.queryParameters, {})
+  assert.deepEqual(collected.rawPayloadExcerpt.topLevelKeys, [
+    'timestamp',
+    'services'
+  ])
+  assert.equal(collected.rawPayloadExcerpt.serviceCount, 2)
+  assert.equal(collected.rawPayloadExcerpt.servicesSample.length, 2)
+  assert.equal(collected.rawPayloadExcerpt.servicesSample[0].name, 'frontend')
   assert.equal(collected.serviceMetricsPayload.length, 2)
   assert.equal(collected.serviceMetricsPayload[0].name, 'frontend')
 })

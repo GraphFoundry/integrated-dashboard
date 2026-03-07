@@ -35,6 +35,26 @@ test('normalizes availability using the same rule as error rate', () => {
   assert.equal(normalizeAvailabilityForDisplay(undefined), null)
 })
 
+test('covers boundary normalization inputs for error rate and availability', () => {
+  const boundaryCases: Array<{
+    input: number | null | undefined
+    expected: number | null
+  }> = [
+    { input: 0, expected: 0 },
+    { input: 0.01, expected: 1 },
+    { input: 1, expected: 100 },
+    { input: 1.2, expected: 1.2 },
+    { input: 100.1, expected: 100 },
+    { input: null, expected: null },
+    { input: undefined, expected: null }
+  ]
+
+  for (const { input, expected } of boundaryCases) {
+    assert.equal(normalizeErrorRateForDisplay(input), expected)
+    assert.equal(normalizeAvailabilityForDisplay(input), expected)
+  }
+})
+
 test('formats request-rate values with dashboard rounding and tiny-value handling', () => {
   assert.equal(formatRequestRateForDisplay(12.3456), '12.35')
   assert.equal(formatRequestRateForDisplay(0.00001), '<0.0001')

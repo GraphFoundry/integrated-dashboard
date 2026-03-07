@@ -1,5 +1,6 @@
 import { lookup } from 'node:dns/promises'
 import { createConnection } from 'node:net'
+import { createReadOnlyHttpClientWrapper } from './http-client-wrapper'
 
 type CliArgs = {
   vmHost: string
@@ -198,11 +199,21 @@ async function checkDashboardReachability(
   dashboardUrl: string,
   timeoutMs: number = 5000
 ): Promise<string> {
+  const readOnlyHttpClient = createReadOnlyHttpClientWrapper<Response>(
+    async (request) =>
+      fetch(request.url, {
+        method: request.method,
+        signal: request.signal
+      }),
+    [dashboardUrl]
+  )
+
   const abortController = new AbortController()
   const timeout = setTimeout(() => abortController.abort(), timeoutMs)
 
   try {
-    const response = await fetch(dashboardUrl, {
+    const response = await readOnlyHttpClient({
+      url: dashboardUrl,
       method: 'GET',
       signal: abortController.signal
     })

@@ -5,6 +5,7 @@ import DrillCatalog from './components/DrillCatalog'
 import RunPanel from './components/RunPanel'
 import LiveMetricsStrip from './components/LiveMetricsStrip'
 import TimelineReplay from './components/TimelineReplay'
+import ValidationPanel from './components/ValidationPanel'
 import type { DrillPrefillRequest, DrillRun } from '@/lib/api/drills'
 import { getDrillRun, listDrillHistory } from '@/lib/api/drills'
 import { useK8sHealth } from '@/lib/useK8sHealth'
@@ -271,6 +272,7 @@ export default function DrillDirector() {
                 <RunPanel run={activeRun} onUpdate={setActiveRun} onClear={() => setActiveRun(null)} />
               </div>
               <div className="space-y-6 xl:col-span-8">
+                <ValidationPanel runId={activeRun.id} runStatus={activeRun.status} />
                 <LiveMetricsStrip run={activeRun} />
                 <TimelineReplay run={activeRun} />
               </div>

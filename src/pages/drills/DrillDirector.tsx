@@ -27,7 +27,10 @@ import {
 } from '@/components/common/uiClassTokens'
 
 type DirectorTab = 'director' | 'history'
-type DrillDirectorLocationState = { prefillDrill?: DrillPrefillRequest }
+type DrillDirectorLocationState = {
+  prefillDrill?: DrillPrefillRequest
+  scenarioBannerSeenAt?: string
+}
 
 function getRunStatusBadgeClass(status: string): string {
   switch (status) {
@@ -63,6 +66,7 @@ export default function DrillDirector() {
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [reviewingRunId, setReviewingRunId] = useState<string | null>(null)
   const [prefillDrill, setPrefillDrill] = useState<DrillPrefillRequest | null>(null)
+  const [prefillBannerSeenAt, setPrefillBannerSeenAt] = useState<string | null>(null)
   const { status: k8sHealth, isLoading: isK8sProbing, recheck: recheckK8s } = useK8sHealth()
 
   const isClusterOffline = !isK8sProbing && k8sHealth !== null && !k8sHealth.reachable
@@ -72,6 +76,7 @@ export default function DrillDirector() {
     if (!state?.prefillDrill) return
 
     setPrefillDrill(state.prefillDrill)
+    setPrefillBannerSeenAt(state.scenarioBannerSeenAt ?? null)
     setSelectedTab('director')
     setActiveRun(null)
 
@@ -296,7 +301,11 @@ export default function DrillDirector() {
                 onDrillSelect={setActiveRun}
                 disabled={isClusterOffline}
                 prefill={prefillDrill}
-                onPrefillConsumed={() => setPrefillDrill(null)}
+                prefillBannerSeenAt={prefillBannerSeenAt}
+                onPrefillConsumed={() => {
+                  setPrefillDrill(null)
+                  setPrefillBannerSeenAt(null)
+                }}
               />
             </div>
           )}

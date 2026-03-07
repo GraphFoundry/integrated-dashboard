@@ -34,12 +34,15 @@ export interface DrillRun {
     recoveryDeadline?: string
     recoveryMode?: 'manual_with_failsafe' | 'automatic'
     recoverySource?: 'manual' | 'failsafe' | 'abort' | 'accept'
+    scenarioBannerSeen?: boolean
+    scenarioBannerSeenAt?: string
 }
 
 export interface DrillPlanRequest {
     type: string
     target: string
     config: any
+    bannerVerified?: boolean
 }
 
 export interface DrillPrefillConfig {

@@ -149,11 +149,13 @@ export default function DrillCatalog({
   onDrillSelect,
   disabled = false,
   prefill = null,
+  prefillBannerSeenAt = null,
   onPrefillConsumed,
 }: {
   onDrillSelect: (run: DrillRun) => void
   disabled?: boolean
   prefill?: DrillPrefillRequest | null
+  prefillBannerSeenAt?: string | null
   onPrefillConsumed?: () => void
 }) {
   const [selectedDrill, setSelectedDrill] = useState<DrillDefinition | null>(null)
@@ -167,6 +169,7 @@ export default function DrillCatalog({
   const [countdown, setCountdown] = useState(0)
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [planError, setPlanError] = useState<string | null>(null)
+  const [scenarioBannerSeenAt, setScenarioBannerSeenAt] = useState<string | null>(null)
   const [targetedLoadRate, setTargetedLoadRate] = useState(DEFAULT_TARGETED_LOAD_RATE)
   const [targetedLoadUsers, setTargetedLoadUsers] = useState(DEFAULT_TARGETED_LOAD_USERS)
 
@@ -198,11 +201,17 @@ export default function DrillCatalog({
     void bootstrap()
   }, [])
 
-  const handleSelectDrill = (drill: DrillDefinition) => {
+  const handleSelectDrill = (
+    drill: DrillDefinition,
+    options?: {
+      scenarioBannerSeenAt?: string | null
+    }
+  ) => {
     setSelectedDrill(drill)
     setPlanError(null)
     setCountdown(0)
     setIsConfirmed(false)
+    setScenarioBannerSeenAt(options?.scenarioBannerSeenAt ?? null)
 
     setObserveTokens(Number(drill.baseConfig.observeTokens ?? 30))
 
@@ -232,7 +241,7 @@ export default function DrillCatalog({
       return
     }
 
-    handleSelectDrill(matchedDrill)
+    handleSelectDrill(matchedDrill, { scenarioBannerSeenAt: prefillBannerSeenAt })
     setTargetService(prefill.target)
 
     if (typeof prefill.config.observeTokens === 'number' && prefill.config.observeTokens > 0) {
@@ -248,7 +257,7 @@ export default function DrillCatalog({
     }
 
     onPrefillConsumed?.()
-  }, [prefill, onPrefillConsumed])
+  }, [prefill, prefillBannerSeenAt, onPrefillConsumed])
 
   const handlePlan = async () => {
     if (!selectedDrill || !targetService) return
@@ -291,11 +300,18 @@ export default function DrillCatalog({
         type: selectedDrill.type,
         target: targetService,
         config: plannedConfig,
+        bannerVerified: scenarioBannerSeenAt !== null,
       })
-      onDrillSelect(plan)
+      const planWithBannerCapture: DrillRun = {
+        ...plan,
+        scenarioBannerSeen: scenarioBannerSeenAt !== null,
+        scenarioBannerSeenAt: scenarioBannerSeenAt ?? undefined,
+      }
+      onDrillSelect(planWithBannerCapture)
       setSelectedDrill(null)
       setCountdown(0)
       setIsConfirmed(false)
+      setScenarioBannerSeenAt(null)
       setTargetedLoadRate(DEFAULT_TARGETED_LOAD_RATE)
       setTargetedLoadUsers(DEFAULT_TARGETED_LOAD_USERS)
     } catch (err) {
@@ -413,6 +429,7 @@ export default function DrillCatalog({
               setCountdown(0)
               setIsConfirmed(false)
               setPlanError(null)
+              setScenarioBannerSeenAt(null)
               setTargetedLoadRate(DEFAULT_TARGETED_LOAD_RATE)
               setTargetedLoadUsers(DEFAULT_TARGETED_LOAD_USERS)
             }
@@ -626,6 +643,7 @@ export default function DrillCatalog({
               onPress={() => {
                 setSelectedDrill(null)
                 setPlanError(null)
+                setScenarioBannerSeenAt(null)
               }}
               className={secondaryButtonClass}
             >

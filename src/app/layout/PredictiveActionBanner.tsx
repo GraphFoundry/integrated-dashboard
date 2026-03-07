@@ -208,6 +208,7 @@ export default function PredictiveActionBanner({ sidebarOpen = false }: Predicti
                       target: recommendation.target,
                       config: recommendation.config,
                     },
+                    scenarioBannerSeenAt: new Date().toISOString(),
                   },
                 })
               }}

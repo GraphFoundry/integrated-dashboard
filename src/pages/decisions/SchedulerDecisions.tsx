@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { RefreshCw, Calendar, Filter, Server, X, Play, CheckCircle, AlertTriangle, ArrowRightLeft } from 'lucide-react'
+import { RefreshCw, Calendar, Filter, Server, X, Play, CheckCircle, AlertTriangle, ArrowRightLeft, Star, StarOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import Section from '@/components/layout/Section'
@@ -27,6 +27,7 @@ interface SchedulerDecision {
   status: string
   currentNodes: string[]
   bestNode: string
+  preferredNode?: string
   scores: Record<string, number>
   evaluatedAt: string
   windowSeconds: number
@@ -126,6 +127,9 @@ export default function SchedulerDecisions() {
   const [changeNodeConfirmed, setChangeNodeConfirmed] = useState(false)
   const [changingNode, setChangingNode] = useState(false)
   const [changeNodeResult, setChangeNodeResult] = useState<ChangeNodeResponse | null>(null)
+
+  // Preference state
+  const [settingPreference, setSettingPreference] = useState<string | null>(null) // service key while saving
 
   const loadData = async () => {
     setLoading(true)
@@ -280,6 +284,40 @@ export default function SchedulerDecisions() {
     return new Date(ts).toLocaleString()
   }
 
+  const handleSetPreference = async (decision: SchedulerDecision, node: string) => {
+    const key = `${decision.namespace}/${decision.service}`
+    setSettingPreference(key)
+    try {
+      await schedulerApi.post('/preference', {
+        namespace: decision.namespace,
+        service: decision.service,
+        node,
+      })
+      toast.success(`Preference set: ${decision.service} → ${node}`)
+      await loadData()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to set preference')
+    } finally {
+      setSettingPreference(null)
+    }
+  }
+
+  const handleResetPreference = async (decision: SchedulerDecision) => {
+    const key = `${decision.namespace}/${decision.service}`
+    setSettingPreference(key)
+    try {
+      await schedulerApi.delete('/preference', {
+        params: { namespace: decision.namespace, service: decision.service },
+      })
+      toast.success(`Preference reset for ${decision.service}`)
+      await loadData()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to reset preference')
+    } finally {
+      setSettingPreference(null)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Scheduled':
@@ -403,9 +441,20 @@ export default function SchedulerDecisions() {
             >
               {/* Action Bar (Top Right) */}
               <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                {decision.preferredNode && (
+                  <button type="button"
+                    onClick={() => handleResetPreference(decision)}
+                    disabled={settingPreference === `${decision.namespace}/${decision.service}`}
+                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200 hover:bg-amber-500/20"
+                    title="Remove node preference and let the scheduler decide"
+                  >
+                    <StarOff className="w-3.5 h-3.5" />
+                    Clear Preference
+                  </button>
+                )}
                 <button type="button"
                   onClick={() => handleChangeNodeClick(decision)}
-                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-300/35 bg-blue-400/12 text-blue-200 hover:bg-blue-400/18"
+                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200 hover:bg-blue-500/20"
                 >
                   <ArrowRightLeft className="w-3.5 h-3.5" />
                   Change Node
@@ -424,6 +473,27 @@ export default function SchedulerDecisions() {
               </div>
 
               <div className="p-6 space-y-5">
+                {/* Preference Banner */}
+                {decision.preferredNode && (
+                  <div className="flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                      <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                        Manual preference active — pinned to <span className="font-mono font-bold">{decision.preferredNode}</span>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleResetPreference(decision)}
+                      disabled={settingPreference === `${decision.namespace}/${decision.service}`}
+                      className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
+                    >
+                      <StarOff className="w-3.5 h-3.5" />
+                      Clear &amp; let scheduler decide
+                    </button>
+                  </div>
+                )}
+
                 {/* Header Row */}
                 <div className="flex items-start gap-4 pr-32">
                   <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
@@ -460,6 +530,16 @@ export default function SchedulerDecisions() {
                     </div>
                   </DecisionMetricCard>
 
+                  {/* Preferred Node */}
+                  {decision.preferredNode && (
+                    <DecisionMetricCard label="Preferred Node (User)">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-500 dark:text-amber-400 font-mono">
+                        <Star className="w-3.5 h-3.5 fill-amber-400" />
+                        {decision.preferredNode}
+                      </div>
+                    </DecisionMetricCard>
+                  )}
+
                   {/* Current Nodes */}
                   <DecisionMetricCard label="Current Nodes" className="col-span-1 md:col-span-2">
                     <div className="flex flex-wrap gap-1.5">
@@ -487,6 +567,19 @@ export default function SchedulerDecisions() {
                           <span className="text-sm text-[var(--text-muted)] font-mono">{node}</span>
                           <div className="h-4 w-px bg-[var(--surface-soft)]"></div>
                           <span className={`text-sm font-bold ${getScoreColor(score)}`}>{score}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleSetPreference(decision, node)}
+                            disabled={settingPreference === `${decision.namespace}/${decision.service}`}
+                            className={`ml-1 p-0.5 rounded transition-colors ${
+                              decision.preferredNode === node
+                                ? 'text-amber-400'
+                                : 'text-[var(--text-dim)] hover:text-amber-400'
+                            }`}
+                            title={decision.preferredNode === node ? `${node} is preferred` : `Set ${node} as preferred`}
+                          >
+                            <Star className={`w-3.5 h-3.5 ${decision.preferredNode === node ? 'fill-amber-400' : ''}`} />
+                          </button>
                         </div>
                       ))}
                   </div>

@@ -57,6 +57,17 @@ function getRunStatusBadgeClass(status: string): string {
   }
 }
 
+function formatOptionalTimestamp(value?: string): string {
+  if (!value) {
+    return '—'
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return parsed.toLocaleString()
+}
+
 export default function DrillDirector() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -318,10 +329,14 @@ export default function DrillDirector() {
                 <thead className={tableHeadRowClass}>
                   <tr>
                     <th className={tableHeaderCellClass}>Sequence ID</th>
+                    <th className={tableHeaderCellClass}>Scenario ID</th>
                     <th className={tableHeaderCellClass}>Drill Type</th>
                     <th className={tableHeaderCellClass}>Target Component</th>
                     <th className={tableHeaderCellClass}>Status</th>
                     <th className={tableHeaderCellClass}>Verdict</th>
+                    <th className={tableHeaderCellClass}>Validation</th>
+                    <th className={tableHeaderCellClass}>Banner Verified</th>
+                    <th className={tableHeaderCellClass}>Rollback Verified</th>
                     <th className={tableHeaderCellClass}>Engagement Date</th>
                     <th className={cn(tableHeaderCellClass, 'text-right')}>Actions</th>
                   </tr>
@@ -330,7 +345,7 @@ export default function DrillDirector() {
                   {!history || history.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={11}
                         className="bg-[var(--surface-soft)]/20 p-12 text-center italic text-[var(--text-muted)]"
                       >
                         <div className="flex flex-col items-center gap-2 opacity-50">
@@ -372,6 +387,9 @@ export default function DrillDirector() {
                           <td className={cn(tableCellClass, 'font-mono text-xs font-bold text-sky-500')}>
                             {run.id.split('-')[0].toUpperCase()}
                           </td>
+                          <td className={cn(tableCellClass, 'font-mono text-xs text-[var(--text-secondary)]')}>
+                            {run.scenarioId?.trim() ? run.scenarioId : '—'}
+                          </td>
                           <td className={cn(tableCellClass, 'font-semibold')}>{run.type}</td>
                           <td className={tableCellClass}>
                             <code className="rounded-md border border-[var(--border)] bg-[var(--surface-solid)] px-2 py-1 font-mono text-[10px] font-bold text-[var(--text-secondary)]">
@@ -405,6 +423,45 @@ export default function DrillDirector() {
                             >
                               {run.verdict}
                             </Badge>
+                          </td>
+                          <td className={tableCellClass}>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                historyChipBaseClass,
+                                run.validationStatus &&
+                                  run.validationStatus.toLowerCase() === 'match' &&
+                                  'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+                                run.validationStatus &&
+                                  run.validationStatus.toLowerCase() === 'mismatch' &&
+                                  'border-rose-400/50 bg-rose-500/10 text-rose-400',
+                                run.validationStatus &&
+                                  run.validationStatus.toLowerCase() !== 'match' &&
+                                  run.validationStatus.toLowerCase() !== 'mismatch' &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-primary)]',
+                                !run.validationStatus &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-muted)]'
+                              )}
+                            >
+                              {run.validationStatus?.trim() ? run.validationStatus : 'Not Set'}
+                            </Badge>
+                          </td>
+                          <td className={tableCellClass}>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                historyChipBaseClass,
+                                run.bannerVerified === true && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+                                run.bannerVerified === false && 'border-rose-400/50 bg-rose-500/10 text-rose-400',
+                                run.bannerVerified === undefined &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-muted)]'
+                              )}
+                            >
+                              {run.bannerVerified === undefined ? 'Unknown' : run.bannerVerified ? 'Yes' : 'No'}
+                            </Badge>
+                          </td>
+                          <td className={cn(tableCellClass, 'text-xs font-medium text-[var(--text-muted)]')}>
+                            {formatOptionalTimestamp(run.rollbackVerifiedAt)}
                           </td>
                           <td className={cn(tableCellClass, 'text-xs font-medium text-[var(--text-muted)]')}>
                             {new Date(run.startTime).toLocaleString()}

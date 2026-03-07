@@ -22,6 +22,11 @@ export interface DrillRun {
     type: string
     target: string
     status: string
+    scenarioId?: string
+    validationStatus?: string
+    rollbackVerifiedAt?: string
+    rollbackVerificationSource?: string
+    bannerVerified?: boolean
     startTime: string
     endTime?: string
     config: any

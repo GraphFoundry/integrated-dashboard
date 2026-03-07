@@ -3,7 +3,13 @@ import { Activity, Clock3, Loader2, Monitor, ServerCog } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
-import { getDrillRunSnapshot, type DrillRunSnapshot } from '@/lib/api/drills'
+import {
+  getDrillRunSnapshot,
+  type DrillFieldMismatch,
+  type DrillLayerComparisonStatus,
+  type DrillRunServiceMetricValues,
+  type DrillRunSnapshot,
+} from '@/lib/api/drills'
 
 const POLLABLE_STATUSES = new Set(['Running', 'Observing', 'AwaitingRecovery', 'Recovering'])
 
@@ -42,6 +48,119 @@ function formatTimestamp(timestamp?: string): string {
     return timestamp
   }
   return parsed.toLocaleString()
+}
+
+function formatComparableValue(value?: string | number): string {
+  if (value === undefined || value === null) return '--'
+  if (typeof value === 'number' && Number.isNaN(value)) return '--'
+  const normalized = String(value).trim()
+  if (normalized.length === 0) return '--'
+  return normalized
+}
+
+function getMismatchByMetric(
+  layerComparison: DrillLayerComparisonStatus,
+  metricName: string
+): DrillFieldMismatch | undefined {
+  return layerComparison.mismatches?.find((mismatch) => mismatch.metricName === metricName)
+}
+
+type ExpectedActualField = {
+  metricName: string
+  expectedValue: string
+  actualValue: string
+}
+
+const serviceMetricDescriptors: Array<{ key: keyof DrillRunServiceMetricValues; metricName: string }> = [
+  { key: 'rps', metricName: 'rps' },
+  { key: 'errorRate', metricName: 'errorRate' },
+  { key: 'p95', metricName: 'p95' },
+  { key: 'availability', metricName: 'availability' },
+  { key: 'podCount', metricName: 'podCount' },
+]
+
+function buildMetricComparisonRows(
+  metricPrefix: string,
+  expectedMetrics: DrillRunServiceMetricValues | undefined,
+  actualMetrics: DrillRunServiceMetricValues | undefined,
+  layerComparison: DrillLayerComparisonStatus
+): ExpectedActualField[] {
+  return serviceMetricDescriptors.map((descriptor) => {
+    const metricName = `${metricPrefix}.${descriptor.metricName}`
+    const mismatch = getMismatchByMetric(layerComparison, metricName)
+    const expectedRaw = mismatch?.expectedValue ?? expectedMetrics?.[descriptor.key]
+    const actualRaw = mismatch?.actualValue ?? actualMetrics?.[descriptor.key]
+
+    return {
+      metricName,
+      expectedValue: formatComparableValue(expectedRaw as string | number | undefined),
+      actualValue: formatComparableValue(actualRaw as string | number | undefined),
+    }
+  })
+}
+
+function buildVMComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualField[] {
+  return [
+    {
+      metricName: 'status',
+      expectedValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.vm, 'status')?.expectedValue ?? 'Completed'
+      ),
+      actualValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.vm, 'status')?.actualValue ?? snapshot.vmState.status
+      ),
+    },
+    {
+      metricName: 'verdict',
+      expectedValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.vm, 'verdict')?.expectedValue ?? 'Success'
+      ),
+      actualValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.vm, 'verdict')?.actualValue ?? snapshot.vmState.verdict
+      ),
+    },
+  ]
+}
+
+function buildAPIComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualField[] {
+  return [
+    {
+      metricName: 'timeline.errorSteps',
+      expectedValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.api, 'timeline.errorSteps')?.expectedValue ?? '0'
+      ),
+      actualValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.api, 'timeline.errorSteps')?.actualValue ?? '0'
+      ),
+    },
+    {
+      metricName: 'run.status',
+      expectedValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.api, 'run.status')?.expectedValue ?? 'Completed'
+      ),
+      actualValue: formatComparableValue(
+        getMismatchByMetric(snapshot.comparison.api, 'run.status')?.actualValue ?? snapshot.vmState.status
+      ),
+    },
+  ]
+}
+
+function buildUIMetricComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualField[] {
+  return buildMetricComparisonRows(
+    'uiMetrics',
+    snapshot.dashboardMetrics.baseline,
+    snapshot.dashboardMetrics.final,
+    snapshot.comparison.uiMetrics
+  )
+}
+
+function buildGraphComparisonRows(snapshot: DrillRunSnapshot): ExpectedActualField[] {
+  return buildMetricComparisonRows(
+    'graph.target',
+    snapshot.backendMetrics.baseline,
+    snapshot.graphSummary.target ?? snapshot.backendMetrics.final,
+    snapshot.comparison.graph
+  )
 }
 
 type ValidationPanelProps = {
@@ -107,6 +226,7 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
         status: snapshot.comparison.vm.status,
         timestamp: snapshot.vmState.sourceTimestamp ?? snapshot.snapshotTimestamp,
         icon: <ServerCog className="h-4 w-4 text-sky-500" />,
+        comparedFields: buildVMComparisonRows(snapshot),
       },
       {
         key: 'api',
@@ -114,6 +234,7 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
         status: snapshot.comparison.api.status,
         timestamp: snapshot.backendMetrics.sourceTimestamp ?? snapshot.snapshotTimestamp,
         icon: <Activity className="h-4 w-4 text-sky-500" />,
+        comparedFields: buildAPIComparisonRows(snapshot),
       },
       {
         key: 'ui',
@@ -121,6 +242,7 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
         status: snapshot.comparison.uiMetrics.status,
         timestamp: snapshot.dashboardMetrics.sourceTimestamp ?? snapshot.snapshotTimestamp,
         icon: <Monitor className="h-4 w-4 text-sky-500" />,
+        comparedFields: buildUIMetricComparisonRows(snapshot),
       },
       {
         key: 'graph',
@@ -128,6 +250,7 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
         status: snapshot.comparison.graph.status,
         timestamp: snapshot.graphSummary.sourceTimestamp ?? snapshot.snapshotTimestamp,
         icon: <ServerCog className="h-4 w-4 text-sky-500" />,
+        comparedFields: buildGraphComparisonRows(snapshot),
       },
     ]
   }, [snapshot])
@@ -215,6 +338,41 @@ export default function ValidationPanel({ runId, runStatus }: ValidationPanelPro
                     <p className="mt-1 font-mono text-[11px] font-semibold text-[var(--text-secondary)]">
                       {formatTimestamp(layer.timestamp)}
                     </p>
+                  </div>
+
+                  <div className="mt-3 rounded-lg border border-[var(--border)]/80 bg-[var(--surface-solid)]/50 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                      Expected vs Actual
+                    </p>
+                    <div className="mt-2 grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-2">
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                        Field
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                        Expected
+                      </span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                        Actual
+                      </span>
+                    </div>
+                    <div className="mt-1 space-y-1.5">
+                      {layer.comparedFields.map((field) => (
+                        <div
+                          key={`${layer.key}-${field.metricName}`}
+                          className="grid grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-2"
+                        >
+                          <span className="truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                            {field.metricName}
+                          </span>
+                          <span className="truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                            {field.expectedValue}
+                          </span>
+                          <span className="truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                            {field.actualValue}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </article>
               ))}

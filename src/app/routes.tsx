@@ -11,6 +11,7 @@ import DecisionDetail from '@/pages/history/DecisionDetail'
 import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
 import IncidentDetail from '@/pages/alerts/IncidentDetail'
 import SchedulerDecisions from '@/pages/decisions/SchedulerDecisions'
+import Config from '@/pages/config/Config'
 
 export const router = createBrowserRouter([
   {
@@ -77,6 +78,10 @@ export const router = createBrowserRouter([
       {
         path: 'decisions/scheduler',
         element: <SchedulerDecisions />,
+      },
+      {
+        path: 'config',
+        element: <Config />,
       },
     ],
   },

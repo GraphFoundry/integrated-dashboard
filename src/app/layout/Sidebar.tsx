@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X, ShieldAlert, TrendingUpDown, ChevronDown } from 'lucide-react'
+import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X, ShieldAlert, TrendingUpDown, ChevronDown, Settings2 } from 'lucide-react'
 import { cn, shellSidebarClass } from '@/components/common/uiClassTokens'
 
 const topNavItems = [
@@ -17,6 +17,7 @@ const predictiveSubItems = [
 const bottomNavItems = [
   { path: '/alerts', label: 'Alerts', icon: AlertCircle },
   { path: '/decisions/scheduler', label: 'Scheduler', icon: GitBranch },
+  { path: '/config', label: 'Config', icon: Settings2 },
 ]
 
 interface SidebarProps {
@@ -38,9 +39,9 @@ function NavItem({ path, label, icon: Icon }: { path: string; label: string; ico
           )
         }
       >
-        {({ isActive }) => (
+        {(props) => (
           <>
-            {isActive && (
+            {props.isActive && (
               <span className="absolute left-0 top-1/2 h-7 w-1 -translate-y-1/2 rounded-r-full bg-cyan-300" />
             )}
             <Icon className="h-4.5 w-4.5" />

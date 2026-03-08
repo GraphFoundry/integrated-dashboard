@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, useLocation } from 'react-router'
-import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X, ShieldAlert, TrendingUpDown, ChevronDown, type LucideIcon } from 'lucide-react'
+import { LayoutDashboard, LineChart, Sparkles, History, AlertCircle, GitBranch, X, ShieldAlert, TrendingUpDown, ChevronDown, Gauge, type LucideIcon } from 'lucide-react'
 import { cn, shellSidebarClass } from '@/components/common/uiClassTokens'
 
 const topNavItems = [
@@ -17,6 +17,7 @@ const predictiveSubItems = [
 const bottomNavItems = [
   { path: '/alerts', label: 'Alerts', icon: AlertCircle },
   { path: '/decisions/scheduler', label: 'Scheduler', icon: GitBranch },
+  { path: '/latency', label: 'Latency', icon: Gauge },
 ]
 
 interface SidebarProps {

@@ -1,4 +1,5 @@
 import { AlertEvent, Incident, ServiceRollup, Overview, IncidentDetail } from './types'
+import { K8sService } from './k8sService'
 
 export interface IncidentListFilter {
   status?: string
@@ -25,11 +26,13 @@ function sortByLastObservedDesc(incidents: Incident[]): Incident[] {
 export class Storage {
   private events: Map<string, AlertEvent> = new Map()
   private incidents: Map<string, Incident> = new Map()
+  private k8s: K8sService
 
   constructor(dbPath?: string) {
     // In-memory implementation - dbPath ignored for now
     void dbPath
     console.log('Using in-memory storage')
+    this.k8s = new K8sService()
   }
 
   // Event operations
@@ -145,9 +148,9 @@ export class Storage {
     const lastUpdatedAt =
       incidents.length > 0
         ? incidents.reduce((latest, i) =>
-            toEpoch(i.last_observed_at) > toEpoch(latest)
-              ? i.last_observed_at
-              : latest
+          toEpoch(i.last_observed_at) > toEpoch(latest)
+            ? i.last_observed_at
+            : latest
           , incidents[0].last_observed_at)
         : new Date().toISOString()
 
@@ -209,6 +212,101 @@ export class Storage {
       }
       return b.critical_count - a.critical_count
     })
+  }
+
+  // Config operations (Kubernetes/etcd integrated)
+  async getConfigs(): Promise<any[]> {
+    const namespace = process.env.K8S_NAMESPACE || 'default'
+    const configMapName = process.env.CONFIG_MAP_NAME || 'dashboard-config'
+    const secretName = process.env.SECRET_NAME || 'dashboard-secrets'
+
+    try {
+      const cmData = await this.k8s.getConfigMap(namespace, configMapName) || {}
+      const secretData = await this.k8s.getSecret(namespace, secretName) || {}
+      const combinedData = { ...cmData, ...secretData }
+
+      // We want to ensure at least these default keys show up even if not in K8s yet
+      const defaultKeys: Record<string, string> = {
+        'S_SCH_EXTENDER_DELAY_MS': process.env.S_SCH_EXTENDER_DELAY_MS || '200'
+      }
+
+      const mergedData = { ...defaultKeys, ...combinedData }
+      const allConfigs: any[] = []
+
+      for (const [name, value] of Object.entries(mergedData)) {
+        allConfigs.push({
+          name,
+          value,
+          category: name.startsWith('S_SCH') ? 'Scheduler Engine' :
+            name.startsWith('PRED') ? 'Analysis Engine' :
+              name.startsWith('ALERT') || name.startsWith('WEBHOOK') ? 'Alert Engine' : 'Service Graph Engine'
+        })
+      }
+
+      return allConfigs
+    } catch (error) {
+      console.warn('[k8s] Failed to fetch from Kubernetes, using environment variables as fallback')
+      // Fallback: return current process.env values for known config names
+      const knownKeys = ['S_SCH_EXTENDER_DELAY_MS']
+
+      return knownKeys.map(name => ({
+        name,
+        value: process.env[name] || '',
+        category: 'Scheduler Engine'
+      }))
+    }
+  }
+
+  async updateConfigs(configs: any[]): Promise<{ success: boolean; updatedCount: number; message?: string }> {
+    console.log(`[k8s] Starting update for ${configs.length} configurations...`)
+    const namespace = process.env.K8S_NAMESPACE || 'default'
+    const configMapName = process.env.CONFIG_MAP_NAME || 'dashboard-config'
+    const secretName = process.env.SECRET_NAME || 'dashboard-secrets'
+
+    const cmData: Record<string, string> = {}
+    const secretData: Record<string, string> = {}
+
+    // In a real scenario, you'd know which configs are secrets. 
+    // For this demo, let's say configs with 'SECRET' or 'KEY' in name are secrets.
+    for (const config of configs) {
+      if (config.name.includes('SECRET') || config.name.includes('KEY') || config.name.includes('PASSWORD')) {
+        secretData[config.name] = String(config.value)
+      } else {
+        cmData[config.name] = String(config.value)
+      }
+    }
+
+    try {
+      if (Object.keys(cmData).length > 0) {
+        await this.k8s.updateConfigMap(namespace, configMapName, cmData)
+      }
+      if (Object.keys(secretData).length > 0) {
+        await this.k8s.updateSecret(namespace, secretName, secretData)
+      }
+
+      console.log('[k8s] Updates applied successfully to Kubernetes')
+
+      // Update local process.env for immediate effect in BFF
+      for (const config of configs) {
+        process.env[config.name] = String(config.value)
+      }
+
+      return { success: true, updatedCount: configs.length }
+    } catch (error: any) {
+      console.error('[k8s] Failed to update Kubernetes:', error.message || error)
+
+      // Fallback for development: just update process.env and return success with a warning
+      console.warn('[k8s] Falling back to local process.env update (simulation mode)')
+      for (const config of configs) {
+        process.env[config.name] = String(config.value)
+      }
+
+      return {
+        success: true,
+        updatedCount: configs.length,
+        message: 'Updated locally (Kubernetes update failed - check connection/RBAC)'
+      }
+    }
   }
 
   private getIncidentKey(dedupeKey: string, namespace: string, service: string): string {

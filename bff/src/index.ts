@@ -55,7 +55,7 @@ app.use(
   express.json({
     limit: '10mb',
     verify: (req, _res, buf) => {
-      ;(req as RawBodyRequest).rawBody = Buffer.from(buf)
+      ; (req as RawBodyRequest).rawBody = Buffer.from(buf)
     },
   })
 )
@@ -139,7 +139,7 @@ let webhookRateWindowCount = 0
 function allowGraphWebhookRequest(): boolean {
   if (WEBHOOK_RATE_LIMIT_WINDOW_MS <= 0 || WEBHOOK_RATE_LIMIT_MAX <= 0) return true
   const now = Date.now()
-  if (now-webhookRateWindowStart >= WEBHOOK_RATE_LIMIT_WINDOW_MS) {
+  if (now - webhookRateWindowStart >= WEBHOOK_RATE_LIMIT_WINDOW_MS) {
     webhookRateWindowStart = now
     webhookRateWindowCount = 0
   }
@@ -537,6 +537,55 @@ app.get('/api/stats', (req: Request, res: Response) => {
     },
     ...overview,
   })
+})
+
+// GET /api/configs - Get current configuration values
+app.get('/api/configs', async (req: Request, res: Response) => {
+  try {
+    const configs = await storage.getConfigs()
+    res.json({ success: true, configs })
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to fetch configs:',
+      error,
+      { success: false, error: 'Internal server error' }
+    )
+  }
+})
+
+// POST /api/configs/apply - Apply configurations to etcd
+app.post('/api/configs/apply', async (req: Request, res: Response) => {
+  try {
+    const { configs } = req.body
+    if (!Array.isArray(configs)) {
+      return res.status(400).json({ success: false, error: 'Invalid payload: configs must be an array' })
+    }
+
+    // Validation
+    for (const config of configs) {
+      if (typeof config.value === 'undefined' || config.value === null) {
+        return res.status(400).json({ success: false, error: `Config ${config.name} must have a value` })
+      }
+      // Numeric validation for delay
+      if (config.name === 'S_SCH_EXTENDER_DELAY_MS') {
+        const val = Number(config.value)
+        if (isNaN(val) || val < 0) {
+          return res.status(400).json({ success: false, error: `Config ${config.name} must be a non-negative number` })
+        }
+      }
+    }
+
+    const result = await storage.updateConfigs(configs)
+    res.json(result)
+  } catch (error) {
+    respondWithInternalServerError(
+      res,
+      'Failed to apply configs:',
+      error,
+      { success: false, error: 'Internal server error' }
+    )
+  }
 })
 
 // Start server

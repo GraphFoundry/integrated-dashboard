@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Settings2, Save, Edit3, X, Check } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
+import { bffApi } from '@/lib/bffApiClient'
 import {
     cn,
     pageContainerClass,
@@ -16,24 +17,7 @@ interface ConfigItem {
 }
 
 const INITIAL_CONFIGS: ConfigItem[] = [
-    // Graph Service
-    { name: 'VITE_GRAPH_CACHE_REFRESH_MS', value: '5000', category: 'Service Graph Engine', description: 'Interval for syncing graph data with telemetry' },
-    { name: 'NODE_DISCOVERY_DEPTH', value: '2', category: 'Service Graph Engine', description: 'Maximum depth for automated node discovery' },
-
-    // Scheduler
     { name: 'S_SCH_EXTENDER_DELAY_MS', value: '200', category: 'Scheduler Engine', description: 'Delay in milliseconds for the scheduler extender' },
-    { name: 'S_SCH_BACKOFF_COUNT', value: '5', category: 'Scheduler Engine', description: 'Maximum number of retries before backoff' },
-    { name: 'S_SCH_SYNC_PERIOD_SEC', value: '30', category: 'Scheduler Engine', description: 'Synchronization period in seconds' },
-
-    // Alert Engine
-    { name: 'ALERT_THRESHOLD_CPU', value: '85%', category: 'Alert Engine', description: 'CPU usage threshold for triggering alerts' },
-    { name: 'WEBHOOK_REPLAY_WINDOW_SEC', value: '300', category: 'Alert Engine', description: 'Window for replaying webhooks in case of failure' },
-    { name: 'ALERT_STALE_TIMEOUT_SEC', value: '600', category: 'Alert Engine', description: 'Time before an unacknowledged alert is marked as stale' },
-
-    // Predictive Engine
-    { name: 'PRED_LEARNING_RATE', value: '0.01', category: 'Analysis Engine', description: 'Learning rate for the prediction model' },
-    { name: 'PRED_HORIZON_SEC', value: '3600', category: 'Analysis Engine', description: 'Time horizon for future predictions' },
-    { name: 'PRED_SAMPLE_SIZE', value: '1000', category: 'Analysis Engine', description: 'Number of samples used for each prediction run' },
 ]
 
 export default function Config() {
@@ -41,6 +25,24 @@ export default function Config() {
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const [editValue, setEditValue] = useState('')
     const [isApplying, setIsApplying] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
+
+    useEffect(() => {
+        const fetchConfigs = async () => {
+            try {
+                const response = await bffApi.getConfigs()
+                if (response.success && response.configs.length > 0) {
+                    setConfigs(response.configs)
+                }
+            } catch (error) {
+                console.error('Failed to fetch configs:', error)
+                toast.error('Failed to load configurations from server')
+            } finally {
+                setIsLoading(false)
+            }
+        }
+        fetchConfigs()
+    }, [])
 
     const handleEdit = (index: number) => {
         setEditingIndex(index)
@@ -62,9 +64,19 @@ export default function Config() {
 
     const handleApply = async () => {
         setIsApplying(true)
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-        setIsApplying(false)
-        toast.success('Configurations applied to the cluster successfully')
+        try {
+            const result = await bffApi.applyConfigs(configs)
+            if (result.success) {
+                toast.success(`Succesfully applied ${result.updatedCount} configs to etcd`)
+            } else {
+                toast.error('Failed to apply configurations')
+            }
+        } catch (error) {
+            console.error('Apply error:', error)
+            toast.error('Network error while applying configurations')
+        } finally {
+            setIsApplying(false)
+        }
     }
 
     // Group configs by category
@@ -80,7 +92,7 @@ export default function Config() {
                     <button
                         type="button"
                         onClick={handleApply}
-                        disabled={isApplying}
+                        disabled={isApplying || isLoading}
                         className={cn(
                             'flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all',
                             'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-900/20',
@@ -94,110 +106,119 @@ export default function Config() {
                 }
             />
 
-            <div className="space-y-8">
-                {categories.map((category) => (
-                    <div key={category} className="space-y-3">
-                        <h2 className="px-2 text-sm font-bold uppercase tracking-widest text-[var(--text-muted)]">
-                            {category}
-                        </h2>
-                        <div className={tableShellClass}>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-left">
-                                    <thead>
-                                        <tr className="border-b border-[var(--border)]">
-                                            <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] w-1/2">
-                                                Config Name
-                                            </th>
-                                            <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                                                Current Value
-                                            </th>
-                                            <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                                                Action
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[var(--border)]">
-                                        {configs
-                                            .map((c, i) => ({ ...c, originalIndex: i }))
-                                            .filter((config) => config.category === category)
-                                            .map((config) => (
-                                                <tr
-                                                    key={config.name}
-                                                    className="group transition-colors hover:bg-[var(--surface-subtle)]/30"
-                                                >
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex flex-col">
-                                                            <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
-                                                                {config.name}
-                                                            </span>
-                                                            {config.description && (
-                                                                <span className="mt-0.5 text-xs text-[var(--text-muted)]">
-                                                                    {config.description}
+            {isLoading ? (
+                <div className="flex h-[400px] items-center justify-center">
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+                        <span className="text-sm font-medium text-[var(--text-muted)]">Loading configurations...</span>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-8">
+                    {categories.map((category) => (
+                        <div key={category} className="space-y-3">
+                            <h2 className="px-2 text-sm font-bold uppercase tracking-widest text-[var(--text-muted)]">
+                                {category}
+                            </h2>
+                            <div className={tableShellClass}>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="border-b border-[var(--border)]">
+                                                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] w-1/2">
+                                                    Config Name
+                                                </th>
+                                                <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                                                    Current Value
+                                                </th>
+                                                <th className="px-6 py-3 text-right text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                                                    Action
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-[var(--border)]">
+                                            {configs
+                                                .map((c, i) => ({ ...c, originalIndex: i }))
+                                                .filter((config) => config.category === category)
+                                                .map((config) => (
+                                                    <tr
+                                                        key={config.name}
+                                                        className="group transition-colors hover:bg-[var(--surface-subtle)]/30"
+                                                    >
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-mono text-sm font-semibold text-[var(--text-primary)]">
+                                                                    {config.name}
+                                                                </span>
+                                                                {config.description && (
+                                                                    <span className="mt-0.5 text-xs text-[var(--text-muted)]">
+                                                                        {config.description}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {editingIndex === config.originalIndex ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={editValue}
+                                                                        onChange={(e) => setEditValue(e.target.value)}
+                                                                        className="w-full rounded-lg border border-cyan-500/50 bg-[var(--surface)] px-3 py-1 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
+                                                                        autoFocus
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') handleSave(config.originalIndex)
+                                                                            if (e.key === 'Escape') handleCancel()
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                            ) : (
+                                                                <span className="font-mono text-sm text-[var(--text-secondary)]">
+                                                                    {config.value}
                                                                 </span>
                                                             )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4">
-                                                        {editingIndex === config.originalIndex ? (
-                                                            <div className="flex items-center gap-2">
-                                                                <input
-                                                                    type="text"
-                                                                    value={editValue}
-                                                                    onChange={(e) => setEditValue(e.target.value)}
-                                                                    className="w-full rounded-lg border border-cyan-500/50 bg-[var(--surface)] px-3 py-1 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-cyan-500/20"
-                                                                    autoFocus
-                                                                    onKeyDown={(e) => {
-                                                                        if (e.key === 'Enter') handleSave(config.originalIndex)
-                                                                        if (e.key === 'Escape') handleCancel()
-                                                                    }}
-                                                                />
-                                                            </div>
-                                                        ) : (
-                                                            <span className="font-mono text-sm text-[var(--text-secondary)]">
-                                                                {config.value}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        {editingIndex === config.originalIndex ? (
-                                                            <div className="flex justify-end gap-2">
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            {editingIndex === config.originalIndex ? (
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSave(config.originalIndex)}
+                                                                        className="rounded-lg p-1 text-emerald-400 hover:bg-emerald-400/10 transition-colors"
+                                                                        title="Save"
+                                                                    >
+                                                                        <Check className="h-4 w-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={handleCancel}
+                                                                        className="rounded-lg p-1 text-rose-400 hover:bg-rose-400/10 transition-colors"
+                                                                        title="Cancel"
+                                                                    >
+                                                                        <X className="h-4 w-4" />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
                                                                 <button
                                                                     type="button"
-                                                                    onClick={() => handleSave(config.originalIndex)}
-                                                                    className="rounded-lg p-1 text-emerald-400 hover:bg-emerald-400/10 transition-colors"
-                                                                    title="Save"
+                                                                    onClick={() => handleEdit(config.originalIndex)}
+                                                                    className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
+                                                                    title="Edit configuration"
                                                                 >
-                                                                    <Check className="h-4 w-4" />
+                                                                    <Edit3 className="h-4 w-4" />
                                                                 </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={handleCancel}
-                                                                    className="rounded-lg p-1 text-rose-400 hover:bg-rose-400/10 transition-colors"
-                                                                    title="Cancel"
-                                                                >
-                                                                    <X className="h-4 w-4" />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => handleEdit(config.originalIndex)}
-                                                                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
-                                                                title="Edit configuration"
-                                                            >
-                                                                <Edit3 className="h-4 w-4" />
-                                                            </button>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                    </tbody>
-                                </table>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }

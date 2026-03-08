@@ -266,6 +266,25 @@ export const bffApi = {
     if (!response.ok) throw new Error('Failed to fetch stats')
     return response.json()
   },
+
+  // Configs
+  async getConfigs(): Promise<{ success: boolean; configs: any[] }> {
+    const response = await fetch(`${BFF_BASE_URL}/api/configs`)
+    if (!response.ok) throw new Error('Failed to fetch configurations')
+    return response.json()
+  },
+
+  async applyConfigs(configs: any[]): Promise<{ success: boolean; updatedCount: number }> {
+    const response = await fetch(`${BFF_BASE_URL}/api/configs/apply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ configs }),
+    })
+    if (!response.ok) throw new Error('Failed to apply configurations')
+    return response.json()
+  },
 }
 
 // WebSocket connection helper — returns a cleanup function (auto-reconnects)

@@ -5,15 +5,42 @@ import { validateSystemComponentsTable } from './system-components-validator'
 
 function createPoint(
   serviceId: string,
-  errorRate: unknown
+  errorRate: unknown,
+  overrides: Record<string, unknown> = {}
 ): LatestPerServiceTelemetryPoint {
   return {
     serviceKey: serviceId,
     selectionReason: 'latestOverallFallback',
     datapoint: {
       serviceId,
-      errorRate
+      errorRate,
+      ...overrides
     }
+  }
+}
+
+function createDisplayedRow(
+  serviceId: string,
+  overrides: Partial<{
+    traffic: string
+    successRate: string
+    slowEndResponseTime: string
+    uptime: string
+  }> = {}
+): {
+  serviceId: string
+  traffic: string
+  successRate: string
+  slowEndResponseTime: string
+  uptime: string
+} {
+  return {
+    serviceId,
+    traffic: 'N/A',
+    successRate: 'N/A',
+    slowEndResponseTime: 'N/A',
+    uptime: 'N/A',
+    ...overrides
   }
 }
 
@@ -110,4 +137,83 @@ test('places services with missing error-rate values after numeric error-rates',
     'core:worker'
   ])
   assert.equal(result.serviceOrdering.pass, true)
+})
+
+test('validates per-row traffic/success/latency/uptime values against formatted telemetry', () => {
+  const result = validateSystemComponentsTable({
+    latestPerServicePoints: [
+      createPoint('core:checkout', 0.02, {
+        requestRate: 12.3456,
+        p95: 123.4,
+        availability: 99.9
+      }),
+      createPoint('core:payments', 0.012, {
+        requestRate: 0.00003,
+        p95: 0.45,
+        availability: 0.999
+      })
+    ],
+    displayedTableRows: [
+      createDisplayedRow('core:checkout', {
+        traffic: '12.35',
+        successRate: '98.00%',
+        slowEndResponseTime: '123ms',
+        uptime: '99.90%'
+      }),
+      createDisplayedRow('core:payments', {
+        traffic: '<0.0001',
+        successRate: '98.80%',
+        slowEndResponseTime: '450μs',
+        uptime: '99.90%'
+      })
+    ]
+  })
+
+  assert.equal(result.rowMetricValues.pass, true)
+  assert.equal(result.rowMetricValues.expectedRowCount, 2)
+  assert.equal(result.rowMetricValues.displayedRowCount, 2)
+  assert.deepEqual(result.rowMetricValues.comparedServiceIds, [
+    'core:checkout',
+    'core:payments'
+  ])
+  assert.equal(result.rowMetricValues.rowComparisons.length, 2)
+  for (const rowComparison of result.rowMetricValues.rowComparisons) {
+    assert.equal(rowComparison.pass, true)
+    assert.equal(rowComparison.traffic.pass, true)
+    assert.equal(rowComparison.successRate.pass, true)
+    assert.equal(rowComparison.slowEndResponseTime.pass, true)
+    assert.equal(rowComparison.uptime.pass, true)
+  }
+})
+
+test('fails per-row comparison when displayed values differ from expected formatting', () => {
+  const result = validateSystemComponentsTable({
+    latestPerServicePoints: [
+      createPoint('core:checkout', 0.02, {
+        requestRate: 12.3456,
+        p95: 123.4,
+        availability: 99.9
+      })
+    ],
+    displayedTableRows: [
+      createDisplayedRow('core:checkout', {
+        traffic: '12.35',
+        successRate: '95.00%',
+        slowEndResponseTime: '123ms',
+        uptime: '99.90%'
+      })
+    ]
+  })
+
+  assert.equal(result.rowMetricValues.pass, false)
+  assert.equal(result.rowMetricValues.rowComparisons.length, 1)
+  const checkoutRow = result.rowMetricValues.rowComparisons[0]
+  assert.equal(checkoutRow.serviceId, 'core:checkout')
+  assert.equal(checkoutRow.pass, false)
+  assert.equal(checkoutRow.traffic.pass, true)
+  assert.equal(checkoutRow.successRate.pass, false)
+  assert.equal(checkoutRow.slowEndResponseTime.pass, true)
+  assert.equal(checkoutRow.uptime.pass, true)
+  assert.equal(checkoutRow.successRate.expected, '98.00%')
+  assert.equal(checkoutRow.successRate.displayed, '95.00%')
 })

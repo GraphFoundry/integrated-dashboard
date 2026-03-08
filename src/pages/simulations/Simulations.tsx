@@ -1052,35 +1052,47 @@ export default function Simulations() {
           {runResult.beforeAfterValues.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">No measurable changes detected for this scenario.</p>
           ) : (
-            <div className="space-y-2">
-              <p className="text-sm text-[var(--text-secondary)]">
-                This table shows how key metrics would change if this scenario happened. Negative change means things get faster; positive means slower.
-              </p>
-              <div className={tableShellClass}>
-                <table className="w-full">
-                  <thead className={tableHeadRowClass}>
-                    <tr>
-                      <th className={tableHeaderCellClass}>What’s Measured</th>
-                      <th className={tableHeaderCellClass}>Before</th>
-                      <th className={tableHeaderCellClass}>After</th>
-                      <th className={tableHeaderCellClass}>Change</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {runResult.beforeAfterValues.map((value) => (
-                      <tr key={value.traceRef} className={tableBodyRowClass}>
-                        <td className={tableCellClass}>{value.description || value.fieldRef}</td>
-                        <td className={tableCellClass}>{formatNumberWithUnit(value.beforeValue, value.unit)}</td>
-                        <td className={tableCellClass}>{formatNumberWithUnit(value.afterValue, value.unit)}</td>
-                        <td className={tableCellClass}>
-                          <span className={(value.deltaValue ?? 0) < 0 ? 'text-emerald-600' : (value.deltaValue ?? 0) > 0 ? 'text-rose-600' : ''}>
-                            {(value.deltaValue ?? 0) > 0 ? '+' : ''}{formatNumberWithUnit(value.deltaValue, value.unit)}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Here’s how things would look before vs. after this scenario happens.
+                </p>
+                <InfoHint text="Each card shows one measurement. Green means things improved, red means things got worse, and gray means the value is unavailable after the change." />
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {runResult.beforeAfterValues.map((value) => {
+                  const delta = value.deltaValue
+                  const isWorse = delta != null && delta > 0
+                  const isBetter = delta != null && delta < 0
+                  const borderClass = isBetter
+                    ? 'border-emerald-500/50'
+                    : isWorse
+                      ? 'border-rose-500/50'
+                      : 'border-[var(--border)]'
+                  const emoji = isBetter ? '\u2705' : isWorse ? '\u26a0\ufe0f' : '\u2139\ufe0f'
+                  return (
+                    <div key={value.traceRef} className={`rounded-xl border ${borderClass} bg-[var(--surface-solid)] p-4`}>
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <span className="text-lg">{emoji}</span>
+                        <InfoHint text={`Technical: "${value.fieldRef}". Before: ${formatNumberWithUnit(value.beforeValue, value.unit)}. After: ${formatNumberWithUnit(value.afterValue, value.unit)}. Change: ${formatNumberWithUnit(value.deltaValue, value.unit)}.`} />
+                      </div>
+                      <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{value.description || value.fieldRef}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-center">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Before</p>
+                          <p className="mt-0.5 text-sm font-bold text-[var(--text-primary)]">{formatNumberWithUnit(value.beforeValue, value.unit)}</p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-dim)]" />
+                        <div className="flex-1 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-center">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">After</p>
+                          <p className={`mt-0.5 text-sm font-bold ${isBetter ? 'text-emerald-600' : isWorse ? 'text-rose-600' : 'text-[var(--text-primary)]'}`}>
+                            {formatNumberWithUnit(value.afterValue, value.unit)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

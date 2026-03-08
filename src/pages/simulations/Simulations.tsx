@@ -333,6 +333,18 @@ function getDegradedModeReason(
   return getDefaultDegradedModeReason(degradedMode)
 }
 
+function getSparseOrEmptyHistoryContext(
+  degradedMode: SimulationDegradedMode | undefined
+): string | null {
+  if (degradedMode === 'INFLUX_EMPTY') {
+    return 'Historical data state: empty history window'
+  }
+  if (degradedMode === 'INFLUX_SPARSE') {
+    return 'Historical data state: sparse history window'
+  }
+  return null
+}
+
 function getDeferredOrUnsupportedReason(runResult: SimulationRunResponseDto): string {
   if (runResult.deferredReason?.trim()) {
     return runResult.deferredReason.trim()
@@ -745,6 +757,7 @@ export default function Simulations() {
   const renderContractResults = (runResult: SimulationRunResponseDto) => {
     const hasDegradedMode = Boolean(runResult.degradedMode)
     const degradedModeReason = getDegradedModeReason(runResult.degradedMode, runResult.degradedModeReason)
+    const sparseOrEmptyHistoryContext = getSparseOrEmptyHistoryContext(runResult.degradedMode)
 
     return (
       <div className="space-y-6">
@@ -757,6 +770,11 @@ export default function Simulations() {
                   <p className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
                     Degraded mode active: {runResult.degradedMode}
                   </p>
+                  {sparseOrEmptyHistoryContext && (
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+                      {sparseOrEmptyHistoryContext}
+                    </p>
+                  )}
                   {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
                 </div>
               </div>
@@ -971,6 +989,7 @@ export default function Simulations() {
 
   const renderDeferredOutcome = (outcome: DeferredUnsupportedOutcome) => {
     const degradedModeReason = getDegradedModeReason(outcome.degradedMode, outcome.degradedModeReason)
+    const sparseOrEmptyHistoryContext = getSparseOrEmptyHistoryContext(outcome.degradedMode)
     return (
       <div className="space-y-6">
         <Section title="Simulation Evidence Summary" icon={Activity}>
@@ -982,6 +1001,11 @@ export default function Simulations() {
                   <p className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
                     Degraded mode active: {outcome.degradedMode}
                   </p>
+                  {sparseOrEmptyHistoryContext && (
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+                      {sparseOrEmptyHistoryContext}
+                    </p>
+                  )}
                   {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
                 </div>
               </div>

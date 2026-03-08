@@ -208,7 +208,7 @@ export default function AlertsPage() {
 
   // Stable ref so the WS callback always sees the latest closure without causing reconnects
   // Declared after handleWSMessage to avoid the temporal dead zone
-  const handleWSMessageRef = useRef<(msg: WSMessage) => void>(() => {})
+  const handleWSMessageRef = useRef<(msg: WSMessage) => void>(() => { })
   handleWSMessageRef.current = handleWSMessage
 
   // Connect to WebSocket for real-time updates (auto-reconnect on disconnect)
@@ -267,7 +267,7 @@ export default function AlertsPage() {
       <div className="surface-panel relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] p-8">
         <div className="relative z-10">
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="w-8 h-8 text-cyan-300" />
+            <Shield className="w-8 h-8 text-cyan-600 dark:text-cyan-300" />
             <h1 className="text-4xl font-bold text-[var(--text-primary)]">Alerts Dashboard</h1>
           </div>
           <p className="text-lg text-[var(--text-secondary)]">
@@ -468,42 +468,38 @@ export default function AlertsPage() {
                     <td className={tableCellClass}>
                       <div className="inline-flex items-center gap-2">
                         <span
-                          className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
-                            incident.current_severity === 'critical'
-                              ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
-                              : incident.current_severity === 'high'
-                                ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
-                                : incident.current_severity === 'medium'
-                                  ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
-                                  : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
-                          }`}
+                          className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${incident.current_severity === 'critical'
+                            ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-700 dark:text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
+                            : incident.current_severity === 'high'
+                              ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-700 dark:text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
+                              : incident.current_severity === 'medium'
+                                ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-700 dark:text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
+                                : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-700 dark:text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
+                            }`}
                         >
                           <span
-                            className={`relative flex h-2 w-2 ${
-                              incident.current_severity === 'critical' ? 'animate-pulse' : ''
-                            }`}
+                            className={`relative flex h-2 w-2 ${incident.current_severity === 'critical' ? 'animate-pulse' : ''
+                              }`}
                           >
                             <span
-                              className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                                incident.current_severity === 'critical'
-                                  ? 'bg-red-400 animate-ping'
-                                  : incident.current_severity === 'high'
-                                    ? 'bg-orange-400'
-                                    : incident.current_severity === 'medium'
-                                      ? 'bg-yellow-400'
-                                      : 'bg-blue-400'
-                              }`}
+                              className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${incident.current_severity === 'critical'
+                                ? 'bg-red-400 animate-ping'
+                                : incident.current_severity === 'high'
+                                  ? 'bg-orange-400'
+                                  : incident.current_severity === 'medium'
+                                    ? 'bg-yellow-400'
+                                    : 'bg-blue-400'
+                                }`}
                             ></span>
                             <span
-                              className={`relative inline-flex rounded-full h-2 w-2 ${
-                                incident.current_severity === 'critical'
-                                  ? 'bg-red-500'
-                                  : incident.current_severity === 'high'
-                                    ? 'bg-orange-500'
-                                    : incident.current_severity === 'medium'
-                                      ? 'bg-yellow-500'
-                                      : 'bg-blue-500'
-                              }`}
+                              className={`relative inline-flex rounded-full h-2 w-2 ${incident.current_severity === 'critical'
+                                ? 'bg-red-500'
+                                : incident.current_severity === 'high'
+                                  ? 'bg-orange-500'
+                                  : incident.current_severity === 'medium'
+                                    ? 'bg-yellow-500'
+                                    : 'bg-blue-500'
+                                }`}
                             ></span>
                           </span>
                           {incident.current_severity}
@@ -537,13 +533,12 @@ export default function AlertsPage() {
                     </td>
                     <td className={tableCellClass}>
                       <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${
-                          incident.current_priority === 'P1'
-                            ? 'bg-red-500/20 text-red-400'
-                            : incident.current_priority === 'P2'
-                              ? 'bg-orange-500/20 text-orange-400'
-                              : 'bg-blue-500/20 text-blue-400'
-                        }`}
+                        className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${incident.current_priority === 'P1'
+                          ? 'bg-red-500/20 text-red-400'
+                          : incident.current_priority === 'P2'
+                            ? 'bg-orange-500/20 text-orange-400'
+                            : 'bg-blue-500/20 text-blue-400'
+                          }`}
                       >
                         {incident.current_priority}
                       </span>
@@ -577,22 +572,20 @@ export default function AlertsPage() {
             className="surface-glass flex min-w-[320px] max-w-md items-start gap-3 rounded-lg border border-[var(--border)] p-4 shadow-xl animate-slide-in"
           >
             <div
-              className={`flex-shrink-0 p-2 rounded-lg ${
-                toast.type === 'success'
-                  ? 'bg-green-500/20'
-                  : toast.type === 'warning'
-                    ? 'bg-orange-500/20'
-                    : 'bg-blue-500/20'
-              }`}
+              className={`flex-shrink-0 p-2 rounded-lg ${toast.type === 'success'
+                ? 'bg-green-500/20'
+                : toast.type === 'warning'
+                  ? 'bg-orange-500/20'
+                  : 'bg-blue-500/20'
+                }`}
             >
               <Bell
-                className={`w-5 h-5 ${
-                  toast.type === 'success'
-                    ? 'text-green-400'
-                    : toast.type === 'warning'
-                      ? 'text-orange-400'
-                      : 'text-blue-400'
-                }`}
+                className={`w-5 h-5 ${toast.type === 'success'
+                  ? 'text-green-400'
+                  : toast.type === 'warning'
+                    ? 'text-orange-400'
+                    : 'text-blue-400'
+                  }`}
               />
             </div>
             <div className="flex-1 min-w-0">

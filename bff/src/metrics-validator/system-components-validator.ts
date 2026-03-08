@@ -14,6 +14,11 @@ type DisplayedSystemComponentTableRow = {
   successRate?: string
   slowEndResponseTime?: string
   uptime?: string
+  riskBadge?: {
+    level?: string
+    label?: string
+    reason?: string
+  }
 }
 
 type SystemComponentsOrderingComparison = {
@@ -49,6 +54,25 @@ type SystemComponentRowComparison = {
   uptime: SystemComponentRowMetricComparison
 }
 
+type SystemComponentRiskLevel = 'high' | 'medium' | 'low'
+
+type SystemComponentRiskBadgeRowComparison = {
+  serviceId: string
+  expected: SystemComponentRiskLevel
+  displayed: SystemComponentRiskLevel | null
+  pass: boolean
+}
+
+type SystemComponentsRiskBadgeClassificationComparison = {
+  metric: 'riskBadgeClassification'
+  maxServicesValidated: number
+  expectedRowCount: number
+  displayedRowCount: number
+  comparedServiceIds: ReadonlyArray<string>
+  rowComparisons: ReadonlyArray<SystemComponentRiskBadgeRowComparison>
+  pass: boolean
+}
+
 type SystemComponentsRowMetricValuesComparison = {
   metric: 'rowMetricValues'
   maxServicesValidated: number
@@ -68,6 +92,7 @@ type ValidateSystemComponentsTableInput = {
 type SystemComponentsTableValidation = {
   serviceOrdering: SystemComponentsOrderingComparison
   rowMetricValues: SystemComponentsRowMetricValuesComparison
+  riskBadgeClassification: SystemComponentsRiskBadgeClassificationComparison
 }
 
 type SortedLatestPerServiceEntry = {
@@ -356,18 +381,128 @@ function compareSystemComponentsRowMetricValues(
   }
 }
 
+function isSystemComponentRiskLevel(value: string): value is SystemComponentRiskLevel {
+  return value === 'high' || value === 'medium' || value === 'low'
+}
+
+function deriveExpectedRiskLevel(
+  entry: Pick<
+    SortedLatestPerServiceEntry,
+    'normalizedErrorRate' | 'normalizedUptimePercent' | 'p95Milliseconds'
+  >
+): SystemComponentRiskLevel {
+  // Order mirrors the dashboard `calculateServiceRisk` implementation.
+  if (entry.normalizedErrorRate !== null && entry.normalizedErrorRate > 5) {
+    return 'high'
+  }
+
+  if (entry.normalizedUptimePercent !== null && entry.normalizedUptimePercent < 95) {
+    return 'high'
+  }
+
+  if (entry.p95Milliseconds !== null && entry.p95Milliseconds > 1000) {
+    return 'high'
+  }
+
+  if (entry.normalizedErrorRate !== null && entry.normalizedErrorRate > 1) {
+    return 'medium'
+  }
+
+  if (entry.normalizedUptimePercent !== null && entry.normalizedUptimePercent < 99) {
+    return 'medium'
+  }
+
+  if (entry.p95Milliseconds !== null && entry.p95Milliseconds > 500) {
+    return 'medium'
+  }
+
+  return 'low'
+}
+
+function deriveDisplayedRiskLevel(
+  displayedRow: DisplayedSystemComponentTableRow | undefined
+): SystemComponentRiskLevel | null {
+  const riskBadge = displayedRow?.riskBadge
+  const levelCandidate =
+    typeof riskBadge?.level === 'string' ? riskBadge.level.trim().toLowerCase() : ''
+  if (isSystemComponentRiskLevel(levelCandidate)) {
+    return levelCandidate
+  }
+
+  const labelCandidate =
+    typeof riskBadge?.label === 'string' ? riskBadge.label.trim().toLowerCase() : ''
+  if (labelCandidate.startsWith('high')) {
+    return 'high'
+  }
+
+  if (labelCandidate.startsWith('medium')) {
+    return 'medium'
+  }
+
+  if (labelCandidate.startsWith('low')) {
+    return 'low'
+  }
+
+  return null
+}
+
+function compareSystemComponentsRiskBadgeClassification(
+  input: ValidateSystemComponentsTableInput
+): SystemComponentsRiskBadgeClassificationComparison {
+  const maxServicesValidated = normalizeMaxServicesValidated(input.maxServicesValidated)
+  const sortedEntries = deriveSortedLatestPerServiceEntries({
+    latestPerServicePoints: input.latestPerServicePoints,
+    maxServicesValidated
+  })
+  const displayedRowsByServiceId = new Map<string, DisplayedSystemComponentTableRow>()
+
+  for (const row of input.displayedTableRows) {
+    const serviceId = row.serviceId.trim()
+    if (!displayedRowsByServiceId.has(serviceId)) {
+      displayedRowsByServiceId.set(serviceId, row)
+    }
+  }
+
+  const rowComparisons = sortedEntries.map((entry) => {
+    const expected = deriveExpectedRiskLevel(entry)
+    const displayed = deriveDisplayedRiskLevel(displayedRowsByServiceId.get(entry.serviceId))
+
+    return {
+      serviceId: entry.serviceId,
+      expected,
+      displayed,
+      pass: expected === displayed
+    }
+  })
+
+  const hasMatchingRowCount = sortedEntries.length === input.displayedTableRows.length
+  const pass = hasMatchingRowCount && rowComparisons.every((comparison) => comparison.pass)
+
+  return {
+    metric: 'riskBadgeClassification',
+    maxServicesValidated,
+    expectedRowCount: sortedEntries.length,
+    displayedRowCount: input.displayedTableRows.length,
+    comparedServiceIds: sortedEntries.map((entry) => entry.serviceId),
+    rowComparisons,
+    pass
+  }
+}
+
 function validateSystemComponentsTable(
   input: ValidateSystemComponentsTableInput
 ): SystemComponentsTableValidation {
   return {
     serviceOrdering: compareSystemComponentsServiceOrdering(input),
-    rowMetricValues: compareSystemComponentsRowMetricValues(input)
+    rowMetricValues: compareSystemComponentsRowMetricValues(input),
+    riskBadgeClassification: compareSystemComponentsRiskBadgeClassification(input)
   }
 }
 
 export {
   compareSystemComponentsServiceOrdering,
   compareSystemComponentsRowMetricValues,
+  compareSystemComponentsRiskBadgeClassification,
   validateSystemComponentsTable,
   type DisplayedSystemComponentTableRow,
   type ValidateSystemComponentsTableInput,
@@ -375,5 +510,7 @@ export {
   type SystemComponentRowMetricComparison,
   type SystemComponentRowComparison,
   type SystemComponentsRowMetricValuesComparison,
+  type SystemComponentRiskBadgeRowComparison,
+  type SystemComponentsRiskBadgeClassificationComparison,
   type SystemComponentsTableValidation
 }

@@ -26,6 +26,11 @@ function createDisplayedRow(
     successRate: string
     slowEndResponseTime: string
     uptime: string
+    riskBadge: {
+      level: string
+      label: string
+      reason: string
+    }
   }> = {}
 ): {
   serviceId: string
@@ -33,6 +38,11 @@ function createDisplayedRow(
   successRate: string
   slowEndResponseTime: string
   uptime: string
+  riskBadge: {
+    level: string
+    label: string
+    reason: string
+  }
 } {
   return {
     serviceId,
@@ -40,6 +50,11 @@ function createDisplayedRow(
     successRate: 'N/A',
     slowEndResponseTime: 'N/A',
     uptime: 'N/A',
+    riskBadge: {
+      level: 'low',
+      label: 'Low Risk',
+      reason: 'Stable'
+    },
     ...overrides
   }
 }
@@ -216,4 +231,99 @@ test('fails per-row comparison when displayed values differ from expected format
   assert.equal(checkoutRow.uptime.pass, true)
   assert.equal(checkoutRow.successRate.expected, '98.00%')
   assert.equal(checkoutRow.successRate.displayed, '95.00%')
+})
+
+test('validates risk badge classification using ordered high/medium/low rules', () => {
+  const result = validateSystemComponentsTable({
+    latestPerServicePoints: [
+      createPoint('svc:high-error', 0.08, {
+        availability: 99.9,
+        p95: 400
+      }),
+      createPoint('svc:high-availability', 0.005, {
+        availability: 94.9,
+        p95: 400
+      }),
+      createPoint('svc:high-latency', 0.005, {
+        availability: 99.9,
+        p95: 1500
+      }),
+      createPoint('svc:medium-error', 0.02, {
+        availability: 99.9,
+        p95: 400
+      }),
+      createPoint('svc:medium-availability', 0.005, {
+        availability: 98.5,
+        p95: 400
+      }),
+      createPoint('svc:medium-latency', 0.005, {
+        availability: 99.9,
+        p95: 700
+      }),
+      createPoint('svc:low-stable', 0.005, {
+        availability: 99.9,
+        p95: 120
+      })
+    ],
+    displayedTableRows: [
+      createDisplayedRow('svc:high-error', {
+        riskBadge: { level: 'high', label: 'High Risk', reason: 'High error rate' }
+      }),
+      createDisplayedRow('svc:high-availability', {
+        riskBadge: { level: 'high', label: 'High Risk', reason: 'Low availability' }
+      }),
+      createDisplayedRow('svc:high-latency', {
+        riskBadge: { level: 'high', label: 'High Risk', reason: 'P95 latency spike' }
+      }),
+      createDisplayedRow('svc:medium-error', {
+        riskBadge: { level: 'medium', label: 'Medium Risk', reason: 'Elevated error rate' }
+      }),
+      createDisplayedRow('svc:medium-availability', {
+        riskBadge: {
+          level: 'medium',
+          label: 'Medium Risk',
+          reason: 'Availability degraded'
+        }
+      }),
+      createDisplayedRow('svc:medium-latency', {
+        riskBadge: { level: 'medium', label: 'Medium Risk', reason: 'Elevated latency' }
+      }),
+      createDisplayedRow('svc:low-stable', {
+        riskBadge: { level: 'low', label: 'Low Risk', reason: 'Stable' }
+      })
+    ]
+  })
+
+  assert.equal(result.riskBadgeClassification.pass, true)
+  assert.equal(result.riskBadgeClassification.expectedRowCount, 7)
+  assert.equal(result.riskBadgeClassification.displayedRowCount, 7)
+  assert.equal(result.riskBadgeClassification.rowComparisons.length, 7)
+  for (const rowComparison of result.riskBadgeClassification.rowComparisons) {
+    assert.equal(rowComparison.pass, true)
+    assert.equal(rowComparison.expected, rowComparison.displayed)
+  }
+})
+
+test('fails risk badge classification when displayed risk level does not match', () => {
+  const result = validateSystemComponentsTable({
+    latestPerServicePoints: [
+      createPoint('svc:checkout', 0.05, {
+        availability: 99.9,
+        p95: 400
+      })
+    ],
+    displayedTableRows: [
+      createDisplayedRow('svc:checkout', {
+        riskBadge: { level: 'low', label: 'Low Risk', reason: 'Stable' }
+      })
+    ]
+  })
+
+  assert.equal(result.riskBadgeClassification.pass, false)
+  assert.equal(result.riskBadgeClassification.rowComparisons.length, 1)
+  const row = result.riskBadgeClassification.rowComparisons[0]
+  assert.equal(row.serviceId, 'svc:checkout')
+  assert.equal(row.expected, 'medium')
+  assert.equal(row.displayed, 'low')
+  assert.equal(row.pass, false)
 })

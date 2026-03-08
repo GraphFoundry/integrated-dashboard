@@ -147,10 +147,10 @@ export default function SchedulerDecisions() {
 
       // Map service name → pod names (only Running pods)
       const svcMap: Record<string, string[]> = {}
-      for (const [svc, pods] of Object.entries(podsByService)) {
+      for (const [svc, pods] of Object.entries(podsByService) as [string, Array<{ name: string; namespace: string; node: string; phase: string; ready: boolean }>][]) {
         const activePods = pods
-          .filter(p => p.phase === 'Running')
-          .map(p => p.name)
+          .filter((p: { phase: string }) => p.phase === 'Running')
+          .map((p: { name: string }) => p.name)
         if (activePods.length > 0) {
           svcMap[svc] = activePods
         }

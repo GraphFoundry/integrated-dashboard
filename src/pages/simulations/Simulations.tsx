@@ -858,8 +858,8 @@ export default function Simulations() {
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
               Target health:{' '}
               {formatPercent(
-                ((contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)?.availability ??
-                  1) as number) * 100
+                (contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)
+                  ?.availability ?? 1) * 100
               )}
             </span>
             {hottestEdge && (

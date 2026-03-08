@@ -17,12 +17,12 @@ import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
 
 // Fallback examples used when live discovery is unavailable.
 const EXAMPLE_SERVICES = [
-  'default:productcatalog',
-  'default:checkoutservice',
-  'default:frontend',
-  'default:cartservice',
-  'default:recommendationservice',
-  'default:paymentservice',
+  'onlineboutique:frontend',
+  'onlineboutique:checkoutservice',
+  'onlineboutique:cartservice',
+  'onlineboutique:recommendationservice',
+  'onlineboutique:paymentservice',
+  'onlineboutique:productcatalogservice',
 ]
 
 // Validate serviceId format: must be "namespace:name"

@@ -43,11 +43,17 @@ interface SimulationRunOptions extends RequestOptions {
 const SERVICE_CACHE_KEY = 'predictive_services_cache_v1'
 
 const SEEDED_SERVICES: DiscoveredService[] = [
-  { serviceId: 'default:frontend', name: 'frontend', namespace: 'default', podCount: 3, availability: 0.99 },
-  { serviceId: 'default:checkoutservice', name: 'checkoutservice', namespace: 'default', podCount: 2, availability: 0.99 },
-  { serviceId: 'default:paymentservice', name: 'paymentservice', namespace: 'default', podCount: 2, availability: 0.98 },
-  { serviceId: 'default:recommendationservice', name: 'recommendationservice', namespace: 'default', podCount: 2, availability: 0.99 },
-  { serviceId: 'default:cartservice', name: 'cartservice', namespace: 'default', podCount: 2, availability: 0.99 },
+  { serviceId: 'onlineboutique:frontend', name: 'frontend', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:checkoutservice', name: 'checkoutservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:paymentservice', name: 'paymentservice', namespace: 'onlineboutique', podCount: 1, availability: 0.98 },
+  { serviceId: 'onlineboutique:recommendationservice', name: 'recommendationservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:cartservice', name: 'cartservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:productcatalogservice', name: 'productcatalogservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:currencyservice', name: 'currencyservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:shippingservice', name: 'shippingservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:adservice', name: 'adservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:emailservice', name: 'emailservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
+  { serviceId: 'onlineboutique:redis-cart', name: 'redis-cart', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
 ]
 
 function normalizeServiceRecord(service: DiscoveredService): DiscoveredService {
@@ -156,9 +162,9 @@ export function getResilientServices(
 ): DiscoveredService[] {
   const includeSeeded = options.includeSeeded ?? true
   return dedupeServices([
-    ...primary,
-    ...getCachedServices(),
     ...(includeSeeded ? getSeededServices() : []),
+    ...getCachedServices(),
+    ...primary,
   ])
 }
 

@@ -20,25 +20,55 @@ import ScenarioForm from '@/pages/simulations/ScenarioForm'
 import ClusterTopologyMap from '@/pages/overview/ClusterTopologyMap'
 import {
   getCurrentPredictiveAction,
-  getSimulationCapabilities,
   getSimulationContext,
-  simulateFailure,
-  simulateScale,
-  simulateServiceAddition,
+  runSimulation,
 } from '@/lib/api'
 import { formatMs, formatPercent, formatRps } from '@/lib/format'
+import { ApiError } from '@/lib/httpClient'
 import type {
   FailureResponse,
   ScaleResponse,
   Scenario,
-  ScenarioType,
   ServiceAdditionResponse,
-  SimulationCapabilitiesResponse,
   SimulationContextResponse,
   PredictiveCurrentActionResponse,
 } from '@/lib/types'
+import {
+  SIMULATION_SCHEMA_VERSION,
+  type SimulationDegradedMode,
+  type SimulationErrorResponseDto,
+  type SimulationRunRequestDto,
+  type SimulationRunResponseDto,
+} from '@/lib/simulationContract'
 
 type SimulationResult = FailureResponse | ScaleResponse | ServiceAdditionResponse
+type LockedScenario = Exclude<Scenario, { type: 'add-service' }>
+type LockedScenarioType = LockedScenario['type']
+type DeferredUnsupportedStatus = 'DEFERRED' | 'UNSUPPORTED'
+type ResolvedDegradedMode = Exclude<SimulationDegradedMode, ''>
+
+type DeferredUnsupportedOutcome = {
+  resultStatus: DeferredUnsupportedStatus
+  reason: string
+  degradedMode?: ResolvedDegradedMode
+  degradedModeReason?: string
+}
+
+function isDeferredUnsupportedStatus(status: string): status is DeferredUnsupportedStatus {
+  return status === 'DEFERRED' || status === 'UNSUPPORTED'
+}
+
+const LOCKED_SCENARIO_TYPES: LockedScenarioType[] = [
+  'failure',
+  'scale',
+  'traffic-spike',
+  'chatty-colocation',
+  'network-cut',
+]
+
+function isLockedScenarioType(value: string): value is LockedScenarioType {
+  return LOCKED_SCENARIO_TYPES.includes(value as LockedScenarioType)
+}
 
 function statusBadge(status?: string) {
   const styles: Record<string, string> = {
@@ -192,17 +222,185 @@ function deriveTimeToImpact(
   return 'Stable'
 }
 
+function buildSimulationRunRequest(scenario: LockedScenario): SimulationRunRequestDto {
+  const snapshotTimestamp = new Date().toISOString()
+  switch (scenario.type) {
+    case 'failure':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'failure_shutdown',
+        snapshotTimestamp,
+        failureShutdownParams: {
+          targetServiceId: scenario.serviceId,
+          maxDepth: scenario.maxDepth,
+        },
+      }
+    case 'scale':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'scaling',
+        snapshotTimestamp,
+        scalingParams: {
+          targetServiceId: scenario.serviceId,
+          currentPods: scenario.currentPods,
+          newPods: scenario.newPods,
+          latencyMetric: scenario.latencyMetric,
+        },
+      }
+    case 'traffic-spike':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'traffic_spike',
+        snapshotTimestamp,
+        trafficSpikeParams: {
+          targetServiceId: scenario.serviceId,
+          loadMultiplier: scenario.loadMultiplier,
+        },
+      }
+    case 'chatty-colocation':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'chatty_colocation',
+        snapshotTimestamp,
+        chattyColocationParams: {
+          sourceServiceId: scenario.sourceServiceId,
+          targetServiceId: scenario.targetServiceId,
+        },
+      }
+    case 'network-cut':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'network_cut',
+        snapshotTimestamp,
+        networkCutParams: {
+          affectedLinks: [
+            {
+              sourceServiceId: scenario.sourceServiceId,
+              targetServiceId: scenario.targetServiceId,
+            },
+          ],
+          degradationPercent: scenario.degradationPercent,
+        },
+      }
+  }
+}
+
+function parseSimulationRunError(error: unknown): SimulationErrorResponseDto | null {
+  if (error instanceof ApiError && error.payload && typeof error.payload === 'object') {
+    return error.payload as SimulationErrorResponseDto
+  }
+  return null
+}
+
+function formatOptionalNumber(value?: number): string {
+  if (value === undefined) {
+    return 'n/a'
+  }
+  if (!Number.isFinite(value)) {
+    return 'n/a'
+  }
+  return Number.isInteger(value) ? value.toString() : value.toFixed(2)
+}
+
+function formatNumberWithUnit(value: number | undefined, unit: string | undefined): string {
+  const formatted = formatOptionalNumber(value)
+  if (formatted === 'n/a' || !unit) {
+    return formatted
+  }
+  return `${formatted} ${unit}`
+}
+
+function getDefaultDegradedModeReason(degradedMode: ResolvedDegradedMode): string {
+  if (degradedMode === 'INFLUX_EMPTY') {
+    return 'Historical InfluxDB data is unavailable for this snapshot; deterministic fallback evidence is being used.'
+  }
+  if (degradedMode === 'INFLUX_SPARSE') {
+    return 'Historical InfluxDB data is too sparse for high-confidence estimates; deterministic fallback evidence is being used.'
+  }
+  return 'InfluxDB history could not be queried; deterministic fallback evidence is being used.'
+}
+
+function getDegradedModeReason(
+  degradedMode: SimulationDegradedMode | undefined,
+  degradedModeReason?: string
+): string | null {
+  if (!degradedMode) {
+    return null
+  }
+  if (degradedModeReason?.trim()) {
+    return degradedModeReason.trim()
+  }
+  return getDefaultDegradedModeReason(degradedMode)
+}
+
+function getDeferredOrUnsupportedReason(runResult: SimulationRunResponseDto): string {
+  if (runResult.deferredReason?.trim()) {
+    return runResult.deferredReason.trim()
+  }
+  return 'No deferred/unsupported reason was provided by the backend.'
+}
+
+function getDeferredOrUnsupportedErrorReason(errorPayload: SimulationErrorResponseDto): string {
+  if (typeof errorPayload.deferredReason === 'string' && errorPayload.deferredReason.trim()) {
+    return errorPayload.deferredReason.trim()
+  }
+  if (typeof errorPayload.reason === 'string' && errorPayload.reason.trim()) {
+    return errorPayload.reason.trim()
+  }
+  if (typeof errorPayload.error === 'string' && errorPayload.error.trim()) {
+    return errorPayload.error.trim()
+  }
+  const validationMessage = errorPayload.errors?.[0]?.message
+  if (typeof validationMessage === 'string' && validationMessage.trim()) {
+    return validationMessage.trim()
+  }
+  return 'No deferred/unsupported reason was provided by the backend.'
+}
+
+function getSimulationErrorDegradedMode(errorPayload: SimulationErrorResponseDto): ResolvedDegradedMode | undefined {
+  const degradedMode = errorPayload['degradedMode']
+  if (degradedMode === 'INFLUX_EMPTY' || degradedMode === 'INFLUX_SPARSE' || degradedMode === 'INFLUX_ERROR') {
+    return degradedMode
+  }
+  return undefined
+}
+
+function getSimulationErrorDegradedReason(errorPayload: SimulationErrorResponseDto): string | undefined {
+  const degradedModeReason = errorPayload['degradedModeReason']
+  if (typeof degradedModeReason === 'string' && degradedModeReason.trim()) {
+    return degradedModeReason.trim()
+  }
+  return undefined
+}
+
+function toDeferredOutcomeFromRunResult(
+  runResult: SimulationRunResponseDto,
+  resultStatus: DeferredUnsupportedStatus
+): DeferredUnsupportedOutcome {
+  return {
+    resultStatus,
+    reason: getDeferredOrUnsupportedReason(runResult),
+    degradedMode:
+      runResult.degradedMode === 'INFLUX_EMPTY' ||
+      runResult.degradedMode === 'INFLUX_SPARSE' ||
+      runResult.degradedMode === 'INFLUX_ERROR'
+        ? runResult.degradedMode
+        : undefined,
+    degradedModeReason:
+      typeof runResult.degradedModeReason === 'string' && runResult.degradedModeReason.trim()
+        ? runResult.degradedModeReason.trim()
+        : undefined,
+  }
+}
+
 export default function Simulations() {
   const [searchParams] = useSearchParams()
-  const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
+  const [scenarioType, setScenarioType] = useState<LockedScenarioType>('failure')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SimulationResult | null>(null)
-  const [lastScenario, setLastScenario] = useState<Scenario | null>(null)
-
-  const [capabilities, setCapabilities] = useState<SimulationCapabilitiesResponse>({
-    enabled: ['failure', 'scale'],
-    experimental: [],
-  })
+  const [contractResult, setContractResult] = useState<SimulationRunResponseDto | null>(null)
+  const [deferredOutcome, setDeferredOutcome] = useState<DeferredUnsupportedOutcome | null>(null)
+  const [lastScenario, setLastScenario] = useState<LockedScenario | null>(null)
 
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [selectedDepth, setSelectedDepth] = useState(1)
@@ -211,28 +409,16 @@ export default function Simulations() {
   const [contextLoading, setContextLoading] = useState(false)
   const [contextError, setContextError] = useState<string | null>(null)
 
-  const prefillType = searchParams.get('type') as ScenarioType | null
+  const prefillType = searchParams.get('type')
 
   useEffect(() => {
-    if (prefillType && (prefillType === 'failure' || prefillType === 'scale')) {
+    if (prefillType && isLockedScenarioType(prefillType)) {
       setScenarioType(prefillType)
     }
   }, [prefillType])
 
   useEffect(() => {
-    const fetchBootstrap = async () => {
-      try {
-        const caps = await getSimulationCapabilities()
-        setCapabilities(caps)
-      } catch (error) {
-        console.error('Failed to load simulation bootstrap data', error)
-      }
-    }
-    fetchBootstrap()
-  }, [])
-
-  useEffect(() => {
-    if (!selectedServiceId || scenarioType === 'add-service') {
+    if (!selectedServiceId) {
       setContextData(null)
       setContextPrediction(null)
       setContextError(null)
@@ -296,51 +482,39 @@ export default function Simulations() {
     }
   }, [scenarioType, selectedDepth, selectedServiceId])
 
-  const runOptions = { mode: 'live' as const }
-
-  const handleRun = async (scenario: Scenario) => {
+  const handleRun = async (scenario: LockedScenario) => {
     setLoading(true)
     setResult(null)
+    setContractResult(null)
+    setDeferredOutcome(null)
     setLastScenario(scenario)
 
     try {
-      let response: SimulationResult
-      if (scenario.type === 'failure') {
-        response = await simulateFailure(
-          {
-            serviceId: scenario.serviceId,
-            maxDepth: scenario.maxDepth,
-            timeWindow: scenario.timeWindow,
-          },
-          runOptions
-        )
-      } else if (scenario.type === 'scale') {
-        response = await simulateScale(
-          {
-            serviceId: scenario.serviceId,
-            currentPods: scenario.currentPods,
-            newPods: scenario.newPods,
-            latencyMetric: scenario.latencyMetric,
-            maxDepth: scenario.maxDepth,
-            topPaths: scenario.topPaths,
-            timeWindow: scenario.timeWindow,
-          },
-          runOptions
-        )
+      const request = buildSimulationRunRequest(scenario)
+      const response = await runSimulation(request)
+      if (isDeferredUnsupportedStatus(response.resultStatus)) {
+        setDeferredOutcome(toDeferredOutcomeFromRunResult(response, response.resultStatus))
       } else {
-        response = await simulateServiceAddition({
-          serviceName: scenario.serviceName,
-          minCpuCores: scenario.minCpuCores,
-          minRamMB: scenario.minRamMB,
-          replicas: scenario.replicas,
-          dependencies: scenario.dependencies,
-          maxDepth: scenario.maxDepth,
-          timeWindow: scenario.timeWindow,
+        setContractResult(response)
+      }
+    } catch (error) {
+      const contractError = parseSimulationRunError(error)
+      if (contractError?.resultStatus && isDeferredUnsupportedStatus(contractError.resultStatus)) {
+        setDeferredOutcome({
+          resultStatus: contractError.resultStatus,
+          reason: getDeferredOrUnsupportedErrorReason(contractError),
+          degradedMode: getSimulationErrorDegradedMode(contractError),
+          degradedModeReason: getSimulationErrorDegradedReason(contractError),
         })
       }
-      setResult(response)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to run simulation')
+      const validationMessage = contractError?.errors?.[0]?.message
+      const message =
+        validationMessage ??
+        contractError?.deferredReason ??
+        contractError?.reason ??
+        contractError?.error ??
+        (error instanceof Error ? error.message : 'Failed to run simulation')
+      toast.error(message)
     } finally {
       setLoading(false)
     }
@@ -377,15 +551,6 @@ export default function Simulations() {
   }
 
   const renderContextPreview = () => {
-    if (scenarioType === 'add-service') {
-      return (
-        <EmptyState
-          icon={<Network className="h-10 w-10 text-[var(--text-dim)]" />}
-          message="Context preview is available for failure and scaling simulations"
-        />
-      )
-    }
-
     if (!selectedServiceId) {
       return (
         <EmptyState
@@ -573,6 +738,268 @@ export default function Simulations() {
             Context is condensed from a larger graph to keep the panel fast and readable.
           </p>
         )}
+      </div>
+    )
+  }
+
+  const renderContractResults = (runResult: SimulationRunResponseDto) => {
+    const hasDegradedMode = Boolean(runResult.degradedMode)
+    const degradedModeReason = getDegradedModeReason(runResult.degradedMode, runResult.degradedModeReason)
+
+    return (
+      <div className="space-y-6">
+        <Section title="Simulation Evidence Summary" icon={Activity}>
+          {hasDegradedMode && (
+            <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
+                    Degraded mode active: {runResult.degradedMode}
+                  </p>
+                  {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Snapshot
+              </h3>
+              <div className="space-y-2 text-sm text-[var(--text-primary)]">
+                <p className="break-all">
+                  Timestamp: <span className="font-mono">{runResult.snapshotTimestamp}</span>
+                </p>
+                <p className="break-all">
+                  Hash: <span className="font-mono">{runResult.snapshotHash ?? 'n/a'}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Result State
+              </h3>
+              <div className="space-y-2 text-sm text-[var(--text-primary)]">
+                <p>
+                  Scenario type: <span className="font-mono">{runResult.scenarioType}</span>
+                </p>
+                <p>
+                  Result status: <span className="font-mono">{runResult.resultStatus}</span>
+                </p>
+                <p>
+                  Evidence mode: <span className="font-mono">{runResult.evidenceMode}</span>
+                </p>
+                <p>
+                  Confidence: <span className="font-mono">{runResult.confidenceLevel}</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Evidence Sources
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {runResult.evidenceSources.map((source) => (
+                <span
+                  key={source}
+                  className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-medium text-[var(--text-primary)]"
+                >
+                  {source}
+                </span>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        <Section title="Assumptions" icon={ShieldCheck}>
+          {runResult.assumptions.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No assumptions returned.</p>
+          ) : (
+            <div className={tableShellClass}>
+              <table className="w-full">
+                <thead className={tableHeadRowClass}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Key</th>
+                    <th className={tableHeaderCellClass}>Type</th>
+                    <th className={tableHeaderCellClass}>Value</th>
+                    <th className={tableHeaderCellClass}>Source</th>
+                    <th className={tableHeaderCellClass}>Trace</th>
+                    <th className={tableHeaderCellClass}>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runResult.assumptions.map((assumption) => (
+                    <tr key={assumption.traceRef} className={tableBodyRowClass}>
+                      <td className={tableCellClass}>{assumption.key}</td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{assumption.type}</span>
+                      </td>
+                      <td className={tableCellClass}>{assumption.value}</td>
+                      <td className={tableCellClass}>{assumption.source}</td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{assumption.traceRef}</span>
+                      </td>
+                      <td className={tableCellClass}>{assumption.description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Impacted Services" icon={Network}>
+          {runResult.impactedServices.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No impacted services returned.</p>
+          ) : (
+            <div className={tableShellClass}>
+              <table className="w-full">
+                <thead className={tableHeadRowClass}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Service ID</th>
+                    <th className={tableHeaderCellClass}>Name</th>
+                    <th className={tableHeaderCellClass}>Namespace</th>
+                    <th className={tableHeaderCellClass}>Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runResult.impactedServices.map((service) => (
+                    <tr key={`${service.serviceId}:${service.role}`} className={tableBodyRowClass}>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{service.serviceId}</span>
+                      </td>
+                      <td className={tableCellClass}>{service.name}</td>
+                      <td className={tableCellClass}>{service.namespace}</td>
+                      <td className={tableCellClass}>{service.role}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Impacted Paths" icon={Network}>
+          {runResult.impactedPaths.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No impacted paths returned.</p>
+          ) : (
+            <div className={tableShellClass}>
+              <table className="w-full">
+                <thead className={tableHeadRowClass}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Path</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runResult.impactedPaths.map((path, index) => (
+                    <tr key={`${path.path.join('->')}-${index}`} className={tableBodyRowClass}>
+                      <td className={tableCellClass}>{path.path.join(' -> ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Before/After Values" icon={TrendingUp}>
+          {runResult.beforeAfterValues.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No before/after values returned.</p>
+          ) : (
+            <div className={tableShellClass}>
+              <table className="w-full">
+                <thead className={tableHeadRowClass}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Field</th>
+                    <th className={tableHeaderCellClass}>Before</th>
+                    <th className={tableHeaderCellClass}>After</th>
+                    <th className={tableHeaderCellClass}>Delta</th>
+                    <th className={tableHeaderCellClass}>Trace</th>
+                    <th className={tableHeaderCellClass}>Description</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runResult.beforeAfterValues.map((value) => (
+                    <tr key={value.traceRef} className={tableBodyRowClass}>
+                      <td className={tableCellClass}>{value.fieldRef}</td>
+                      <td className={tableCellClass}>{formatNumberWithUnit(value.beforeValue, value.unit)}</td>
+                      <td className={tableCellClass}>{formatNumberWithUnit(value.afterValue, value.unit)}</td>
+                      <td className={tableCellClass}>{formatNumberWithUnit(value.deltaValue, value.unit)}</td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{value.traceRef}</span>
+                      </td>
+                      <td className={tableCellClass}>{value.description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Recommendation" icon={Sparkles}>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Action: <span className="font-mono text-[var(--text-primary)]">{runResult.recommendation.action || 'n/a'}</span>
+            </p>
+            <p className="mt-2 text-sm text-[var(--text-primary)]">{runResult.recommendation.explanation}</p>
+            <div className="mt-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Recommendation Evidence References
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {runResult.recommendation.evidenceSourceRefs.map((reference) => (
+                  <span
+                    key={reference}
+                    className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-mono text-[var(--text-primary)]"
+                  >
+                    {reference}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Section>
+      </div>
+    )
+  }
+
+  const renderDeferredOutcome = (outcome: DeferredUnsupportedOutcome) => {
+    const degradedModeReason = getDegradedModeReason(outcome.degradedMode, outcome.degradedModeReason)
+    return (
+      <div className="space-y-6">
+        <Section title="Simulation Evidence Summary" icon={Activity}>
+          {outcome.degradedMode && (
+            <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
+                    Degraded mode active: {outcome.degradedMode}
+                  </p>
+                  {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-rose-500/50 bg-rose-500/12 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Backend Outcome</p>
+            <p className="mt-2 text-sm font-semibold text-[var(--text-primary)]">{outcome.resultStatus} result</p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{outcome.reason}</p>
+          </div>
+        </Section>
+
+        <Section title="Simulation Output" icon={TrendingUp}>
+          <p className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-4 text-sm text-[var(--text-secondary)]">
+            No simulated impact cards are shown for deferred or unsupported outcomes.
+          </p>
+        </Section>
       </div>
     )
   }
@@ -877,10 +1304,11 @@ export default function Simulations() {
               onRun={handleRun}
               loading={loading}
               scenarioType={scenarioType}
-              allowExperimentalAdd={capabilities.experimental.includes('add-service')}
               onScenarioTypeChange={(type) => {
                 setScenarioType(type)
                 setResult(null)
+                setContractResult(null)
+                setDeferredOutcome(null)
                 setLastScenario(null)
               }}
               onServiceSelectionChange={setSelectedServiceId}
@@ -908,6 +1336,9 @@ export default function Simulations() {
           </div>
         )}
 
+        {contractResult && !loading && renderContractResults(contractResult)}
+        {deferredOutcome && !contractResult && !loading && renderDeferredOutcome(deferredOutcome)}
+
         {result && !loading && (
           <>
             {isServiceAdditionResult(result)
@@ -918,14 +1349,14 @@ export default function Simulations() {
           </>
         )}
 
-        {!result && !loading && (
+        {!contractResult && !deferredOutcome && !result && !loading && (
           <EmptyState
             icon={<Sparkles className="h-12 w-12 text-[var(--text-dim)]" />}
             message="Configure a scenario and click Run to generate simulation evidence"
             description={
               lastScenario
                 ? 'Previous run cleared. Adjust your scenario and run again.'
-                : 'Start with failure or scaling to preview blast radius and latency deltas.'
+                : 'Choose one of the five locked simulation scenarios and run to generate evidence-backed output.'
             }
           />
         )}

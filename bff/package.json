@@ -6,13 +6,15 @@
     "scripts": {
         "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
         "build": "tsc -p .",
-        "lint": "eslint src --ext .ts"
+        "lint": "eslint src --ext .ts",
+        "metrics:validate": "node dist/metrics-validator/cli.js"
     },
     "dependencies": {
         "@kubernetes/client-node": "^1.4.0",
         "axios": "^1.5.0",
         "cors": "^2.8.5",
         "express": "^4.18.2",
+        "http-proxy-middleware": "^3.0.5",
         "morgan": "^1.1",
         "ws": "^8.13.0"
     },

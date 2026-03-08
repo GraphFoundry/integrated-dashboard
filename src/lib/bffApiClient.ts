@@ -1,5 +1,7 @@
 // BFF API Client types and functions
-const BFF_BASE_URL = import.meta.env.VITE_BFF_URL || 'http://localhost:3001'
+import { env } from '@/lib/env'
+
+const BFF_BASE_URL = env.BFF_URL
 
 export interface AlertEvent {
   schema_version: string

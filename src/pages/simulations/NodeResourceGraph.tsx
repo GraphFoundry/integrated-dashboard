@@ -15,7 +15,6 @@ import {
   Plus,
   Minus,
   LocateFixed,
-
 } from 'lucide-react'
 import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
@@ -121,15 +120,21 @@ interface NodeResourceGraphProps {
     replicas: number
     dependencies?: { serviceId: string; relation: 'calls' | 'called_by' }[]
   } | null
-  nodeMetricOverrides?: Record<string, {
-    cpuUsed: number
-    cpuTotal: number
-    ramUsedMB: number
-    ramTotalMB: number
-  }> | null
+  nodeMetricOverrides?: Record<
+    string,
+    {
+      cpuUsed: number
+      cpuTotal: number
+      ramUsedMB: number
+      ramTotalMB: number
+    }
+  > | null
 }
 
-export default function NodeResourceGraph({ simulatedService, nodeMetricOverrides }: NodeResourceGraphProps) {
+export default function NodeResourceGraph({
+  simulatedService,
+  nodeMetricOverrides,
+}: NodeResourceGraphProps) {
   const { resolvedTheme } = useTheme()
   const {
     services: wsServices,
@@ -173,27 +178,34 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       const exists = fetchedServices.find((s: any) => `${s.namespace}:${s.name}` === simServiceId)
 
       if (!exists) {
-        fetchedServices = [...fetchedServices, {
-          name: simulatedService.name,
-          namespace: simulatedService.namespace,
-          podCount: simulatedService.replicas,
-          availability: 1.0,
-          placement: {
-            nodes: [{
-              node: simulatedService.nodeName,
-              resources: {
-                cpu: { usagePercent: 0, cores: 0 },
-                ram: { usedMB: 0, totalMB: 0 }
-              },
-              pods: Array(simulatedService.replicas).fill(null).map((_, i) => ({
-                name: `${simulatedService.name}-sim-${i}`,
-                ramUsedMB: simulatedService.ramRequest,
-                cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10,
-                uptimeSeconds: 0
-              }))
-            }]
-          }
-        }]
+        fetchedServices = [
+          ...fetchedServices,
+          {
+            name: simulatedService.name,
+            namespace: simulatedService.namespace,
+            podCount: simulatedService.replicas,
+            availability: 1.0,
+            placement: {
+              nodes: [
+                {
+                  node: simulatedService.nodeName,
+                  resources: {
+                    cpu: { usagePercent: 0, cores: 0 },
+                    ram: { usedMB: 0, totalMB: 0 },
+                  },
+                  pods: Array(simulatedService.replicas)
+                    .fill(null)
+                    .map((_, i) => ({
+                      name: `${simulatedService.name}-sim-${i}`,
+                      ramUsedMB: simulatedService.ramRequest,
+                      cpuUsagePercent: (simulatedService.cpuRequest / 2) * 10,
+                      uptimeSeconds: 0,
+                    })),
+                },
+              ],
+            },
+          },
+        ]
       }
     }
 
@@ -202,13 +214,18 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     setLoading(false)
 
     // Only drill down on initial load of simulation
-    if (simulatedService && viewLevel === 'nodes' && !currentNodeId && !hasInitialDrillDown.current) {
+    if (
+      simulatedService &&
+      viewLevel === 'nodes' &&
+      !currentNodeId &&
+      !hasInitialDrillDown.current
+    ) {
       hasInitialDrillDown.current = true
       setViewLevel('services')
       setCurrentNodeId(simulatedService.nodeName)
       setBreadcrumbs([
         { label: 'Nodes', level: 'nodes' },
-        { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName }
+        { label: simulatedService.nodeName, level: 'services', nodeId: simulatedService.nodeName },
       ])
     }
 
@@ -220,7 +237,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
     // Inject simulated edges
     if (simulatedService && simulatedService.dependencies) {
-      simulatedService.dependencies.forEach(dep => {
+      simulatedService.dependencies.forEach((dep) => {
         const peerName = dep.serviceId.split(':')[1] || dep.serviceId
         if (dep.relation === 'calls') {
           edges.push({ source: simulatedService.name, target: peerName })
@@ -231,7 +248,15 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     }
 
     setServiceDependencyEdges(edges)
-  }, [wsServices, wsAllNodes, wsLoading, simulatedService, viewLevel, currentNodeId, wsDependencyEdges])
+  }, [
+    wsServices,
+    wsAllNodes,
+    wsLoading,
+    simulatedService,
+    viewLevel,
+    currentNodeId,
+    wsDependencyEdges,
+  ])
 
   // Generate graph data based on current view level
   const graphData = useMemo(() => {
@@ -241,7 +266,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
       // Apply overrides if provided
       if (nodeMetricOverrides) {
-        nodeData.forEach(n => {
+        nodeData.forEach((n) => {
           if (nodeMetricOverrides[n.id]) {
             const override = nodeMetricOverrides[n.id]
             n.cpuUsagePercent = (override.cpuUsed / override.cpuTotal) * 100
@@ -258,7 +283,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       const nodeMap = new Map<string, NodeData>()
 
       // 1. Add nodes from direct fetch (includes empty nodes)
-      allNodes.forEach(node => {
+      allNodes.forEach((node) => {
         nodeMap.set(node.name, {
           id: node.name,
           label: node.name,
@@ -273,7 +298,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       })
 
       // 2. Override/Merge with detailed placement data (has pod counts etc)
-      nodeData.forEach(n => {
+      nodeData.forEach((n) => {
         nodeMap.set(n.id, n)
       })
 
@@ -281,7 +306,7 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
       // Apply overrides if provided
       if (nodeMetricOverrides) {
-        mergedNodes.forEach(n => {
+        mergedNodes.forEach((n) => {
           if (nodeMetricOverrides[n.id]) {
             const override = nodeMetricOverrides[n.id]
             n.cpuUsagePercent = (override.cpuUsed / override.cpuTotal) * 100
@@ -310,7 +335,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       const servicesOnNode = extractServicesForNode(services, currentNodeId)
       type ServiceData = ReturnType<typeof extractServicesForNode>[0]
       const nodes = servicesOnNode.map((s: ServiceData) => {
-        const isSimulated = simulatedService &&
+        const isSimulated =
+          simulatedService &&
           s.id === simulatedService.name &&
           s.namespace === simulatedService.namespace
 
@@ -369,7 +395,16 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
     }
 
     return { nodes: [], edges: [] }
-  }, [viewLevel, currentNodeId, currentServiceName, services, serviceDependencyEdges, nodeMetricOverrides])
+  }, [
+    viewLevel,
+    currentNodeId,
+    currentServiceName,
+    services,
+    allNodes,
+    serviceDependencyEdges,
+    nodeMetricOverrides,
+    simulatedService,
+  ])
 
   // Handle node click based on current level
   const handleNodeClick = (node: ReagraphNode) => {
@@ -433,7 +468,10 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
   if (loading) {
     return (
       <GraphShell>
-        <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]" aria-busy="true">
+        <div
+          className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]"
+          aria-busy="true"
+        >
           <div className="flex items-center gap-2">
             <SkeletonBlock variant="line" className="h-8 w-8 rounded-md" />
             <SkeletonBlock variant="line" className="h-8 w-44 rounded-md" />
@@ -473,7 +511,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
       <div className="p-4 border-b border-[var(--border)] flex justify-between items-center bg-[var(--surface-soft)]">
         <div className="flex items-center gap-2">
           {breadcrumbs.length > 1 && (
-            <button type="button"
+            <button
+              type="button"
               onClick={handleBack}
               className="neon-focus-ring interactive-soft rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] p-1.5 text-[var(--text-secondary)] hover:border-[var(--color-emerald-300)]/45 hover:text-[var(--text-primary)]"
               title="Go back"
@@ -816,7 +855,8 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
               message={getEmptyStateMessage(viewLevel, currentNodeId, currentServiceName)}
               action={
                 viewLevel === 'services' || viewLevel === 'pods' ? (
-                  <button type="button"
+                  <button
+                    type="button"
                     onClick={handleBack}
                     className={cn(secondaryButtonClass, 'mt-4')}
                   >
@@ -834,10 +874,10 @@ export default function NodeResourceGraph({ simulatedService, nodeMetricOverride
 
 function createGraphTheme(resolvedTheme: 'light' | 'dark') {
   void resolvedTheme
-  const rootStyles = typeof window !== 'undefined'
-    ? window.getComputedStyle(document.documentElement)
-    : null
-  const getVar = (name: string, fallback: string) => rootStyles?.getPropertyValue(name).trim() || fallback
+  const rootStyles =
+    typeof window !== 'undefined' ? window.getComputedStyle(document.documentElement) : null
+  const getVar = (name: string, fallback: string) =>
+    rootStyles?.getPropertyValue(name).trim() || fallback
 
   return {
     canvas: {

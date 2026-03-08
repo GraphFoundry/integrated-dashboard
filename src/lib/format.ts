@@ -21,6 +21,7 @@ export function formatPercent(value: number | null | undefined, decimals = 2): s
  */
 export function formatRps(rps: number | null | undefined, decimals = 2): string {
   if (rps === null || rps === undefined || Number.isNaN(rps)) return 'N/A'
+  if (rps > 0 && rps < 0.0001) return '<0.0001'
   return rps.toFixed(decimals)
 }
 

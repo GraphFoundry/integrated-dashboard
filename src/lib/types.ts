@@ -561,3 +561,63 @@ export type NodeWithResources = {
   name: string
   resources: NodeResources
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Predictive Action Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PredictiveBottleneckType = 'capacity' | 'network'
+export type PredictiveSeverity = 'critical' | 'high' | 'medium' | 'low'
+export type PredictiveActionType = 'ScaleService' | 'MigrateService'
+export type PredictiveDrillType = 'PodScaleUp' | 'MigrateService'
+
+export type PredictivePrimaryBottleneck = {
+  type: PredictiveBottleneckType
+  namespace?: string
+  service?: string
+  node?: string
+  sourceService?: string
+  targetService?: string
+  sourceNode?: string
+  targetNode?: string
+}
+
+export type PredictiveRecommendationConfig = {
+  namespace: string
+  observeTokens: number
+  replicas?: number
+  targetNode?: string
+}
+
+export type PredictiveRecommendation = {
+  title: string
+  message: string
+  severity: PredictiveSeverity
+  actionType: PredictiveActionType
+  drillType: PredictiveDrillType
+  target: string // namespace/service
+  config: PredictiveRecommendationConfig
+}
+
+export type PredictiveEvidence = {
+  timestamp: string
+  cpuPressurePercent?: number
+  ramPressurePercent?: number
+  serviceRps?: number
+  edgeRps?: number
+  edgeP95Ms?: number
+  trafficIncreasePct?: number
+  sourceNode?: string
+  targetNode?: string
+  sourceService?: string
+  targetService?: string
+}
+
+export type PredictiveCurrentActionResponse = {
+  anomalyActive: boolean
+  healthScore: number
+  primaryBottleneck: PredictivePrimaryBottleneck | null
+  timeToImpactSec: number | null
+  recommendation: PredictiveRecommendation | null
+  evidence: PredictiveEvidence
+}

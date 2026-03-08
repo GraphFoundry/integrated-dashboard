@@ -453,7 +453,11 @@ export default function RunPanel({
   const remainingRecoveryMs = hasRecoveryDeadline ? recoveryDeadlineMs - countdownNow : 0
 
   return (
-    <Card className={cn(glassPanelClass, 'relative flex h-full min-h-[720px] flex-col overflow-hidden')}>
+    <Card
+      data-testid="drill-run-panel"
+      data-run-id={run.id}
+      className={cn(glassPanelClass, 'relative flex h-full min-h-[720px] flex-col overflow-hidden')}
+    >
       {isActiveLifecycle && (
         <div
           className={cn(
@@ -478,6 +482,7 @@ export default function RunPanel({
           </div>
           <Badge
             variant="outline"
+            data-testid="drill-run-status"
             className={cn('px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider', getStatusBadgeClass(run.status))}
           >
             {run.status}
@@ -499,6 +504,19 @@ export default function RunPanel({
             </span>
           </div>
         </div>
+        {typeof run.bannerVerified === 'boolean' && (
+          <div
+            data-testid="drill-banner-verification"
+            className="mt-3 flex items-center justify-between rounded-lg border border-[var(--border)]/80 bg-[var(--surface-soft)] px-3 py-2"
+          >
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+              Scenario Banner
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+              {run.bannerVerified ? 'Verified' : 'Not Verified'}
+            </span>
+          </div>
+        )}
       </CardHeader>
 
       <CardContent className="flex-1 space-y-6 overflow-y-auto px-6 py-7">
@@ -617,6 +635,7 @@ export default function RunPanel({
             </div>
 
             <Button
+              data-testid="drill-recover-service"
               onPress={handleRecover}
               isDisabled={isRecoverSubmitting}
               className="h-11 w-full rounded-lg border border-emerald-300/20 bg-gradient-to-r from-emerald-500 to-green-500 text-xs font-bold uppercase tracking-widest text-white"
@@ -727,7 +746,12 @@ export default function RunPanel({
 
         {isTerminal && (
           <div className="grid w-full grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
-            <Button variant="outline" className={secondaryButtonClass} onPress={onClear}>
+            <Button
+              variant="outline"
+              data-testid="drill-exit-room"
+              className={secondaryButtonClass}
+              onPress={onClear}
+            >
               Exit Room
             </Button>
             <Button

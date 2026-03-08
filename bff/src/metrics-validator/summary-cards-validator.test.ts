@@ -3,7 +3,8 @@ import test from 'node:test'
 import {
   compareSpeedSummaryCard,
   compareSystemHealthSummaryCard,
-  compareTrafficVolumeSummaryCard
+  compareTrafficVolumeSummaryCard,
+  compareUptimeReliabilitySummaryCard
 } from './summary-cards-validator'
 
 test(
@@ -215,4 +216,62 @@ test('uses N/A speed expectation when no finite p95 datapoints exist', () => {
   assert.equal(result.absoluteDelta, 0)
   assert.equal(result.expectedRawP95Milliseconds, null)
   assert.equal(result.displayedRawP95Milliseconds, null)
+})
+
+test(
+  'computes uptime reliability as average normalized availability across services',
+  () => {
+    const result = compareUptimeReliabilitySummaryCard({
+      latestPerServicePoints: [
+        {
+          serviceKey: 'default:frontend',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: { availability: 0.99 }
+        },
+        {
+          serviceKey: 'default:checkoutservice',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: { availability: '98.5' }
+        },
+        {
+          serviceKey: 'default:inventoryservice',
+          selectionReason: 'latestOverallFallback',
+          datapoint: { availability: null }
+        }
+      ],
+      displayedUptimeReliability: '98.75%'
+    })
+
+    assert.equal(result.expected, '98.75%')
+    assert.equal(result.displayed, '98.75%')
+    assert.equal(result.pass, true)
+    assert.equal(result.absoluteDelta, 0)
+    assert.equal(result.expectedRawUptimeReliabilityPercent, 98.75)
+    assert.equal(result.displayedRawUptimeReliabilityPercent, 98.75)
+  }
+)
+
+test('uses N/A uptime reliability expectation when no finite availability exists', () => {
+  const result = compareUptimeReliabilitySummaryCard({
+    latestPerServicePoints: [
+      {
+        serviceKey: 'default:frontend',
+        selectionReason: 'latestPositiveTraffic',
+        datapoint: { availability: null }
+      },
+      {
+        serviceKey: 'default:checkoutservice',
+        selectionReason: 'latestPositiveTraffic',
+        datapoint: { availability: 'unknown' }
+      }
+    ],
+    displayedUptimeReliability: 'N/A'
+  })
+
+  assert.equal(result.expected, 'N/A')
+  assert.equal(result.displayed, 'N/A')
+  assert.equal(result.pass, true)
+  assert.equal(result.absoluteDelta, 0)
+  assert.equal(result.expectedRawUptimeReliabilityPercent, null)
+  assert.equal(result.displayedRawUptimeReliabilityPercent, null)
 })

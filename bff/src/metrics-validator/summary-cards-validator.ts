@@ -3,6 +3,7 @@ import {
   formatLatencyForDisplay,
   formatPercentForDisplay,
   formatRequestRateForDisplay,
+  normalizeAvailabilityForDisplay,
   normalizeErrorRateForDisplay
 } from './normalization'
 
@@ -34,6 +35,16 @@ type SpeedCardComparison = {
   pass: boolean
   expectedRawP95Milliseconds: number | null
   displayedRawP95Milliseconds: number | null
+}
+
+type UptimeReliabilityCardComparison = {
+  metric: 'uptimeReliability'
+  expected: string
+  displayed: string
+  absoluteDelta: number | null
+  pass: boolean
+  expectedRawUptimeReliabilityPercent: number | null
+  displayedRawUptimeReliabilityPercent: number | null
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -136,6 +147,22 @@ function computeExpectedSystemHealthScore(
   }
 
   return 100 - effectiveErrorRate
+}
+
+function computeExpectedUptimeReliabilityScore(
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+): number | null {
+  if (latestPerServicePoints.length === 0) {
+    return null
+  }
+
+  const availabilityValues = latestPerServicePoints
+    .map((point) =>
+      normalizeAvailabilityForDisplay(toFiniteNumber(point.datapoint.availability))
+    )
+    .filter((availability): availability is number => availability !== null)
+
+  return average(availabilityValues)
 }
 
 function parseDisplayedRequestRate(value: string): number | null {
@@ -277,11 +304,47 @@ function compareSpeedSummaryCard(input: {
   }
 }
 
+function compareUptimeReliabilitySummaryCard(input: {
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  displayedUptimeReliability: string
+}): UptimeReliabilityCardComparison {
+  const expectedRawUptimeReliabilityPercent = computeExpectedUptimeReliabilityScore(
+    input.latestPerServicePoints
+  )
+  const expected = formatPercentForDisplay(expectedRawUptimeReliabilityPercent)
+  const displayed = input.displayedUptimeReliability.trim()
+  const pass = expected === displayed
+
+  const displayedRawUptimeReliabilityPercent = parseDisplayedPercent(displayed)
+  const absoluteDelta =
+    expectedRawUptimeReliabilityPercent !== null &&
+    displayedRawUptimeReliabilityPercent !== null
+      ? Math.abs(
+          expectedRawUptimeReliabilityPercent -
+            displayedRawUptimeReliabilityPercent
+        )
+      : pass
+        ? 0
+        : null
+
+  return {
+    metric: 'uptimeReliability',
+    expected,
+    displayed,
+    absoluteDelta,
+    pass,
+    expectedRawUptimeReliabilityPercent,
+    displayedRawUptimeReliabilityPercent
+  }
+}
+
 export {
   compareTrafficVolumeSummaryCard,
   compareSystemHealthSummaryCard,
   compareSpeedSummaryCard,
+  compareUptimeReliabilitySummaryCard,
   type TrafficVolumeCardComparison,
   type SystemHealthCardComparison,
-  type SpeedCardComparison
+  type SpeedCardComparison,
+  type UptimeReliabilityCardComparison
 }

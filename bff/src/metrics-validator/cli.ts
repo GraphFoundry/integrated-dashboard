@@ -11,7 +11,8 @@ import { collectSgeSnapshot } from './sge-snapshot-collector'
 import {
   compareSpeedSummaryCard,
   compareSystemHealthSummaryCard,
-  compareTrafficVolumeSummaryCard
+  compareTrafficVolumeSummaryCard,
+  compareUptimeReliabilitySummaryCard
 } from './summary-cards-validator'
 
 type CliArgs = {
@@ -967,6 +968,11 @@ async function run(argv: string[]): Promise<number> {
       speed: compareSpeedSummaryCard({
         latestPerServicePoints: influxTelemetry.latestPerServicePoints,
         displayedSpeed: metricsPageOpen.displayedValues.summaryCards.speed
+      }),
+      uptimeReliability: compareUptimeReliabilitySummaryCard({
+        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+        displayedUptimeReliability:
+          metricsPageOpen.displayedValues.summaryCards.uptimeReliability
       })
     }
 

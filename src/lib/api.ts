@@ -23,7 +23,12 @@ import type {
   DemoSnapshotsResponse,
   PredictiveCurrentActionResponse,
 } from '@/lib/types'
+import type {
+  SimulationRunRequestDto,
+  SimulationRunResponseDto,
+} from '@/lib/simulationContract'
 import { predictiveApi } from '@/lib/predictiveApiClient'
+import { simulationsApi } from '@/lib/simulationsApiClient'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -242,6 +247,46 @@ export async function simulateScale(
     },
     { signal: options?.signal, headers }
   )
+  return data
+}
+
+/**
+ * Run simulation using versioned BFF contract passthrough endpoint.
+ * Backend validation and deferred/unsupported statuses are preserved as-is.
+ */
+export async function runSimulation(
+  request: SimulationRunRequestDto,
+  options?: RequestOptions
+): Promise<SimulationRunResponseDto> {
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
+  }
+
+  const { data } = await simulationsApi.post<SimulationRunResponseDto>('/run', request, {
+    signal: options?.signal,
+    headers,
+  })
+  return data
+}
+
+/**
+ * Replay a simulation using the same snapshot (by snapshotTimestamp/snapshotHash).
+ * Used to demonstrate determinism: same snapshot + same inputs must produce same output.
+ */
+export async function replaySimulation(
+  request: SimulationRunRequestDto,
+  options?: RequestOptions
+): Promise<SimulationRunResponseDto> {
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
+  }
+
+  const { data } = await simulationsApi.post<SimulationRunResponseDto>('/replay', request, {
+    signal: options?.signal,
+    headers,
+  })
   return data
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Activity, AlertTriangle, Clock3, Network, Settings, ShieldCheck, Sparkles, TrendingUp, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, CheckCircle, Clock3, FileText, Network, RefreshCw, Settings, ShieldCheck, Sparkles, TrendingUp, XCircle, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
@@ -21,6 +21,7 @@ import ClusterTopologyMap from '@/pages/overview/ClusterTopologyMap'
 import {
   getCurrentPredictiveAction,
   getSimulationContext,
+  replaySimulation,
   runSimulation,
 } from '@/lib/api'
 import { formatMs, formatPercent, formatRps } from '@/lib/format'
@@ -385,6 +386,72 @@ function getSimulationErrorDegradedReason(errorPayload: SimulationErrorResponseD
   return undefined
 }
 
+type ReplayComparison = {
+  isMatch: boolean
+  differingFields: string[]
+  replayResult: SimulationRunResponseDto
+}
+
+function compareSimulationOutputs(
+  original: SimulationRunResponseDto,
+  replay: SimulationRunResponseDto
+): ReplayComparison {
+  const differingFields: string[] = []
+
+  if (original.resultStatus !== replay.resultStatus) differingFields.push('resultStatus')
+  if (original.scenarioType !== replay.scenarioType) differingFields.push('scenarioType')
+  if (original.evidenceMode !== replay.evidenceMode) differingFields.push('evidenceMode')
+  if (original.confidenceLevel !== replay.confidenceLevel) differingFields.push('confidenceLevel')
+  if ((original.degradedMode ?? '') !== (replay.degradedMode ?? '')) differingFields.push('degradedMode')
+  if (original.recommendation.action !== replay.recommendation.action) differingFields.push('recommendation.action')
+  if (original.recommendation.explanation !== replay.recommendation.explanation) differingFields.push('recommendation.explanation')
+
+  const sortedOrigBAVs = [...original.beforeAfterValues].sort((a, b) => a.fieldRef.localeCompare(b.fieldRef))
+  const sortedReplayBAVs = [...replay.beforeAfterValues].sort((a, b) => a.fieldRef.localeCompare(b.fieldRef))
+  if (sortedOrigBAVs.length !== sortedReplayBAVs.length) {
+    differingFields.push('beforeAfterValues.length')
+  } else {
+    sortedOrigBAVs.forEach((origBav, i) => {
+      const replayBav = sortedReplayBAVs[i]
+      if (origBav.fieldRef !== replayBav.fieldRef) differingFields.push(`beforeAfterValues[${i}].fieldRef`)
+      if (origBav.beforeValue !== replayBav.beforeValue) differingFields.push(`beforeAfterValues[${i}].beforeValue`)
+      if (origBav.afterValue !== replayBav.afterValue) differingFields.push(`beforeAfterValues[${i}].afterValue`)
+      if (origBav.deltaValue !== replayBav.deltaValue) differingFields.push(`beforeAfterValues[${i}].deltaValue`)
+    })
+  }
+
+  const sortedOrigSvcs = [...original.impactedServices].sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+  const sortedReplaySvcs = [...replay.impactedServices].sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+  if (sortedOrigSvcs.length !== sortedReplaySvcs.length) {
+    differingFields.push('impactedServices.length')
+  } else {
+    sortedOrigSvcs.forEach((origSvc, i) => {
+      const replaySvc = sortedReplaySvcs[i]
+      if (origSvc.serviceId !== replaySvc.serviceId) differingFields.push(`impactedServices[${i}].serviceId`)
+      if (origSvc.role !== replaySvc.role) differingFields.push(`impactedServices[${i}].role`)
+    })
+  }
+
+  const origPaths = [...original.impactedPaths].map((p) => p.path.join('->')).sort()
+  const replayPaths = [...replay.impactedPaths].map((p) => p.path.join('->')).sort()
+  if (JSON.stringify(origPaths) !== JSON.stringify(replayPaths)) differingFields.push('impactedPaths')
+
+  const sortedOrigAssumptions = [...original.assumptions].sort((a, b) => a.key.localeCompare(b.key))
+  const sortedReplayAssumptions = [...replay.assumptions].sort((a, b) => a.key.localeCompare(b.key))
+  if (sortedOrigAssumptions.length !== sortedReplayAssumptions.length) {
+    differingFields.push('assumptions.length')
+  } else {
+    sortedOrigAssumptions.forEach((origA, i) => {
+      const replayA = sortedReplayAssumptions[i]
+      if (origA.key !== replayA.key) differingFields.push(`assumptions[${i}].key`)
+      if (origA.value !== replayA.value) differingFields.push(`assumptions[${i}].value`)
+      if (origA.type !== replayA.type) differingFields.push(`assumptions[${i}].type`)
+    })
+  }
+
+  return { isMatch: differingFields.length === 0, differingFields, replayResult: replay }
+}
+
 function toDeferredOutcomeFromRunResult(
   runResult: SimulationRunResponseDto,
   resultStatus: DeferredUnsupportedStatus
@@ -413,6 +480,9 @@ export default function Simulations() {
   const [contractResult, setContractResult] = useState<SimulationRunResponseDto | null>(null)
   const [deferredOutcome, setDeferredOutcome] = useState<DeferredUnsupportedOutcome | null>(null)
   const [lastScenario, setLastScenario] = useState<LockedScenario | null>(null)
+  const [lastRequest, setLastRequest] = useState<SimulationRunRequestDto | null>(null)
+  const [replayLoading, setReplayLoading] = useState(false)
+  const [replayComparison, setReplayComparison] = useState<ReplayComparison | null>(null)
 
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [selectedDepth, setSelectedDepth] = useState(1)
@@ -500,9 +570,12 @@ export default function Simulations() {
     setContractResult(null)
     setDeferredOutcome(null)
     setLastScenario(scenario)
+    setReplayComparison(null)
+    setLastRequest(null)
 
     try {
       const request = buildSimulationRunRequest(scenario)
+      setLastRequest(request)
       const response = await runSimulation(request)
       if (isDeferredUnsupportedStatus(response.resultStatus)) {
         setDeferredOutcome(toDeferredOutcomeFromRunResult(response, response.resultStatus))
@@ -530,6 +603,64 @@ export default function Simulations() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleReplay = async () => {
+    if (!contractResult || !lastRequest) return
+    setReplayLoading(true)
+    setReplayComparison(null)
+    try {
+      const replayRequest: SimulationRunRequestDto = {
+        ...lastRequest,
+        snapshotTimestamp: contractResult.snapshotTimestamp,
+        snapshotHash: contractResult.snapshotHash,
+      }
+      const replayResponse = await replaySimulation(replayRequest)
+      setReplayComparison(compareSimulationOutputs(contractResult, replayResponse))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Replay failed')
+    } finally {
+      setReplayLoading(false)
+    }
+  }
+
+  const renderReplayComparison = (comparison: ReplayComparison) => {
+    if (comparison.isMatch) {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border-2 border-emerald-500/70 bg-emerald-500/15 p-4">
+          <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+          <div>
+            <p className="text-sm font-bold text-[var(--text-primary)]">Deterministic match confirmed</p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Replay with the same snapshot produced identical output fields. Simulation is deterministic.
+            </p>
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="rounded-xl border-2 border-rose-500/70 bg-rose-500/12 p-4">
+        <div className="flex items-start gap-3">
+          <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-[var(--text-primary)]">Deterministic mismatch detected</p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Replay returned different values for the following fields. Evidence details are preserved below.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {comparison.differingFields.map((field) => (
+                <span
+                  key={field}
+                  className="rounded border border-rose-500/50 bg-rose-500/10 px-2 py-0.5 font-mono text-xs text-[var(--text-primary)]"
+                >
+                  {field}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const renderRunMeta = (runResult: FailureResponse | ScaleResponse) => {
@@ -754,6 +885,224 @@ export default function Simulations() {
     )
   }
 
+  const renderTraceabilityPanel = (runResult: SimulationRunResponseDto) => {
+    type TraceRow = { displayLabel: string; backendPath: string; value: string; traceRef?: string }
+
+    const identityRows: TraceRow[] = [
+      {
+        displayLabel: 'Snapshot Timestamp',
+        backendPath: 'response.snapshotTimestamp',
+        value: runResult.snapshotTimestamp,
+      },
+      {
+        displayLabel: 'Snapshot Hash',
+        backendPath: 'response.snapshotHash',
+        value: runResult.snapshotHash ?? 'n/a',
+      },
+      {
+        displayLabel: 'Schema Version',
+        backendPath: 'response.version',
+        value: runResult.version,
+      },
+      {
+        displayLabel: 'Scenario Type',
+        backendPath: 'response.scenarioType',
+        value: runResult.scenarioType,
+      },
+      {
+        displayLabel: 'Result Status',
+        backendPath: 'response.resultStatus',
+        value: runResult.resultStatus,
+      },
+      {
+        displayLabel: 'Evidence Mode',
+        backendPath: 'response.evidenceMode',
+        value: runResult.evidenceMode,
+      },
+      {
+        displayLabel: 'Confidence Level',
+        backendPath: 'response.confidenceLevel',
+        value: runResult.confidenceLevel,
+      },
+      ...(runResult.degradedMode
+        ? [
+            {
+              displayLabel: 'Degraded Mode',
+              backendPath: 'response.degradedMode',
+              value: runResult.degradedMode,
+            },
+          ]
+        : []),
+    ]
+
+    const bavRows: TraceRow[] = runResult.beforeAfterValues.map((bav, i) => ({
+      displayLabel: bav.description || bav.fieldRef,
+      backendPath: `response.beforeAfterValues[${i}].fieldRef`,
+      value: `${formatOptionalNumber(bav.beforeValue)} → ${formatOptionalNumber(bav.afterValue)}${bav.unit ? ` ${bav.unit}` : ''}`,
+      traceRef: bav.traceRef,
+    }))
+
+    return (
+      <Section title="Field-Level Traceability" icon={FileText}>
+        <p className="mb-5 text-sm text-[var(--text-secondary)]">
+          Every displayed simulation value is mapped to its backend contract field path below. Use this panel to
+          verify that no displayed value is hardcoded or inferred outside the backend response.
+        </p>
+
+        {/* Snapshot + Result Identity */}
+        <div className="mb-6">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Snapshot &amp; Result Identity
+          </h3>
+          <div className={tableShellClass}>
+            <table className="w-full">
+              <thead className={tableHeadRowClass}>
+                <tr>
+                  <th className={tableHeaderCellClass}>Displayed Label</th>
+                  <th className={tableHeaderCellClass}>Backend Field Path</th>
+                  <th className={tableHeaderCellClass}>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {identityRows.map((row) => (
+                  <tr key={row.backendPath} className={tableBodyRowClass}>
+                    <td className={tableCellClass}>{row.displayLabel}</td>
+                    <td className={tableCellClass}>
+                      <span className="font-mono text-xs">{row.backendPath}</span>
+                    </td>
+                    <td className={tableCellClass}>
+                      <span className="break-all font-mono text-xs">{row.value}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Before/After Value Traceability */}
+        {bavRows.length > 0 && (
+          <div className="mb-6">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Before/After Value Traceability
+            </h3>
+            <div className={tableShellClass}>
+              <table className="w-full">
+                <thead className={tableHeadRowClass}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Displayed Label</th>
+                    <th className={tableHeaderCellClass}>Backend Field Path</th>
+                    <th className={tableHeaderCellClass}>Before → After</th>
+                    <th className={tableHeaderCellClass}>Trace Ref</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bavRows.map((row) => (
+                    <tr key={row.traceRef ?? row.backendPath} className={tableBodyRowClass}>
+                      <td className={tableCellClass}>{row.displayLabel}</td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{row.backendPath}</span>
+                      </td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{row.value}</span>
+                      </td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{row.traceRef ?? '-'}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Recommendation Explanation + Evidence Refs */}
+        <div className="mb-6">
+          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+            Recommendation (response.recommendation)
+          </h3>
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4 space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Action <span className="font-mono normal-case text-[var(--text-secondary)]">(response.recommendation.action)</span>
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-primary)]">
+                {runResult.recommendation.action || 'n/a'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Explanation <span className="font-mono normal-case text-[var(--text-secondary)]">(response.recommendation.explanation)</span>
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {runResult.recommendation.explanation || 'n/a'}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Evidence Source Refs <span className="font-mono normal-case text-[var(--text-secondary)]">(response.recommendation.evidenceSourceRefs)</span>
+              </p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {runResult.recommendation.evidenceSourceRefs.length > 0
+                  ? runResult.recommendation.evidenceSourceRefs.map((ref) => (
+                      <span
+                        key={ref}
+                        className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-mono text-[var(--text-primary)]"
+                      >
+                        {ref}
+                      </span>
+                    ))
+                  : <span className="text-sm text-[var(--text-muted)]">None</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Assumptions Traceability */}
+        {runResult.assumptions.length > 0 && (
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Assumptions (response.assumptions)
+            </h3>
+            <div className={tableShellClass}>
+              <table className="w-full">
+                <thead className={tableHeadRowClass}>
+                  <tr>
+                    <th className={tableHeaderCellClass}>Key</th>
+                    <th className={tableHeaderCellClass}>Backend Field Path</th>
+                    <th className={tableHeaderCellClass}>Type</th>
+                    <th className={tableHeaderCellClass}>Value</th>
+                    <th className={tableHeaderCellClass}>Source</th>
+                    <th className={tableHeaderCellClass}>Trace Ref</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {runResult.assumptions.map((assumption, i) => (
+                    <tr key={assumption.traceRef} className={tableBodyRowClass}>
+                      <td className={tableCellClass}>{assumption.key}</td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{`response.assumptions[${i}]`}</span>
+                      </td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{assumption.type}</span>
+                      </td>
+                      <td className={tableCellClass}>{assumption.value}</td>
+                      <td className={tableCellClass}>{assumption.source}</td>
+                      <td className={tableCellClass}>
+                        <span className="font-mono text-xs">{assumption.traceRef}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </Section>
+    )
+  }
+
   const renderContractResults = (runResult: SimulationRunResponseDto) => {
     const hasDegradedMode = Boolean(runResult.degradedMode)
     const degradedModeReason = getDegradedModeReason(runResult.degradedMode, runResult.degradedModeReason)
@@ -761,7 +1110,19 @@ export default function Simulations() {
 
     return (
       <div className="space-y-6">
-        <Section title="Simulation Evidence Summary" icon={Activity}>
+        <Section title="Simulation Evidence Summary" icon={Activity}
+          actions={
+            <button
+              type="button"
+              onClick={() => { void handleReplay() }}
+              disabled={replayLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-panel)] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${replayLoading ? 'animate-spin' : ''}`} />
+              {replayLoading ? 'Replaying...' : 'Replay same snapshot'}
+            </button>
+          }
+        >
           {hasDegradedMode && (
             <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
               <div className="flex items-start gap-3">
@@ -778,6 +1139,12 @@ export default function Simulations() {
                   {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
                 </div>
               </div>
+            </div>
+          )}
+
+          {replayComparison && (
+            <div className="mb-4">
+              {renderReplayComparison(replayComparison)}
             </div>
           )}
 
@@ -983,6 +1350,8 @@ export default function Simulations() {
             </div>
           </div>
         </Section>
+
+        {renderTraceabilityPanel(runResult)}
       </div>
     )
   }
@@ -1334,6 +1703,8 @@ export default function Simulations() {
                 setContractResult(null)
                 setDeferredOutcome(null)
                 setLastScenario(null)
+                setLastRequest(null)
+                setReplayComparison(null)
               }}
               onServiceSelectionChange={setSelectedServiceId}
               onDepthChange={setSelectedDepth}

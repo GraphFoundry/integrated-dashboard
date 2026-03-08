@@ -722,7 +722,8 @@ export default function Simulations() {
 
     const aggregatedEdges = aggregateContextEdges(contextData)
     const hottestEdge = aggregatedEdges[0] ?? null
-    const healthScore = Math.round(contextPrediction?.healthScore ?? deriveHealthScore(contextData, hottestEdge))
+    const derivedScore = deriveHealthScore(contextData, hottestEdge)
+    const healthScore = Math.round(derivedScore)
     const healthLabel = healthScore >= 85 ? 'Stable' : healthScore >= 70 ? 'Watch closely' : 'Immediate action required'
     const healthTone =
       healthScore >= 85

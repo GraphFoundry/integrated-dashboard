@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Activity, AlertTriangle, CheckCircle, Clock3, FileText, Network, RefreshCw, Settings, ShieldCheck, Sparkles, TrendingUp, XCircle, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowRight, CheckCircle, Clock3, Lightbulb, Network, RefreshCw, Settings, ShieldCheck, Sparkles, TrendingUp, XCircle, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
@@ -344,18 +344,6 @@ function getDegradedModeReason(
     return degradedModeReason.trim()
   }
   return getDefaultDegradedModeReason(degradedMode)
-}
-
-function getSparseOrEmptyHistoryContext(
-  degradedMode: SimulationDegradedMode | undefined
-): string | null {
-  if (degradedMode === 'INFLUX_EMPTY') {
-    return 'Historical data state: empty history window'
-  }
-  if (degradedMode === 'INFLUX_SPARSE') {
-    return 'Historical data state: sparse history window'
-  }
-  return null
 }
 
 function getDeferredOrUnsupportedReason(runResult: SimulationRunResponseDto): string {
@@ -900,228 +888,9 @@ export default function Simulations() {
     )
   }
 
-  const renderTraceabilityPanel = (runResult: SimulationRunResponseDto) => {
-    type TraceRow = { displayLabel: string; backendPath: string; value: string; traceRef?: string }
-
-    const identityRows: TraceRow[] = [
-      {
-        displayLabel: 'Snapshot Timestamp',
-        backendPath: 'response.snapshotTimestamp',
-        value: runResult.snapshotTimestamp,
-      },
-      {
-        displayLabel: 'Snapshot Hash',
-        backendPath: 'response.snapshotHash',
-        value: runResult.snapshotHash ?? 'n/a',
-      },
-      {
-        displayLabel: 'Schema Version',
-        backendPath: 'response.version',
-        value: runResult.version,
-      },
-      {
-        displayLabel: 'Scenario Type',
-        backendPath: 'response.scenarioType',
-        value: runResult.scenarioType,
-      },
-      {
-        displayLabel: 'Result Status',
-        backendPath: 'response.resultStatus',
-        value: runResult.resultStatus,
-      },
-      {
-        displayLabel: 'Evidence Mode',
-        backendPath: 'response.evidenceMode',
-        value: runResult.evidenceMode,
-      },
-      {
-        displayLabel: 'Confidence Level',
-        backendPath: 'response.confidenceLevel',
-        value: runResult.confidenceLevel,
-      },
-      ...(runResult.degradedMode
-        ? [
-            {
-              displayLabel: 'Degraded Mode',
-              backendPath: 'response.degradedMode',
-              value: runResult.degradedMode,
-            },
-          ]
-        : []),
-    ]
-
-    const bavRows: TraceRow[] = runResult.beforeAfterValues.map((bav, i) => ({
-      displayLabel: bav.description || bav.fieldRef,
-      backendPath: `response.beforeAfterValues[${i}].fieldRef`,
-      value: `${formatOptionalNumber(bav.beforeValue)} → ${formatOptionalNumber(bav.afterValue)}${bav.unit ? ` ${bav.unit}` : ''}`,
-      traceRef: bav.traceRef,
-    }))
-
-    return (
-      <Section title="Field-Level Traceability" icon={FileText}>
-        <p className="mb-5 text-sm text-[var(--text-secondary)]">
-          Every displayed simulation value is mapped to its backend contract field path below. Use this panel to
-          verify that no displayed value is hardcoded or inferred outside the backend response.
-        </p>
-
-        {/* Snapshot + Result Identity */}
-        <div className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Snapshot &amp; Result Identity
-          </h3>
-          <div className={tableShellClass}>
-            <table className="w-full">
-              <thead className={tableHeadRowClass}>
-                <tr>
-                  <th className={tableHeaderCellClass}>Displayed Label</th>
-                  <th className={tableHeaderCellClass}>Backend Field Path</th>
-                  <th className={tableHeaderCellClass}>Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {identityRows.map((row) => (
-                  <tr key={row.backendPath} className={tableBodyRowClass}>
-                    <td className={tableCellClass}>{row.displayLabel}</td>
-                    <td className={tableCellClass}>
-                      <span className="font-mono text-xs">{row.backendPath}</span>
-                    </td>
-                    <td className={tableCellClass}>
-                      <span className="break-all font-mono text-xs">{row.value}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Before/After Value Traceability */}
-        {bavRows.length > 0 && (
-          <div className="mb-6">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Before/After Value Traceability
-            </h3>
-            <div className={tableShellClass}>
-              <table className="w-full">
-                <thead className={tableHeadRowClass}>
-                  <tr>
-                    <th className={tableHeaderCellClass}>Displayed Label</th>
-                    <th className={tableHeaderCellClass}>Backend Field Path</th>
-                    <th className={tableHeaderCellClass}>Before → After</th>
-                    <th className={tableHeaderCellClass}>Trace Ref</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {bavRows.map((row) => (
-                    <tr key={row.traceRef ?? row.backendPath} className={tableBodyRowClass}>
-                      <td className={tableCellClass}>{row.displayLabel}</td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{row.backendPath}</span>
-                      </td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{row.value}</span>
-                      </td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{row.traceRef ?? '-'}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Recommendation Explanation + Evidence Refs */}
-        <div className="mb-6">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-            Recommendation (response.recommendation)
-          </h3>
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4 space-y-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Action <span className="font-mono normal-case text-[var(--text-secondary)]">(response.recommendation.action)</span>
-              </p>
-              <p className="mt-1 text-sm text-[var(--text-primary)]">
-                {runResult.recommendation.action || 'n/a'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Explanation <span className="font-mono normal-case text-[var(--text-secondary)]">(response.recommendation.explanation)</span>
-              </p>
-              <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                {runResult.recommendation.explanation || 'n/a'}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Evidence Source Refs <span className="font-mono normal-case text-[var(--text-secondary)]">(response.recommendation.evidenceSourceRefs)</span>
-              </p>
-              <div className="mt-1 flex flex-wrap gap-2">
-                {runResult.recommendation.evidenceSourceRefs.length > 0
-                  ? runResult.recommendation.evidenceSourceRefs.map((ref) => (
-                      <span
-                        key={ref}
-                        className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-mono text-[var(--text-primary)]"
-                      >
-                        {ref}
-                      </span>
-                    ))
-                  : <span className="text-sm text-[var(--text-muted)]">None</span>}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Assumptions Traceability */}
-        {runResult.assumptions.length > 0 && (
-          <div>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Assumptions (response.assumptions)
-            </h3>
-            <div className={tableShellClass}>
-              <table className="w-full">
-                <thead className={tableHeadRowClass}>
-                  <tr>
-                    <th className={tableHeaderCellClass}>Key</th>
-                    <th className={tableHeaderCellClass}>Backend Field Path</th>
-                    <th className={tableHeaderCellClass}>Type</th>
-                    <th className={tableHeaderCellClass}>Value</th>
-                    <th className={tableHeaderCellClass}>Source</th>
-                    <th className={tableHeaderCellClass}>Trace Ref</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runResult.assumptions.map((assumption, i) => (
-                    <tr key={assumption.traceRef} className={tableBodyRowClass}>
-                      <td className={tableCellClass}>{assumption.key}</td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{`response.assumptions[${i}]`}</span>
-                      </td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{assumption.type}</span>
-                      </td>
-                      <td className={tableCellClass}>{assumption.value}</td>
-                      <td className={tableCellClass}>{assumption.source}</td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{assumption.traceRef}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </Section>
-    )
-  }
-
   const renderContractResults = (runResult: SimulationRunResponseDto) => {
     const hasDegradedMode = Boolean(runResult.degradedMode)
     const degradedModeReason = getDegradedModeReason(runResult.degradedMode, runResult.degradedModeReason)
-    const sparseOrEmptyHistoryContext = getSparseOrEmptyHistoryContext(runResult.degradedMode)
 
     return (
       <div className="space-y-6">
@@ -1138,20 +907,15 @@ export default function Simulations() {
             </button>
           }
         >
-          {hasDegradedMode && (
+          {hasDegradedMode && degradedModeReason && (
             <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" />
                 <div className="space-y-1">
-                  <p className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
-                    Degraded mode active: {runResult.degradedMode}
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
+                    Limited data available
                   </p>
-                  {sparseOrEmptyHistoryContext && (
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                      {sparseOrEmptyHistoryContext}
-                    </p>
-                  )}
-                  {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
+                  <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>
                 </div>
               </div>
             </div>
@@ -1163,252 +927,205 @@ export default function Simulations() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
               <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Data Snapshot <InfoHint text="A frozen copy of all the service data at the exact moment the simulation ran. The timestamp shows when, and the fingerprint is a unique ID so you can refer back to this exact run later." />
+                Simulation Run Time <InfoHint text="The exact date and time when this simulation was run. You can use this to compare different simulation runs." />
               </h3>
-              <div className="space-y-2 text-sm text-[var(--text-primary)]">
-                <p className="break-all">
-                  Taken at: <span className="font-mono">{runResult.snapshotTimestamp}</span>
-                </p>
-                <p className="break-all">
-                  Fingerprint: <span className="font-mono">{runResult.snapshotHash ?? 'n/a'}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Simulation Outcome <InfoHint text="A summary of what the simulation found. It tells you what kind of test was run, whether it passed or flagged issues, how the results were calculated, and how confident the system is in the answer." />
-              </h3>
-              <div className="space-y-2 text-sm text-[var(--text-primary)]">
-                <p className="flex items-center gap-1">
-                  What was tested: <span className="font-mono">{runResult.scenarioType}</span>
-                </p>
-                <p className="flex items-center gap-1">
-                  Outcome: <span className="font-mono">{runResult.resultStatus}</span>
-                  <InfoHint text="Whether the simulation completed successfully, found issues, or could not run. A 'COMPLETED' status means results are ready to review." />
-                </p>
-                <p className="flex items-center gap-1">
-                  How results were calculated: <span className="font-mono">{runResult.evidenceMode}</span>
-                  <InfoHint text="Shows whether results came from real historical data, a mathematical model, or a mix of both. Real data = higher reliability." />
-                </p>
-                <p className="flex items-center gap-1">
-                  Confidence: <span className="font-mono">{runResult.confidenceLevel}</span>
-                  <InfoHint text="How sure the system is about these results. 'HIGH' means the data strongly supports the conclusion. 'LOW' means treat as a rough estimate." />
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Where the Evidence Came From <InfoHint text="Lists all the data sources the simulation used to produce its results — for example, live metrics, the service dependency graph, or historical records. More sources generally means more reliable results." />
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {runResult.evidenceSources.map((source) => (
-                <span
-                  key={source}
-                  className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-medium text-[var(--text-primary)]"
-                >
-                  {source}
-                </span>
-              ))}
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Assumptions" icon={ShieldCheck}>
-          {runResult.assumptions.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No assumptions returned.</p>
-          ) : (
-            <div className={tableShellClass}>
-              <table className="w-full">
-                <thead className={tableHeadRowClass}>
-                  <tr>
-                    <th className={tableHeaderCellClass}>Key</th>
-                    <th className={tableHeaderCellClass}>Type</th>
-                    <th className={tableHeaderCellClass}>Value</th>
-                    <th className={tableHeaderCellClass}>Source</th>
-                    <th className={tableHeaderCellClass}>Trace</th>
-                    <th className={tableHeaderCellClass}>Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runResult.assumptions.map((assumption) => (
-                    <tr key={assumption.traceRef} className={tableBodyRowClass}>
-                      <td className={tableCellClass}>{assumption.key}</td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{assumption.type}</span>
-                      </td>
-                      <td className={tableCellClass}>{assumption.value}</td>
-                      <td className={tableCellClass}>{assumption.source}</td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{assumption.traceRef}</span>
-                      </td>
-                      <td className={tableCellClass}>{assumption.description}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Section>
-
-        <Section title="Impacted Services" icon={Network}>
-          {runResult.impactedServices.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No impacted services returned.</p>
-          ) : (
-            <div className={tableShellClass}>
-              <table className="w-full">
-                <thead className={tableHeadRowClass}>
-                  <tr>
-                    <th className={tableHeaderCellClass}>Service ID</th>
-                    <th className={tableHeaderCellClass}>Name</th>
-                    <th className={tableHeaderCellClass}>Namespace</th>
-                    <th className={tableHeaderCellClass}>Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runResult.impactedServices.map((service) => (
-                    <tr key={`${service.serviceId}:${service.role}`} className={tableBodyRowClass}>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{service.serviceId}</span>
-                      </td>
-                      <td className={tableCellClass}>{service.name}</td>
-                      <td className={tableCellClass}>{service.namespace}</td>
-                      <td className={tableCellClass}>{service.role}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Section>
-
-        <Section title="Impacted Paths" icon={Network}>
-          {runResult.impactedPaths.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No impacted paths returned.</p>
-          ) : (
-            <div className={tableShellClass}>
-              <table className="w-full">
-                <thead className={tableHeadRowClass}>
-                  <tr>
-                    <th className={tableHeaderCellClass}>Path</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runResult.impactedPaths.map((path, index) => (
-                    <tr key={`${path.path.join('->')}-${index}`} className={tableBodyRowClass}>
-                      <td className={tableCellClass}>{path.path.join(' -> ')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Section>
-
-        <Section title="Before/After Values" icon={TrendingUp}>
-          {runResult.beforeAfterValues.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No before/after values returned.</p>
-          ) : (
-            <div className={tableShellClass}>
-              <table className="w-full">
-                <thead className={tableHeadRowClass}>
-                  <tr>
-                    <th className={tableHeaderCellClass}>Field</th>
-                    <th className={tableHeaderCellClass}>Before</th>
-                    <th className={tableHeaderCellClass}>After</th>
-                    <th className={tableHeaderCellClass}>Delta</th>
-                    <th className={tableHeaderCellClass}>Trace</th>
-                    <th className={tableHeaderCellClass}>Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {runResult.beforeAfterValues.map((value) => (
-                    <tr key={value.traceRef} className={tableBodyRowClass}>
-                      <td className={tableCellClass}>{value.fieldRef}</td>
-                      <td className={tableCellClass}>{formatNumberWithUnit(value.beforeValue, value.unit)}</td>
-                      <td className={tableCellClass}>{formatNumberWithUnit(value.afterValue, value.unit)}</td>
-                      <td className={tableCellClass}>{formatNumberWithUnit(value.deltaValue, value.unit)}</td>
-                      <td className={tableCellClass}>
-                        <span className="font-mono text-xs">{value.traceRef}</span>
-                      </td>
-                      <td className={tableCellClass}>{value.description}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </Section>
-
-        <Section title="Recommendation" icon={Sparkles}>
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <p className="text-sm text-[var(--text-secondary)]">
-              Action: <span className="font-mono text-[var(--text-primary)]">{runResult.recommendation.action || 'n/a'}</span>
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-primary)]">{runResult.recommendation.explanation}</p>
-            <div className="mt-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Recommendation Evidence References
+              <p className="text-sm text-[var(--text-primary)]">
+                {new Date(runResult.snapshotTimestamp).toLocaleString()}
               </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {runResult.recommendation.evidenceSourceRefs.map((reference) => (
-                  <span
-                    key={reference}
-                    className="rounded border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-mono text-[var(--text-primary)]"
-                  >
-                    {reference}
-                  </span>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Outcome <InfoHint text="Whether the simulation finished successfully and found meaningful results, or if it ran into issues. 'COMPLETED' means the results below are ready to review." />
+              </h3>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{runResult.resultStatus}</p>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Confidence <InfoHint text="How sure the system is about these results. 'HIGH' means the data strongly supports the conclusion. 'LOW' means treat the results as a rough estimate." />
+              </h3>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{runResult.confidenceLevel}</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="What the Simulation Assumed" icon={ShieldCheck}>
+          {runResult.assumptions.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No assumptions were needed for this simulation.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--text-secondary)]">
+                The simulation made these assumptions. If reality is different, results may not be perfectly accurate.
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {runResult.assumptions.map((assumption) => (
+                  <div key={assumption.traceRef} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+                    <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{assumption.description || assumption.key}</p>
+                    </div>
+                    <InfoHint text={`Technical detail: "${assumption.key}" was set to "${assumption.value}". Source: ${assumption.source || 'simulation engine'}.`} />
+                  </div>
                 ))}
               </div>
             </div>
-          </div>
+          )}
         </Section>
 
-        {renderTraceabilityPanel(runResult)}
+        <Section title="Services That Would Be Affected" icon={Network}>
+          {runResult.impactedServices.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No services would be affected in this scenario.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-[var(--text-secondary)]">
+                These are the services that would feel the impact if this scenario actually happened. The role shows whether each service is directly hit or indirectly affected.
+              </p>
+              <div className={tableShellClass}>
+                <table className="w-full">
+                  <thead className={tableHeadRowClass}>
+                    <tr>
+                      <th className={tableHeaderCellClass}>Service Name</th>
+                      <th className={tableHeaderCellClass}>How It’s Affected</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runResult.impactedServices.map((service) => (
+                      <tr key={`${service.serviceId}:${service.role}`} className={tableBodyRowClass}>
+                        <td className={tableCellClass}>{service.name || service.serviceId}</td>
+                        <td className={tableCellClass}>{service.role}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Request Journeys That Would Break" icon={Network}>
+          {runResult.impactedPaths.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No request journeys would be disrupted in this scenario.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  When a user makes a request, it travels through a chain of services. These are the journeys that would break.
+                </p>
+                <InfoHint text="Think of each journey like a relay race — one runner passes the baton to the next. If one runner (service) drops out, everyone after them can't continue." />
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {runResult.impactedPaths.map((path, index) => (
+                  <div key={`${path.path.join('->')}-${index}`} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] px-3 py-2.5">
+                    {path.path.map((step, stepIndex) => (
+                      <span key={`${step}-${stepIndex}`} className="inline-flex items-center gap-1.5">
+                        <span className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--text-primary)]">
+                          {shortServiceName(step)}
+                        </span>
+                        {stepIndex < path.path.length - 1 && (
+                          <ArrowRight className="h-3.5 w-3.5 text-[var(--text-dim)]" />
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">{runResult.impactedPaths.length} journey{runResult.impactedPaths.length !== 1 ? 's' : ''} would be disrupted</p>
+            </div>
+          )}
+        </Section>
+
+        <Section title="What Would Change" icon={TrendingUp}>
+          {runResult.beforeAfterValues.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No measurable changes detected for this scenario.</p>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-[var(--text-secondary)]">
+                This table shows how key metrics would change if this scenario happened. Negative change means things get faster; positive means slower.
+              </p>
+              <div className={tableShellClass}>
+                <table className="w-full">
+                  <thead className={tableHeadRowClass}>
+                    <tr>
+                      <th className={tableHeaderCellClass}>What’s Measured</th>
+                      <th className={tableHeaderCellClass}>Before</th>
+                      <th className={tableHeaderCellClass}>After</th>
+                      <th className={tableHeaderCellClass}>Change</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {runResult.beforeAfterValues.map((value) => (
+                      <tr key={value.traceRef} className={tableBodyRowClass}>
+                        <td className={tableCellClass}>{value.description || value.fieldRef}</td>
+                        <td className={tableCellClass}>{formatNumberWithUnit(value.beforeValue, value.unit)}</td>
+                        <td className={tableCellClass}>{formatNumberWithUnit(value.afterValue, value.unit)}</td>
+                        <td className={tableCellClass}>
+                          <span className={(value.deltaValue ?? 0) < 0 ? 'text-emerald-600' : (value.deltaValue ?? 0) > 0 ? 'text-rose-600' : ''}>
+                            {(value.deltaValue ?? 0) > 0 ? '+' : ''}{formatNumberWithUnit(value.deltaValue, value.unit)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <Section title="What We Recommend" icon={Sparkles}>
+          <div className="rounded-xl border-2 border-cyan-500/40 bg-gradient-to-br from-cyan-500/10 to-transparent p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-500/20">
+                <Sparkles className="h-5 w-5 text-cyan-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">Suggested Next Step</h3>
+                  <InfoHint text="This is what we suggest you do based on the simulation results. Following this advice can help prevent or reduce the damage if this scenario actually happens." />
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{runResult.recommendation.explanation}</p>
+              </div>
+            </div>
+          </div>
+        </Section>
       </div>
     )
   }
 
   const renderDeferredOutcome = (outcome: DeferredUnsupportedOutcome) => {
     const degradedModeReason = getDegradedModeReason(outcome.degradedMode, outcome.degradedModeReason)
-    const sparseOrEmptyHistoryContext = getSparseOrEmptyHistoryContext(outcome.degradedMode)
     return (
       <div className="space-y-6">
         <Section title="Simulation Evidence Summary" icon={Activity}>
-          {outcome.degradedMode && (
+          {outcome.degradedMode && degradedModeReason && (
             <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" />
                 <div className="space-y-1">
-                  <p className="text-sm font-bold uppercase tracking-wide text-[var(--text-primary)]">
-                    Degraded mode active: {outcome.degradedMode}
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
+                    Limited data available
                   </p>
-                  {sparseOrEmptyHistoryContext && (
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
-                      {sparseOrEmptyHistoryContext}
-                    </p>
-                  )}
-                  {degradedModeReason && <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>}
+                  <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>
                 </div>
               </div>
             </div>
           )}
 
           <div className="rounded-lg border border-rose-500/50 bg-rose-500/12 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">Backend Outcome</p>
-            <p className="mt-2 text-sm font-semibold text-[var(--text-primary)]">{outcome.resultStatus} result</p>
+            <p className="text-sm font-semibold text-[var(--text-primary)]">
+              {outcome.resultStatus === 'DEFERRED' ? 'Simulation was postponed' : 'Scenario not supported'}
+            </p>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">{outcome.reason}</p>
           </div>
         </Section>
 
-        <Section title="Simulation Output" icon={TrendingUp}>
+        <Section title="Simulation Results" icon={TrendingUp}>
           <p className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-4 text-sm text-[var(--text-secondary)]">
-            No simulated impact cards are shown for deferred or unsupported outcomes.
+            No results to show because the simulation could not run for this scenario.
           </p>
         </Section>
       </div>

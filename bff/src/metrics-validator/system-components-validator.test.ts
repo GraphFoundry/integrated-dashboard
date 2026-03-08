@@ -192,12 +192,17 @@ test('validates per-row traffic/success/latency/uptime values against formatted 
     'core:payments'
   ])
   assert.equal(result.rowMetricValues.rowComparisons.length, 2)
+  assert.equal(result.rowMetricValues.unverifiableItems.length, 0)
   for (const rowComparison of result.rowMetricValues.rowComparisons) {
     assert.equal(rowComparison.pass, true)
     assert.equal(rowComparison.traffic.pass, true)
     assert.equal(rowComparison.successRate.pass, true)
     assert.equal(rowComparison.slowEndResponseTime.pass, true)
     assert.equal(rowComparison.uptime.pass, true)
+    assert.equal(rowComparison.traffic.unverifiable, false)
+    assert.equal(rowComparison.successRate.unverifiable, false)
+    assert.equal(rowComparison.slowEndResponseTime.unverifiable, false)
+    assert.equal(rowComparison.uptime.unverifiable, false)
   }
 })
 
@@ -231,6 +236,80 @@ test('fails per-row comparison when displayed values differ from expected format
   assert.equal(checkoutRow.uptime.pass, true)
   assert.equal(checkoutRow.successRate.expected, '98.00%')
   assert.equal(checkoutRow.successRate.displayed, '95.00%')
+})
+
+test('marks missing telemetry datapoints as unverifiable with explicit reasons', () => {
+  const result = validateSystemComponentsTable({
+    latestPerServicePoints: [
+      createPoint('core:inventory', null, {
+        requestRate: null,
+        p95: null,
+        availability: undefined
+      })
+    ],
+    displayedTableRows: [
+      createDisplayedRow('core:inventory', {
+        traffic: 'N/A',
+        successRate: 'N/A',
+        slowEndResponseTime: 'N/A',
+        uptime: 'N/A'
+      })
+    ]
+  })
+
+  assert.equal(result.rowMetricValues.pass, false)
+  assert.equal(result.rowMetricValues.rowComparisons.length, 1)
+  assert.equal(result.rowMetricValues.unverifiableItems.length, 4)
+
+  const [row] = result.rowMetricValues.rowComparisons
+  assert.equal(row.serviceId, 'core:inventory')
+  assert.equal(row.traffic.unverifiable, true)
+  assert.equal(
+    row.traffic.unverifiableReason,
+    'Missing telemetry datapoint "requestRate" for service "core:inventory"; metric "traffic" marked unverifiable'
+  )
+  assert.equal(row.successRate.unverifiable, true)
+  assert.equal(
+    row.successRate.unverifiableReason,
+    'Missing telemetry datapoint "errorRate" for service "core:inventory"; metric "successRate" marked unverifiable'
+  )
+  assert.equal(row.slowEndResponseTime.unverifiable, true)
+  assert.equal(
+    row.slowEndResponseTime.unverifiableReason,
+    'Missing telemetry datapoint "p95" for service "core:inventory"; metric "slowEndResponseTime" marked unverifiable'
+  )
+  assert.equal(row.uptime.unverifiable, true)
+  assert.equal(
+    row.uptime.unverifiableReason,
+    'Missing telemetry datapoint "availability" for service "core:inventory"; metric "uptime" marked unverifiable'
+  )
+
+  assert.deepEqual(result.rowMetricValues.unverifiableItems, [
+    {
+      serviceId: 'core:inventory',
+      metric: 'traffic',
+      reason:
+        'Missing telemetry datapoint "requestRate" for service "core:inventory"; metric "traffic" marked unverifiable'
+    },
+    {
+      serviceId: 'core:inventory',
+      metric: 'successRate',
+      reason:
+        'Missing telemetry datapoint "errorRate" for service "core:inventory"; metric "successRate" marked unverifiable'
+    },
+    {
+      serviceId: 'core:inventory',
+      metric: 'slowEndResponseTime',
+      reason:
+        'Missing telemetry datapoint "p95" for service "core:inventory"; metric "slowEndResponseTime" marked unverifiable'
+    },
+    {
+      serviceId: 'core:inventory',
+      metric: 'uptime',
+      reason:
+        'Missing telemetry datapoint "availability" for service "core:inventory"; metric "uptime" marked unverifiable'
+    }
+  ])
 })
 
 test('validates risk badge classification using ordered high/medium/low rules', () => {

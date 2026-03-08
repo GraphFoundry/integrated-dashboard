@@ -37,11 +37,19 @@ type SystemComponentRowMetricName =
   | 'slowEndResponseTime'
   | 'uptime'
 
+type SystemComponentUnverifiableItem = {
+  serviceId: string
+  metric: SystemComponentRowMetricName
+  reason: string
+}
+
 type SystemComponentRowMetricComparison = {
   metric: SystemComponentRowMetricName
   expected: string
   displayed: string
   absoluteDelta: number | null
+  unverifiable: boolean
+  unverifiableReason: string | null
   pass: boolean
 }
 
@@ -80,6 +88,7 @@ type SystemComponentsRowMetricValuesComparison = {
   displayedRowCount: number
   comparedServiceIds: ReadonlyArray<string>
   rowComparisons: ReadonlyArray<SystemComponentRowComparison>
+  unverifiableItems: ReadonlyArray<SystemComponentUnverifiableItem>
   pass: boolean
 }
 
@@ -282,7 +291,22 @@ function parseDisplayedLatencyMilliseconds(value: string): number | null {
   return toFiniteNumber(normalized)
 }
 
+function buildMissingTelemetryDatapointReason(input: {
+  serviceId: string
+  metric: SystemComponentRowMetricName
+}): string {
+  const missingFieldByMetric: Record<SystemComponentRowMetricName, string> = {
+    traffic: 'requestRate',
+    successRate: 'errorRate',
+    slowEndResponseTime: 'p95',
+    uptime: 'availability'
+  }
+
+  return `Missing telemetry datapoint "${missingFieldByMetric[input.metric]}" for service "${input.serviceId}"; metric "${input.metric}" marked unverifiable`
+}
+
 function compareSystemComponentRowMetricValue(input: {
+  serviceId: string
   metric: SystemComponentRowMetricName
   expected: string
   displayedValue: string | undefined
@@ -290,6 +314,37 @@ function compareSystemComponentRowMetricValue(input: {
   parseDisplayed: (value: string) => number | null
 }): SystemComponentRowMetricComparison {
   const displayed = typeof input.displayedValue === 'string' ? input.displayedValue.trim() : ''
+  const missingTelemetryReason =
+    input.expectedRaw === null
+      ? buildMissingTelemetryDatapointReason({
+          serviceId: input.serviceId,
+          metric: input.metric
+        })
+      : null
+  if (missingTelemetryReason !== null) {
+    return {
+      metric: input.metric,
+      expected: input.expected,
+      displayed,
+      absoluteDelta: null,
+      unverifiable: true,
+      unverifiableReason: missingTelemetryReason,
+      pass: false
+    }
+  }
+
+  if (displayed.length === 0) {
+    return {
+      metric: input.metric,
+      expected: input.expected,
+      displayed,
+      absoluteDelta: null,
+      unverifiable: true,
+      unverifiableReason: `Missing displayed table value for metric "${input.metric}" on service "${input.serviceId}"; metric marked unverifiable`,
+      pass: false
+    }
+  }
+
   const pass = input.expected === displayed
 
   const displayedRaw = displayed.length > 0 ? input.parseDisplayed(displayed) : null
@@ -305,6 +360,8 @@ function compareSystemComponentRowMetricValue(input: {
     expected: input.expected,
     displayed,
     absoluteDelta,
+    unverifiable: false,
+    unverifiableReason: null,
     pass
   }
 }
@@ -329,6 +386,7 @@ function compareSystemComponentsRowMetricValues(
   const rowComparisons = expectedRows.map((expectedRow) => {
     const displayedRow = displayedRowsByServiceId.get(expectedRow.serviceId)
     const traffic = compareSystemComponentRowMetricValue({
+      serviceId: expectedRow.serviceId,
       metric: 'traffic',
       expected: expectedRow.traffic,
       displayedValue: displayedRow?.traffic,
@@ -336,6 +394,7 @@ function compareSystemComponentsRowMetricValues(
       parseDisplayed: parseDisplayedRequestRate
     })
     const successRate = compareSystemComponentRowMetricValue({
+      serviceId: expectedRow.serviceId,
       metric: 'successRate',
       expected: expectedRow.successRate,
       displayedValue: displayedRow?.successRate,
@@ -343,6 +402,7 @@ function compareSystemComponentsRowMetricValues(
       parseDisplayed: parseDisplayedPercent
     })
     const slowEndResponseTime = compareSystemComponentRowMetricValue({
+      serviceId: expectedRow.serviceId,
       metric: 'slowEndResponseTime',
       expected: expectedRow.slowEndResponseTime,
       displayedValue: displayedRow?.slowEndResponseTime,
@@ -350,6 +410,7 @@ function compareSystemComponentsRowMetricValues(
       parseDisplayed: parseDisplayedLatencyMilliseconds
     })
     const uptime = compareSystemComponentRowMetricValue({
+      serviceId: expectedRow.serviceId,
       metric: 'uptime',
       expected: expectedRow.uptime,
       displayedValue: displayedRow?.uptime,
@@ -367,6 +428,25 @@ function compareSystemComponentsRowMetricValues(
     }
   })
 
+  const unverifiableItems = rowComparisons.flatMap((rowComparison) =>
+    ([
+      rowComparison.traffic,
+      rowComparison.successRate,
+      rowComparison.slowEndResponseTime,
+      rowComparison.uptime
+    ] as const).flatMap((metricComparison) =>
+      metricComparison.unverifiable && metricComparison.unverifiableReason
+        ? [
+            {
+              serviceId: rowComparison.serviceId,
+              metric: metricComparison.metric,
+              reason: metricComparison.unverifiableReason
+            }
+          ]
+        : []
+    )
+  )
+
   const hasMatchingRowCount = expectedRows.length === input.displayedTableRows.length
   const pass = hasMatchingRowCount && rowComparisons.every((comparison) => comparison.pass)
 
@@ -377,6 +457,7 @@ function compareSystemComponentsRowMetricValues(
     displayedRowCount: input.displayedTableRows.length,
     comparedServiceIds: expectedRows.map((row) => row.serviceId),
     rowComparisons,
+    unverifiableItems,
     pass
   }
 }
@@ -509,6 +590,7 @@ export {
   type SystemComponentsOrderingComparison,
   type SystemComponentRowMetricComparison,
   type SystemComponentRowComparison,
+  type SystemComponentUnverifiableItem,
   type SystemComponentsRowMetricValuesComparison,
   type SystemComponentRiskBadgeRowComparison,
   type SystemComponentsRiskBadgeClassificationComparison,

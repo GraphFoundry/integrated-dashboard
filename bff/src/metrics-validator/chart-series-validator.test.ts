@@ -66,6 +66,37 @@ test(
   }
 )
 
+test('normalizes failure-rate and uptime series to percentage values before comparison', () => {
+  const result = validateChartSeriesAgainstTelemetry({
+    rawTelemetryPoints: [
+      {
+        timestamp: '2026-03-08T00:00:00.000Z',
+        requestRate: 10,
+        errorRate: 0.02,
+        p95: 100,
+        availability: 0.999
+      }
+    ],
+    telemetryStepSeconds: 60,
+    displayedChartSeries: {
+      traffic: [{ timestamp: '2026-03-08T00:00:00.000Z', value: 10 }],
+      failureRate: [{ timestamp: '2026-03-08T00:00:00.000Z', value: 0.02 }],
+      responseSpeed: [{ timestamp: '2026-03-08T00:00:00.000Z', p95: 100 }],
+      uptime: [{ timestamp: '2026-03-08T00:00:00.000Z', value: 0.999 }],
+      hasP50Data: false,
+      hasP99Data: false
+    }
+  })
+
+  assert.equal(result.failureRate.pass, true)
+  assert.equal(result.uptime.pass, true)
+  assert.equal(result.failureRate.pointComparisons[0]?.expectedValue, 2)
+  assert.equal(result.failureRate.pointComparisons[0]?.displayedValue, 2)
+  assert.equal(result.uptime.pointComparisons[0]?.expectedValue, 99.9)
+  assert.equal(result.uptime.pointComparisons[0]?.displayedValue, 99.9)
+  assert.equal(result.pass, true)
+})
+
 test('reports step/value mismatches when chart series diverge from telemetry datapoints', () => {
   const result = validateChartSeriesAgainstTelemetry({
     rawTelemetryPoints: [

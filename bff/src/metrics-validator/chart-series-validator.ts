@@ -1,4 +1,8 @@
 import { type MetricsPageDisplayedValues } from './metrics-page-browser'
+import {
+  normalizeAvailabilityForDisplay,
+  normalizeErrorRateForDisplay
+} from './normalization'
 
 type DisplayedChartSeries = MetricsPageDisplayedValues['chartSeries']
 
@@ -82,6 +86,22 @@ function toFiniteNumber(value: unknown): number | null {
   return null
 }
 
+function normalizeDisplayedPercentForComparison(value: number | null): number | null {
+  if (value === null) {
+    return null
+  }
+
+  if (value < 0) {
+    return null
+  }
+
+  if (value < 1) {
+    return value * 100
+  }
+
+  return Math.min(value, 100)
+}
+
 function toTimestampMs(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value < 1_000_000_000_000 ? value * 1000 : value
@@ -142,22 +162,6 @@ function sortTelemetryPointsByTimestamp(
       return a.index - b.index
     })
     .map((entry) => entry.point)
-}
-
-function normalizeFailureRatePercentForChart(value: number | null): number | null {
-  if (value === null) {
-    return null
-  }
-
-  if (value < 0) {
-    return null
-  }
-
-  if (value <= 1) {
-    return value * 100
-  }
-
-  return Math.min(value, 100)
 }
 
 function compareNullableNumbers(expected: number | null, displayed: number | null): {
@@ -328,7 +332,7 @@ function validateChartSeriesAgainstTelemetry(
   }))
   const expectedFailureRateSeries = sortedTelemetryPoints.map((point) => ({
     timestamp: normalizeTimestampForComparison(point.timestamp) ?? '',
-    value: normalizeFailureRatePercentForChart(toFiniteNumber(point.errorRate))
+    value: normalizeErrorRateForDisplay(toFiniteNumber(point.errorRate))
   }))
   const expectedResponseSpeedSeries = sortedTelemetryPoints.map((point) => {
     const p50 = toFiniteNumber(point.p50)
@@ -345,7 +349,7 @@ function validateChartSeriesAgainstTelemetry(
   const expectedUptimeSeries = sortedTelemetryPoints
     .map((point) => ({
       timestamp: normalizeTimestampForComparison(point.timestamp) ?? '',
-      value: toFiniteNumber(point.availability)
+      value: normalizeAvailabilityForDisplay(toFiniteNumber(point.availability))
     }))
     .filter((point): point is { timestamp: string; value: number } => point.value !== null)
 
@@ -355,7 +359,7 @@ function validateChartSeriesAgainstTelemetry(
   }))
   const displayedFailureRateSeries = input.displayedChartSeries.failureRate.map((point) => ({
     timestamp: normalizeTimestampForComparison(point.timestamp) ?? '',
-    value: point.value
+    value: normalizeDisplayedPercentForComparison(toFiniteNumber(point.value))
   }))
   const displayedResponseSpeedSeries = input.displayedChartSeries.responseSpeed.map((point) => ({
     timestamp: normalizeTimestampForComparison(point.timestamp) ?? '',
@@ -365,7 +369,7 @@ function validateChartSeriesAgainstTelemetry(
   }))
   const displayedUptimeSeries = input.displayedChartSeries.uptime.map((point) => ({
     timestamp: normalizeTimestampForComparison(point.timestamp) ?? '',
-    value: point.value
+    value: normalizeDisplayedPercentForComparison(toFiniteNumber(point.value))
   }))
 
   const traffic = compareNumericChartSeries({

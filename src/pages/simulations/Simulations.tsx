@@ -980,27 +980,37 @@ export default function Simulations() {
           {runResult.impactedServices.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">No services would be affected in this scenario.</p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <p className="text-sm text-[var(--text-secondary)]">
-                These are the services that would feel the impact if this scenario actually happened. The role shows whether each service is directly hit or indirectly affected.
+                If this scenario happened, these services would be affected. Each card shows how the service is involved.
               </p>
-              <div className={tableShellClass}>
-                <table className="w-full">
-                  <thead className={tableHeadRowClass}>
-                    <tr>
-                      <th className={tableHeaderCellClass}>Service Name</th>
-                      <th className={tableHeaderCellClass}>How It’s Affected</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {runResult.impactedServices.map((service) => (
-                      <tr key={`${service.serviceId}:${service.role}`} className={tableBodyRowClass}>
-                        <td className={tableCellClass}>{service.name || service.serviceId}</td>
-                        <td className={tableCellClass}>{service.role}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {runResult.impactedServices.map((service) => {
+                  const role = service.role?.toLowerCase() ?? ''
+                  const isTarget = role === 'target'
+                  const isCaller = role === 'caller'
+                  const roleLabel = isTarget ? 'Directly hit' : isCaller ? 'Sends requests here' : 'Depends on target'
+                  const roleBadgeClass = isTarget
+                    ? 'border-rose-500/50 bg-rose-500/12 text-rose-700'
+                    : isCaller
+                      ? 'border-amber-500/50 bg-amber-500/12 text-amber-700'
+                      : 'border-sky-500/50 bg-sky-500/12 text-sky-700'
+                  const roleIcon = isTarget ? '🎯' : isCaller ? '📤' : '📥'
+                  return (
+                    <div key={`${service.serviceId}:${service.role}`} className="flex flex-col items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-3 text-center">
+                      <span className="text-2xl">{roleIcon}</span>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{shortServiceName(service.name || service.serviceId)}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}>
+                        {roleLabel}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
+                <span className="inline-flex items-center gap-1">🎯 Directly hit <InfoHint text="This is the service you chose to test. It's the one that would go down or change." /></span>
+                <span className="inline-flex items-center gap-1">📤 Sends requests <InfoHint text="This service sends traffic to the target. When the target fails, this service will get errors back." /></span>
+                <span className="inline-flex items-center gap-1">📥 Depends on target <InfoHint text="This service relies on the target to work. If the target goes down, this service loses functionality too." /></span>
               </div>
             </div>
           )}

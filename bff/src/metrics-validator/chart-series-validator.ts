@@ -59,7 +59,19 @@ type ResponseSpeedChartSeriesComparison = {
   metric: 'responseSpeed'
   expectedPointCount: number
   displayedPointCount: number
+  optionalPercentiles: {
+    p50: PercentileAvailabilityComparison
+    p99: PercentileAvailabilityComparison
+  }
   pointComparisons: ReadonlyArray<ResponseSpeedPointComparison>
+  pass: boolean
+}
+
+type PercentileAvailabilityStatus = 'available' | 'absent'
+
+type PercentileAvailabilityComparison = {
+  expected: PercentileAvailabilityStatus
+  displayed: PercentileAvailabilityStatus
   pass: boolean
 }
 
@@ -255,6 +267,30 @@ function compareOptionalPercentileValue(
   }
 }
 
+function buildPercentileAvailabilityComparison(input: {
+  telemetryHasData: boolean
+  displayedHasData: boolean
+}): PercentileAvailabilityComparison {
+  const expected: PercentileAvailabilityStatus = input.telemetryHasData ? 'available' : 'absent'
+  const displayed: PercentileAvailabilityStatus = input.displayedHasData ? 'available' : 'absent'
+
+  return {
+    expected,
+    displayed,
+    pass: expected === displayed
+  }
+}
+
+function hasPercentileValues(
+  points: ReadonlyArray<{
+    p50?: number
+    p99?: number
+  }>,
+  percentile: 'p50' | 'p99'
+): boolean {
+  return points.some((point) => typeof point[percentile] === 'number')
+}
+
 function compareResponseSpeedSeries(input: {
   expectedPoints: ReadonlyArray<{
     timestamp: string
@@ -268,6 +304,10 @@ function compareResponseSpeedSeries(input: {
     p95?: number
     p99?: number
   }>
+  displayedPercentileAvailability: {
+    hasP50Data: boolean
+    hasP99Data: boolean
+  }
 }): ResponseSpeedChartSeriesComparison {
   const comparisonCount = Math.max(
     input.expectedPoints.length,
@@ -305,12 +345,24 @@ function compareResponseSpeedSeries(input: {
     input.expectedPoints.length === input.displayedPoints.length &&
     pointComparisons.every((point) => point.pass)
 
+  const optionalPercentiles = {
+    p50: buildPercentileAvailabilityComparison({
+      telemetryHasData: hasPercentileValues(input.expectedPoints, 'p50'),
+      displayedHasData: input.displayedPercentileAvailability.hasP50Data
+    }),
+    p99: buildPercentileAvailabilityComparison({
+      telemetryHasData: hasPercentileValues(input.expectedPoints, 'p99'),
+      displayedHasData: input.displayedPercentileAvailability.hasP99Data
+    })
+  }
+
   return {
     metric: 'responseSpeed',
     expectedPointCount: input.expectedPoints.length,
     displayedPointCount: input.displayedPoints.length,
+    optionalPercentiles,
     pointComparisons,
-    pass
+    pass: pass && optionalPercentiles.p50.pass && optionalPercentiles.p99.pass
   }
 }
 
@@ -384,7 +436,11 @@ function validateChartSeriesAgainstTelemetry(
   })
   const responseSpeed = compareResponseSpeedSeries({
     expectedPoints: expectedResponseSpeedSeries,
-    displayedPoints: displayedResponseSpeedSeries
+    displayedPoints: displayedResponseSpeedSeries,
+    displayedPercentileAvailability: {
+      hasP50Data: input.displayedChartSeries.hasP50Data,
+      hasP99Data: input.displayedChartSeries.hasP99Data
+    }
   })
   const uptime = compareNumericChartSeries({
     metric: 'uptime',

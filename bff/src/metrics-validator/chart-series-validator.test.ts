@@ -61,6 +61,12 @@ test(
     assert.equal(result.traffic.pass, true)
     assert.equal(result.failureRate.pass, true)
     assert.equal(result.responseSpeed.pass, true)
+    assert.equal(result.responseSpeed.optionalPercentiles.p50.expected, 'available')
+    assert.equal(result.responseSpeed.optionalPercentiles.p50.displayed, 'available')
+    assert.equal(result.responseSpeed.optionalPercentiles.p50.pass, true)
+    assert.equal(result.responseSpeed.optionalPercentiles.p99.expected, 'available')
+    assert.equal(result.responseSpeed.optionalPercentiles.p99.displayed, 'available')
+    assert.equal(result.responseSpeed.optionalPercentiles.p99.pass, true)
     assert.equal(result.uptime.pass, true)
     assert.equal(result.pass, true)
   }
@@ -90,10 +96,48 @@ test('normalizes failure-rate and uptime series to percentage values before comp
 
   assert.equal(result.failureRate.pass, true)
   assert.equal(result.uptime.pass, true)
+  assert.equal(result.responseSpeed.optionalPercentiles.p50.expected, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p50.displayed, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p50.pass, true)
+  assert.equal(result.responseSpeed.optionalPercentiles.p99.expected, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p99.displayed, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p99.pass, true)
   assert.equal(result.failureRate.pointComparisons[0]?.expectedValue, 2)
   assert.equal(result.failureRate.pointComparisons[0]?.displayedValue, 2)
   assert.equal(result.uptime.pointComparisons[0]?.expectedValue, 99.9)
   assert.equal(result.uptime.pointComparisons[0]?.displayedValue, 99.9)
+  assert.equal(result.pass, true)
+})
+
+test('reports P50/P99 as absent when poll-worker telemetry does not provide those percentiles', () => {
+  const result = validateChartSeriesAgainstTelemetry({
+    rawTelemetryPoints: [
+      {
+        timestamp: '2026-03-08T00:00:00.000Z',
+        requestRate: 8,
+        errorRate: 0.01,
+        p95: 95,
+        availability: 99.5
+      }
+    ],
+    telemetryStepSeconds: 60,
+    displayedChartSeries: {
+      traffic: [{ timestamp: '2026-03-08T00:00:00.000Z', value: 8 }],
+      failureRate: [{ timestamp: '2026-03-08T00:00:00.000Z', value: 1 }],
+      responseSpeed: [{ timestamp: '2026-03-08T00:00:00.000Z', p95: 95 }],
+      uptime: [{ timestamp: '2026-03-08T00:00:00.000Z', value: 99.5 }],
+      hasP50Data: false,
+      hasP99Data: false
+    }
+  })
+
+  assert.equal(result.responseSpeed.optionalPercentiles.p50.expected, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p50.displayed, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p50.pass, true)
+  assert.equal(result.responseSpeed.optionalPercentiles.p99.expected, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p99.displayed, 'absent')
+  assert.equal(result.responseSpeed.optionalPercentiles.p99.pass, true)
+  assert.equal(result.responseSpeed.pass, true)
   assert.equal(result.pass, true)
 })
 

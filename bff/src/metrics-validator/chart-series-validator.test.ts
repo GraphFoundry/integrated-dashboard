@@ -190,3 +190,142 @@ test('reports step/value mismatches when chart series diverge from telemetry dat
   assert.equal(result.uptime.pass, true)
   assert.equal(result.pass, false)
 })
+
+test('classifies traced spikes as data-backed vs rendering-only using raw datapoints', () => {
+  const result = validateChartSeriesAgainstTelemetry({
+    rawTelemetryPoints: [
+      {
+        timestamp: '2026-03-08T00:00:00.000Z',
+        requestRate: 10,
+        errorRate: 0.01,
+        p95: 100,
+        availability: 99.8
+      },
+      {
+        timestamp: '2026-03-08T00:01:00.000Z',
+        requestRate: 30,
+        errorRate: 0.01,
+        p95: 110,
+        availability: 99.8
+      }
+    ],
+    telemetryStepSeconds: 60,
+    displayedChartSeries: {
+      traffic: [
+        { timestamp: '2026-03-08T00:00:00.000Z', value: 10 },
+        { timestamp: '2026-03-08T00:01:00.000Z', value: 30 }
+      ],
+      failureRate: [
+        { timestamp: '2026-03-08T00:00:00.000Z', value: 1 },
+        { timestamp: '2026-03-08T00:01:00.000Z', value: 1 }
+      ],
+      responseSpeed: [
+        { timestamp: '2026-03-08T00:00:00.000Z', p95: 100 },
+        { timestamp: '2026-03-08T00:01:00.000Z', p95: 110 }
+      ],
+      uptime: [
+        { timestamp: '2026-03-08T00:00:00.000Z', value: 99.8 },
+        { timestamp: '2026-03-08T00:01:00.000Z', value: 90 }
+      ],
+      hasP50Data: false,
+      hasP99Data: false
+    }
+  })
+
+  assert.equal(result.gapSpikeTrace.traceStepSeconds, 60)
+  assert.equal(result.gapSpikeTrace.dataBackedCount, 1)
+  assert.equal(result.gapSpikeTrace.renderingOnlyCount, 1)
+
+  const trafficSpike = result.gapSpikeTrace.anomalies.find(
+    (anomaly) =>
+      anomaly.metric === 'traffic' &&
+      anomaly.kind === 'spike' &&
+      anomaly.classification === 'data-backed'
+  )
+  assert.ok(trafficSpike)
+  assert.equal(trafficSpike.displayed.absoluteDelta, 20)
+  assert.equal(trafficSpike.raw.hasMatchingAnomaly, true)
+  assert.equal(trafficSpike.raw.from?.timestamp, '2026-03-08T00:00:00.000Z')
+  assert.equal(trafficSpike.raw.to?.timestamp, '2026-03-08T00:01:00.000Z')
+
+  const uptimeSpike = result.gapSpikeTrace.anomalies.find(
+    (anomaly) =>
+      anomaly.metric === 'uptime' &&
+      anomaly.kind === 'spike' &&
+      anomaly.classification === 'rendering-only'
+  )
+  assert.ok(uptimeSpike)
+  assert.ok(
+    Math.abs((uptimeSpike.displayed.absoluteDelta ?? 0) - 9.8) < 0.000001
+  )
+  assert.equal(uptimeSpike.raw.hasMatchingAnomaly, false)
+  assert.equal(uptimeSpike.raw.from?.timestamp, '2026-03-08T00:00:00.000Z')
+  assert.equal(uptimeSpike.raw.to?.timestamp, '2026-03-08T00:01:00.000Z')
+})
+
+test('marks chart gaps as rendering-only when no matching raw gap exists', () => {
+  const result = validateChartSeriesAgainstTelemetry({
+    rawTelemetryPoints: [
+      {
+        timestamp: '2026-03-08T00:00:00.000Z',
+        requestRate: 10,
+        errorRate: 0.01,
+        p95: 100,
+        availability: 99.8
+      },
+      {
+        timestamp: '2026-03-08T00:01:00.000Z',
+        requestRate: 11,
+        errorRate: 0.01,
+        p95: 105,
+        availability: 99.8
+      },
+      {
+        timestamp: '2026-03-08T00:02:00.000Z',
+        requestRate: 12,
+        errorRate: 0.01,
+        p95: 110,
+        availability: 99.8
+      }
+    ],
+    telemetryStepSeconds: 60,
+    displayedChartSeries: {
+      traffic: [
+        { timestamp: '2026-03-08T00:00:00.000Z', value: 10 },
+        { timestamp: '2026-03-08T00:02:00.000Z', value: 12 }
+      ],
+      failureRate: [
+        { timestamp: '2026-03-08T00:00:00.000Z', value: 1 },
+        { timestamp: '2026-03-08T00:01:00.000Z', value: 1 },
+        { timestamp: '2026-03-08T00:02:00.000Z', value: 1 }
+      ],
+      responseSpeed: [
+        { timestamp: '2026-03-08T00:00:00.000Z', p95: 100 },
+        { timestamp: '2026-03-08T00:01:00.000Z', p95: 105 },
+        { timestamp: '2026-03-08T00:02:00.000Z', p95: 110 }
+      ],
+      uptime: [
+        { timestamp: '2026-03-08T00:00:00.000Z', value: 99.8 },
+        { timestamp: '2026-03-08T00:01:00.000Z', value: 99.8 },
+        { timestamp: '2026-03-08T00:02:00.000Z', value: 99.8 }
+      ],
+      hasP50Data: false,
+      hasP99Data: false
+    }
+  })
+
+  assert.equal(result.gapSpikeTrace.dataBackedCount, 0)
+  assert.equal(result.gapSpikeTrace.renderingOnlyCount, 1)
+
+  const gap = result.gapSpikeTrace.anomalies.find(
+    (anomaly) =>
+      anomaly.metric === 'traffic' &&
+      anomaly.kind === 'gap' &&
+      anomaly.classification === 'rendering-only'
+  )
+  assert.ok(gap)
+  assert.equal(gap.displayed.gapSeconds, 120)
+  assert.equal(gap.raw.hasMatchingAnomaly, false)
+  assert.equal(gap.raw.from?.timestamp, '2026-03-08T00:00:00.000Z')
+  assert.equal(gap.raw.to?.timestamp, '2026-03-08T00:02:00.000Z')
+})

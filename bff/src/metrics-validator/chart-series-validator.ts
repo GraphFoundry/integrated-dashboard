@@ -67,6 +67,39 @@ type ResponseSpeedChartSeriesComparison = {
   pass: boolean
 }
 
+type ChartGapSpikeMetric = 'traffic' | 'failureRate' | 'responseSpeed' | 'uptime'
+
+type ChartGapSpikeClassification = 'data-backed' | 'rendering-only'
+
+type ChartTraceDatapoint = {
+  timestamp: string
+  value: number | null
+}
+
+type ChartGapSpikeTraceAnomaly = {
+  metric: ChartGapSpikeMetric
+  kind: 'gap' | 'spike'
+  classification: ChartGapSpikeClassification
+  displayed: {
+    from: ChartTraceDatapoint | null
+    to: ChartTraceDatapoint | null
+    gapSeconds: number | null
+    absoluteDelta: number | null
+  }
+  raw: {
+    from: ChartTraceDatapoint | null
+    to: ChartTraceDatapoint | null
+    hasMatchingAnomaly: boolean
+  }
+}
+
+type ChartGapSpikeTrace = {
+  traceStepSeconds: number
+  dataBackedCount: number
+  renderingOnlyCount: number
+  anomalies: ReadonlyArray<ChartGapSpikeTraceAnomaly>
+}
+
 type PercentileAvailabilityStatus = 'available' | 'absent'
 
 type PercentileAvailabilityComparison = {
@@ -78,11 +111,33 @@ type PercentileAvailabilityComparison = {
 type ChartSeriesValidation = {
   metric: 'chartSeries'
   stepSeconds: StepSecondsComparison
+  gapSpikeTrace: ChartGapSpikeTrace
   traffic: NumericChartSeriesComparison
   failureRate: NumericChartSeriesComparison
   responseSpeed: ResponseSpeedChartSeriesComparison
   uptime: NumericChartSeriesComparison
   pass: boolean
+}
+
+type TimestampedNumericPoint = {
+  timestamp: string
+  value: number | null
+}
+
+type DetectedGapSpikeEvent = {
+  key: string
+  kind: 'gap' | 'spike'
+  from: TimestampedNumericPoint
+  to: TimestampedNumericPoint
+  gapSeconds: number | null
+  absoluteDelta: number | null
+}
+
+const SPIKE_ABSOLUTE_DELTA_THRESHOLD: Record<ChartGapSpikeMetric, number> = {
+  traffic: 15,
+  failureRate: 5,
+  responseSpeed: 75,
+  uptime: 2
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -146,6 +201,11 @@ function normalizeTimestampForComparison(value: unknown): string | null {
   return new Date(timestampMs).toISOString()
 }
 
+function toParsedTimestampMs(value: string): number | null {
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 function sortTelemetryPointsByTimestamp(
   points: ReadonlyArray<Record<string, unknown>>
 ): ReadonlyArray<Record<string, unknown>> {
@@ -198,6 +258,208 @@ function compareNullableNumbers(expected: number | null, displayed: number | nul
   return {
     absoluteDelta: null,
     pass: false
+  }
+}
+
+function detectGapEvents(
+  points: ReadonlyArray<TimestampedNumericPoint>,
+  stepSeconds: number
+): ReadonlyArray<DetectedGapSpikeEvent> {
+  if (!Number.isFinite(stepSeconds) || stepSeconds <= 0) {
+    return []
+  }
+
+  const gapThresholdSeconds = stepSeconds * 1.5
+  const events: DetectedGapSpikeEvent[] = []
+
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]
+    const to = points[index]
+
+    if (!from || !to) {
+      continue
+    }
+
+    const fromTimestampMs = toParsedTimestampMs(from.timestamp)
+    const toTimestampMs = toParsedTimestampMs(to.timestamp)
+    if (fromTimestampMs === null || toTimestampMs === null || toTimestampMs <= fromTimestampMs) {
+      continue
+    }
+
+    const gapSeconds = (toTimestampMs - fromTimestampMs) / 1000
+    if (gapSeconds <= gapThresholdSeconds) {
+      continue
+    }
+
+    events.push({
+      key: `gap:${from.timestamp}->${to.timestamp}`,
+      kind: 'gap',
+      from: { ...from },
+      to: { ...to },
+      gapSeconds,
+      absoluteDelta: null
+    })
+  }
+
+  return events
+}
+
+function detectSpikeEvents(
+  points: ReadonlyArray<TimestampedNumericPoint>,
+  metric: ChartGapSpikeMetric
+): ReadonlyArray<DetectedGapSpikeEvent> {
+  const threshold = SPIKE_ABSOLUTE_DELTA_THRESHOLD[metric]
+  const events: DetectedGapSpikeEvent[] = []
+
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]
+    const to = points[index]
+
+    if (!from || !to) {
+      continue
+    }
+
+    if (toParsedTimestampMs(from.timestamp) === null || toParsedTimestampMs(to.timestamp) === null) {
+      continue
+    }
+
+    if (from.value === null || to.value === null) {
+      continue
+    }
+
+    const absoluteDelta = Math.abs(to.value - from.value)
+    if (absoluteDelta < threshold) {
+      continue
+    }
+
+    events.push({
+      key: `spike:${from.timestamp}->${to.timestamp}`,
+      kind: 'spike',
+      from: { ...from },
+      to: { ...to },
+      gapSeconds: null,
+      absoluteDelta
+    })
+  }
+
+  return events
+}
+
+function buildPointLookup(
+  points: ReadonlyArray<TimestampedNumericPoint>
+): Map<string, TimestampedNumericPoint> {
+  const lookup = new Map<string, TimestampedNumericPoint>()
+  for (const point of points) {
+    lookup.set(point.timestamp, { ...point })
+  }
+  return lookup
+}
+
+function buildGapSpikeTraceForMetric(input: {
+  metric: ChartGapSpikeMetric
+  expectedPoints: ReadonlyArray<TimestampedNumericPoint>
+  displayedPoints: ReadonlyArray<TimestampedNumericPoint>
+  stepSeconds: number
+}): ReadonlyArray<ChartGapSpikeTraceAnomaly> {
+  const rawEvents = [
+    ...detectGapEvents(input.expectedPoints, input.stepSeconds),
+    ...detectSpikeEvents(input.expectedPoints, input.metric)
+  ]
+  const displayedEvents = [
+    ...detectGapEvents(input.displayedPoints, input.stepSeconds),
+    ...detectSpikeEvents(input.displayedPoints, input.metric)
+  ]
+  const rawEventByKey = new Map(rawEvents.map((event) => [event.key, event]))
+  const rawPointLookup = buildPointLookup(input.expectedPoints)
+
+  return displayedEvents.map((displayedEvent) => {
+    const matchingRawEvent = rawEventByKey.get(displayedEvent.key) ?? null
+    const rawFrom =
+      matchingRawEvent?.from ??
+      rawPointLookup.get(displayedEvent.from.timestamp) ??
+      null
+    const rawTo =
+      matchingRawEvent?.to ??
+      rawPointLookup.get(displayedEvent.to.timestamp) ??
+      null
+    const classification: ChartGapSpikeClassification =
+      matchingRawEvent !== null ? 'data-backed' : 'rendering-only'
+
+    return {
+      metric: input.metric,
+      kind: displayedEvent.kind,
+      classification,
+      displayed: {
+        from: { ...displayedEvent.from },
+        to: { ...displayedEvent.to },
+        gapSeconds: displayedEvent.gapSeconds,
+        absoluteDelta: displayedEvent.absoluteDelta
+      },
+      raw: {
+        from: rawFrom ? { ...rawFrom } : null,
+        to: rawTo ? { ...rawTo } : null,
+        hasMatchingAnomaly: matchingRawEvent !== null
+      }
+    }
+  })
+}
+
+function buildGapSpikeTrace(input: {
+  stepSeconds: number
+  traffic: {
+    expected: ReadonlyArray<TimestampedNumericPoint>
+    displayed: ReadonlyArray<TimestampedNumericPoint>
+  }
+  failureRate: {
+    expected: ReadonlyArray<TimestampedNumericPoint>
+    displayed: ReadonlyArray<TimestampedNumericPoint>
+  }
+  responseSpeed: {
+    expected: ReadonlyArray<TimestampedNumericPoint>
+    displayed: ReadonlyArray<TimestampedNumericPoint>
+  }
+  uptime: {
+    expected: ReadonlyArray<TimestampedNumericPoint>
+    displayed: ReadonlyArray<TimestampedNumericPoint>
+  }
+}): ChartGapSpikeTrace {
+  const anomalies = [
+    ...buildGapSpikeTraceForMetric({
+      metric: 'traffic',
+      expectedPoints: input.traffic.expected,
+      displayedPoints: input.traffic.displayed,
+      stepSeconds: input.stepSeconds
+    }),
+    ...buildGapSpikeTraceForMetric({
+      metric: 'failureRate',
+      expectedPoints: input.failureRate.expected,
+      displayedPoints: input.failureRate.displayed,
+      stepSeconds: input.stepSeconds
+    }),
+    ...buildGapSpikeTraceForMetric({
+      metric: 'responseSpeed',
+      expectedPoints: input.responseSpeed.expected,
+      displayedPoints: input.responseSpeed.displayed,
+      stepSeconds: input.stepSeconds
+    }),
+    ...buildGapSpikeTraceForMetric({
+      metric: 'uptime',
+      expectedPoints: input.uptime.expected,
+      displayedPoints: input.uptime.displayed,
+      stepSeconds: input.stepSeconds
+    })
+  ]
+
+  const dataBackedCount = anomalies.filter(
+    (anomaly) => anomaly.classification === 'data-backed'
+  ).length
+  const renderingOnlyCount = anomalies.length - dataBackedCount
+
+  return {
+    traceStepSeconds: input.stepSeconds,
+    dataBackedCount,
+    renderingOnlyCount,
+    anomalies
   }
 }
 
@@ -448,6 +710,36 @@ function validateChartSeriesAgainstTelemetry(
     displayedPoints: displayedUptimeSeries
   })
 
+  const traceStepSeconds =
+    Number.isFinite(actualStepSeconds) && actualStepSeconds > 0
+      ? actualStepSeconds
+      : expectedStepSeconds
+  const gapSpikeTrace = buildGapSpikeTrace({
+    stepSeconds: traceStepSeconds,
+    traffic: {
+      expected: expectedTrafficSeries,
+      displayed: displayedTrafficSeries
+    },
+    failureRate: {
+      expected: expectedFailureRateSeries,
+      displayed: displayedFailureRateSeries
+    },
+    responseSpeed: {
+      expected: expectedResponseSpeedSeries.map((point) => ({
+        timestamp: point.timestamp,
+        value: point.p95 ?? null
+      })),
+      displayed: displayedResponseSpeedSeries.map((point) => ({
+        timestamp: point.timestamp,
+        value: point.p95 ?? null
+      }))
+    },
+    uptime: {
+      expected: expectedUptimeSeries,
+      displayed: displayedUptimeSeries
+    }
+  })
+
   const stepSeconds = {
     expected: expectedStepSeconds,
     actual: actualStepSeconds,
@@ -457,6 +749,7 @@ function validateChartSeriesAgainstTelemetry(
   return {
     metric: 'chartSeries',
     stepSeconds,
+    gapSpikeTrace,
     traffic,
     failureRate,
     responseSpeed,
@@ -473,6 +766,8 @@ function validateChartSeriesAgainstTelemetry(
 export {
   validateChartSeriesAgainstTelemetry,
   type ChartSeriesValidation,
+  type ChartGapSpikeTrace,
+  type ChartGapSpikeTraceAnomaly,
   type ValidateChartSeriesAgainstTelemetryInput,
   type NumericChartSeriesComparison,
   type ResponseSpeedChartSeriesComparison,

@@ -167,20 +167,31 @@ function clamp(value: number, min: number, max: number): number {
 
 function deriveHealthScore(
   context: SimulationContextResponse,
-  hottestEdge: AggregatedContextEdge | null
+  aggregatedEdges: AggregatedContextEdge[]
 ): number {
   if (context.nodes.length === 0) return 100
 
   const availabilityPct =
     context.nodes.reduce((acc, node) => acc + (node.availability ?? 1) * 100, 0) / context.nodes.length
 
-  const maxEdgeErrorPct = hottestEdge ? hottestEdge.maxErrorRate * 100 : 0
-  const worstP95 = hottestEdge?.peakP95 ?? 0
-  const latencyPenalty = Math.min(28, worstP95 / 45)
+  // Consider worst metrics across ALL edges, not just the hottest
+  let worstP95 = 0
+  let maxErrorRate = 0
+  let totalRate = 0
+  for (const edge of aggregatedEdges) {
+    worstP95 = Math.max(worstP95, edge.peakP95)
+    maxErrorRate = Math.max(maxErrorRate, edge.maxErrorRate)
+    totalRate += edge.peakRate
+  }
+
+  const maxEdgeErrorPct = maxErrorRate * 100
+  const latencyPenalty = Math.min(28, worstP95 / 15)
   const errorPenalty = Math.min(26, maxEdgeErrorPct * 2.5)
   const availabilityPenalty = Math.max(0, 100 - availabilityPct) * 0.7
+  // Dependency fan-out: more edges with higher aggregate traffic = more risk exposure
+  const complexityPenalty = Math.min(10, aggregatedEdges.length * 0.5 + totalRate / 50)
 
-  return Math.round(clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty, 0, 100))
+  return Math.round(clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty - complexityPenalty, 0, 100))
 }
 
 function formatPredictiveBottleneck(payload: PredictiveCurrentActionResponse | null): string | null {
@@ -722,7 +733,7 @@ export default function Simulations() {
 
     const aggregatedEdges = aggregateContextEdges(contextData)
     const hottestEdge = aggregatedEdges[0] ?? null
-    const derivedScore = deriveHealthScore(contextData, hottestEdge)
+    const derivedScore = deriveHealthScore(contextData, aggregatedEdges)
     const healthScore = Math.round(derivedScore)
     const healthLabel = healthScore >= 85 ? 'Stable' : healthScore >= 70 ? 'Watch closely' : 'Immediate action required'
     const healthTone =

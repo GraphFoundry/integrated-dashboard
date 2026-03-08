@@ -42,19 +42,9 @@ interface SimulationRunOptions extends RequestOptions {
 
 const SERVICE_CACHE_KEY = 'predictive_services_cache_v1'
 
-const SEEDED_SERVICES: DiscoveredService[] = [
-  { serviceId: 'onlineboutique:frontend', name: 'frontend', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:checkoutservice', name: 'checkoutservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:paymentservice', name: 'paymentservice', namespace: 'onlineboutique', podCount: 1, availability: 0.98 },
-  { serviceId: 'onlineboutique:recommendationservice', name: 'recommendationservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:cartservice', name: 'cartservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:productcatalogservice', name: 'productcatalogservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:currencyservice', name: 'currencyservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:shippingservice', name: 'shippingservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:adservice', name: 'adservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:emailservice', name: 'emailservice', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-  { serviceId: 'onlineboutique:redis-cart', name: 'redis-cart', namespace: 'onlineboutique', podCount: 1, availability: 0.99 },
-]
+// No hardcoded seed list — services are discovered dynamically from the
+// live cluster via getServices() and cached in localStorage for resilience.
+const SEEDED_SERVICES: DiscoveredService[] = []
 
 function normalizeServiceRecord(service: DiscoveredService): DiscoveredService {
   const rawServiceId = service.serviceId?.trim()

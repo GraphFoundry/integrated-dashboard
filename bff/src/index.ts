@@ -39,6 +39,7 @@ import { AlertService } from './service'
 import { WSMessage, AlertEvent, GraphUpdateData } from './types'
 import { createSimulationReplayHandler, createSimulationRunHandler } from './simulations-run-route'
 import { SmsService } from './sms.service'
+import { fetchPodsByService } from './k8s'
 import { WebhookDedupeStore } from './webhookDedupeStore'
 import {
   getPayloadLogicalTimestampMs,
@@ -650,6 +651,18 @@ app.post('/api/notifications/sms', async (req: Request, res: Response) => {
       error,
       { success: false, error: 'Internal server error' }
     )
+  }
+})
+
+// GET /api/k8s/pods - Pods grouped by service name (direct K8s API)
+app.get('/api/k8s/pods', async (req: Request, res: Response) => {
+  try {
+    const namespace = req.query.namespace as string | undefined
+    const podsByService = await fetchPodsByService(namespace)
+    res.json({ podsByService })
+  } catch (error) {
+    console.error('[BFF:k8s/pods] Failed to fetch pods:', error instanceof Error ? error.message : error)
+    res.status(502).json({ error: 'Failed to fetch pods from Kubernetes API', podsByService: {} })
   }
 })
 

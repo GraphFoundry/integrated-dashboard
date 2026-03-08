@@ -18,8 +18,11 @@ import {
   successButtonClass,
 } from '@/components/common/uiClassTokens'
 import { Select } from '@/components/ui'
-import { getServicesWithPlacement } from '@/lib/api'
 import { schedulerApi } from '@/lib/schedulerApiClient'
+import { createApiClient } from '@/lib/httpClient'
+import { env } from '@/lib/env'
+
+const bffApi = createApiClient(env.BFF_URL)
 
 interface SchedulerDecision {
   namespace: string
@@ -134,27 +137,24 @@ export default function SchedulerDecisions() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [decisionsRes, servicesRes] = await Promise.all([
+      const [decisionsRes, podsRes] = await Promise.all([
         schedulerApi.get<SchedulerDecision[]>('/decisions'),
-        getServicesWithPlacement().catch(() => ({ services: [] }))
+        bffApi.get<{ podsByService: Record<string, Array<{ name: string; namespace: string; node: string; phase: string; ready: boolean }>> }>('/api/k8s/pods').catch(() => ({ data: { podsByService: {} } }))
       ])
 
       const decisionsData = decisionsRes.data
-      const servicesData = servicesRes.services || []
+      const podsByService = podsRes.data.podsByService || {}
 
+      // Map service name → pod names (only Running pods)
       const svcMap: Record<string, string[]> = {}
-      servicesData.forEach(s => {
-        if (s.placement?.nodes) {
-          s.placement.nodes.forEach(n => {
-            if (n.pods) {
-              n.pods.forEach(p => {
-                if (!svcMap[s.name]) svcMap[s.name] = []
-                svcMap[s.name].push(p.name)
-              })
-            }
-          })
+      for (const [svc, pods] of Object.entries(podsByService)) {
+        const activePods = pods
+          .filter(p => p.phase === 'Running')
+          .map(p => p.name)
+        if (activePods.length > 0) {
+          svcMap[svc] = activePods
         }
-      })
+      }
       setServices(svcMap)
 
       if (Array.isArray(decisionsData)) {

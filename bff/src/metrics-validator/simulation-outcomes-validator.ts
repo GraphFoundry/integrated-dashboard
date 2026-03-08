@@ -39,6 +39,23 @@ type SimulationRunCountsFromSqlite = {
   }
 }
 
+type SimulationDailyRunTrendPoint = {
+  date: string
+  runs: number
+  failureRuns: number
+  scaleRuns: number
+}
+
+type SimulationDailyRunTrendFromSqlite = {
+  trend: ReadonlyArray<SimulationDailyRunTrendPoint>
+  filters: {
+    windowStartUtc: string
+    windowEndUtc: string
+    timezone: 'UTC'
+  }
+  grouping: 'utcCalendarDay'
+}
+
 type SimulationAverageAffectedServicesFromSqlite = {
   avgAffectedServices: number
   contributingRuns: number
@@ -501,6 +518,82 @@ function computeSimulationAverageAffectedServicesFromSqlite(
   }
 }
 
+function computeSimulationDailyRunTrendFromSqlite(
+  records: ReadonlyArray<SimulationDecisionHistoryRecord>,
+  window: SimulationSevenDayWindowUtc
+): SimulationDailyRunTrendFromSqlite {
+  const windowStartMs = normalizeTimestampToMs(
+    window.windowStartUtc,
+    'simulation window start'
+  )
+  const windowEndMs = normalizeTimestampToMs(
+    window.windowEndUtc,
+    'simulation window end'
+  )
+  if (windowStartMs > windowEndMs) {
+    throw new Error('Simulation window start must be before or equal to window end')
+  }
+
+  const trendBuckets = new Map<string, SimulationDailyRunTrendPoint>()
+
+  for (const record of records) {
+    const timestampMs = Date.parse(record.timestamp)
+    if (!Number.isFinite(timestampMs)) {
+      continue
+    }
+
+    if (timestampMs < windowStartMs || timestampMs > windowEndMs) {
+      continue
+    }
+
+    const dateKey = new Date(timestampMs).toISOString().slice(0, 10)
+    const bucket =
+      trendBuckets.get(dateKey) ??
+      ({
+        date: dateKey,
+        runs: 0,
+        failureRuns: 0,
+        scaleRuns: 0
+      } satisfies SimulationDailyRunTrendPoint)
+
+    bucket.runs += 1
+    const normalizedType = record.type.trim().toLowerCase()
+    if (normalizedType === 'failure') {
+      bucket.failureRuns += 1
+    }
+    if (normalizedType === 'scaling' || normalizedType === 'scale') {
+      bucket.scaleRuns += 1
+    }
+
+    trendBuckets.set(dateKey, bucket)
+  }
+
+  const trend = Array.from(trendBuckets.keys())
+    .sort((left, right) => left.localeCompare(right))
+    .map((date) => {
+      const bucket = trendBuckets.get(date)
+      if (!bucket) {
+        return {
+          date,
+          runs: 0,
+          failureRuns: 0,
+          scaleRuns: 0
+        }
+      }
+      return bucket
+    })
+
+  return {
+    trend,
+    filters: {
+      windowStartUtc: new Date(windowStartMs).toISOString(),
+      windowEndUtc: new Date(windowEndMs).toISOString(),
+      timezone: 'UTC'
+    },
+    grouping: 'utcCalendarDay'
+  }
+}
+
 function computeSimulationAverageLatencyDeltaFromSqlite(
   records: ReadonlyArray<SimulationDecisionHistoryRecord>,
   window: SimulationSevenDayWindowUtc
@@ -568,12 +661,15 @@ export {
   buildSimulationDecisionHistoryEndpoint,
   collectSimulationDecisionHistoryFromSqlite,
   computeSimulationRunCountsFromSqlite,
+  computeSimulationDailyRunTrendFromSqlite,
   computeSimulationAverageAffectedServicesFromSqlite,
   computeSimulationAverageLatencyDeltaFromSqlite,
   type SimulationSevenDayWindowUtc,
   type SimulationDecisionHistoryRecord,
   type SimulationDecisionHistoryCollection,
   type SimulationRunCountsFromSqlite,
+  type SimulationDailyRunTrendPoint,
+  type SimulationDailyRunTrendFromSqlite,
   type SimulationAverageAffectedServicesFromSqlite,
   type SimulationAverageLatencyDeltaFromSqlite
 }

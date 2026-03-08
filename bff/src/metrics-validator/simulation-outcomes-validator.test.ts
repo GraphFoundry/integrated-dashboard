@@ -5,6 +5,7 @@ import {
   collectSimulationDecisionHistoryFromSqlite,
   computeSimulationAverageAffectedServicesFromSqlite,
   computeSimulationAverageLatencyDeltaFromSqlite,
+  computeSimulationDailyRunTrendFromSqlite,
   computeSimulationRunCountsFromSqlite
 } from './simulation-outcomes-validator'
 
@@ -320,5 +321,78 @@ test('computes average latency delta from scaling records with numeric latency d
       sourceField: 'latencyEstimate.deltaMs',
       requiresNumericDelta: true
     }
+  })
+})
+
+test('groups simulation run trend by UTC calendar day with total/failure/scale counts', () => {
+  const window = buildSimulationSevenDayWindowUtc('2026-03-08T10:20:30.000Z')
+  const trend = computeSimulationDailyRunTrendFromSqlite(
+    [
+      {
+        timestamp: '2026-03-03T23:30:00-05:00',
+        type: 'failure',
+        result: {}
+      },
+      {
+        timestamp: '2026-03-04T00:15:00+02:00',
+        type: ' scaling ',
+        result: {}
+      },
+      {
+        timestamp: '2026-03-04T12:00:00.000Z',
+        type: 'scale',
+        result: {}
+      },
+      {
+        timestamp: '2026-03-04T18:00:00.000Z',
+        type: 'risk',
+        result: {}
+      },
+      {
+        timestamp: '2026-03-05T05:00:00.000Z',
+        type: 'FAILURE',
+        result: {}
+      },
+      {
+        timestamp: '2026-02-28T23:00:00.000Z',
+        type: 'failure',
+        result: {}
+      },
+      {
+        timestamp: 'invalid-timestamp',
+        type: 'scale',
+        result: {}
+      }
+    ],
+    window
+  )
+
+  assert.deepEqual(trend, {
+    trend: [
+      {
+        date: '2026-03-03',
+        runs: 1,
+        failureRuns: 0,
+        scaleRuns: 1
+      },
+      {
+        date: '2026-03-04',
+        runs: 3,
+        failureRuns: 1,
+        scaleRuns: 1
+      },
+      {
+        date: '2026-03-05',
+        runs: 1,
+        failureRuns: 1,
+        scaleRuns: 0
+      }
+    ],
+    filters: {
+      windowStartUtc: '2026-03-01T10:20:30.000Z',
+      windowEndUtc: '2026-03-08T10:20:30.000Z',
+      timezone: 'UTC'
+    },
+    grouping: 'utcCalendarDay'
   })
 })

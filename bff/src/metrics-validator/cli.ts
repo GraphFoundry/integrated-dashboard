@@ -17,6 +17,7 @@ import {
   collectSimulationDecisionHistoryFromSqlite,
   computeSimulationAverageAffectedServicesFromSqlite,
   computeSimulationAverageLatencyDeltaFromSqlite,
+  computeSimulationDailyRunTrendFromSqlite,
   computeSimulationRunCountsFromSqlite
 } from './simulation-outcomes-validator'
 
@@ -978,6 +979,10 @@ async function run(argv: string[]): Promise<number> {
       simulationDecisionHistory.records,
       simulationOutcomesWindow
     )
+    const simulationDailyRunTrendFromSqlite = computeSimulationDailyRunTrendFromSqlite(
+      simulationDecisionHistory.records,
+      simulationOutcomesWindow
+    )
     const simulationAverageAffectedServicesFromSqlite =
       computeSimulationAverageAffectedServicesFromSqlite(
         simulationDecisionHistory.records,
@@ -1011,6 +1016,7 @@ async function run(argv: string[]): Promise<number> {
             simulationOutcomes: {
               sevenDayWindowUtc: simulationOutcomesWindow,
               runCountsFromSqlite: simulationRunCountsFromSqlite,
+              dailyRunTrendFromSqlite: simulationDailyRunTrendFromSqlite,
               averageAffectedServicesFromSqlite:
                 simulationAverageAffectedServicesFromSqlite,
               averageLatencyDeltaFromSqlite:

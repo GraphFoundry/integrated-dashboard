@@ -5,6 +5,7 @@ import {
   createReadOnlyHttpClientWrapper,
   type HttpRequestExecutor
 } from './http-client-wrapper'
+import { validateChartSeriesAgainstTelemetry } from './chart-series-validator'
 import { collectInfluxTelemetry } from './influx-telemetry-collector'
 import { openMetricsPageWithSelectedWindowAndScope } from './metrics-page-browser'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
@@ -972,6 +973,11 @@ async function run(argv: string[]): Promise<number> {
       latestPerServicePoints: influxTelemetry.latestPerServicePoints,
       displayedTableRows: metricsPageOpen.displayedValues.tableRows
     })
+    const chartSeriesValidation = validateChartSeriesAgainstTelemetry({
+      rawTelemetryPoints: influxTelemetry.rawPoints,
+      telemetryStepSeconds: influxTelemetry.stepSeconds,
+      displayedChartSeries: metricsPageOpen.displayedValues.chartSeries
+    })
     const simulationOutcomesWindow = buildSimulationSevenDayWindowUtc(
       metricsPageOpen.pageLoadTimestampUtc
     )
@@ -1013,6 +1019,7 @@ async function run(argv: string[]): Promise<number> {
           validations: {
             summaryCards: summaryCardsValidation,
             systemComponents: systemComponentsValidation,
+            charts: chartSeriesValidation,
             simulationOutcomes: {
               sevenDayWindowUtc: simulationOutcomesWindow,
               runCountsFromSqlite: simulationRunCountsFromSqlite,

@@ -12,6 +12,7 @@ import {
   validateVitalSignsSummaryCards
 } from './summary-cards-validator'
 import { validateSystemComponentsTable } from './system-components-validator'
+import { buildSimulationSevenDayWindowUtc } from './simulation-outcomes-validator'
 
 type CliArgs = {
   vmHost: string
@@ -962,6 +963,9 @@ async function run(argv: string[]): Promise<number> {
       latestPerServicePoints: influxTelemetry.latestPerServicePoints,
       displayedTableRows: metricsPageOpen.displayedValues.tableRows
     })
+    const simulationOutcomesWindow = buildSimulationSevenDayWindowUtc(
+      metricsPageOpen.pageLoadTimestampUtc
+    )
 
     process.stdout.write(
       `${JSON.stringify(
@@ -980,7 +984,10 @@ async function run(argv: string[]): Promise<number> {
           },
           validations: {
             summaryCards: summaryCardsValidation,
-            systemComponents: systemComponentsValidation
+            systemComponents: systemComponentsValidation,
+            simulationOutcomes: {
+              sevenDayWindowUtc: simulationOutcomesWindow
+            }
           },
           preflight: {
             serviceHealthChecks: preflight,

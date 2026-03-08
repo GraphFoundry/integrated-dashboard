@@ -469,12 +469,12 @@ export default function AlertsPage() {
                       <div className="inline-flex items-center gap-2">
                         <span
                           className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${incident.current_severity === 'critical'
-                            ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-700 dark:text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
+                            ? 'bg-gradient-to-r from-red-500/20 to-red-600/25 text-red-800 dark:text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
                             : incident.current_severity === 'high'
-                              ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-700 dark:text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
+                              ? 'bg-gradient-to-r from-orange-500/20 to-orange-600/25 text-orange-800 dark:text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
                               : incident.current_severity === 'medium'
-                                ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-700 dark:text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
-                                : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-700 dark:text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
+                                ? 'bg-gradient-to-r from-yellow-500/20 to-yellow-600/25 text-yellow-900 dark:text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
+                                : 'bg-gradient-to-r from-blue-500/20 to-blue-600/25 text-blue-800 dark:text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
                             }`}
                         >
                           <span

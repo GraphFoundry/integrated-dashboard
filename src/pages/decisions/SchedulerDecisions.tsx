@@ -321,13 +321,13 @@ export default function SchedulerDecisions() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Scheduled':
-        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:bg-emerald-500/20 dark:border-emerald-500/30'
+        return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-500/40 dark:bg-emerald-500/20 dark:border-emerald-500/30'
       case 'NoPeers':
-        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:bg-amber-500/20 dark:border-amber-500/30'
+        return 'bg-amber-500/15 text-amber-800 dark:text-amber-400 border-amber-500/40 dark:bg-amber-500/20 dark:border-amber-500/30'
       case 'NoMetrics':
-        return 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20 dark:bg-orange-500/20 dark:border-orange-500/30'
+        return 'bg-orange-500/15 text-orange-800 dark:text-orange-400 border-orange-500/40 dark:bg-orange-500/20 dark:border-orange-500/30'
       case 'StaleMetrics':
-        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 dark:bg-rose-500/20 dark:border-rose-500/30'
+        return 'bg-rose-500/15 text-rose-800 dark:text-rose-400 border-rose-500/40 dark:bg-rose-500/20 dark:border-rose-500/30'
       default:
         return 'bg-[var(--surface-subtle)] text-[var(--text-secondary)] border-[var(--border)]'
     }
@@ -445,7 +445,7 @@ export default function SchedulerDecisions() {
                   <button type="button"
                     onClick={() => handleResetPreference(decision)}
                     disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200 hover:bg-amber-500/20"
+                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-500/50 bg-amber-600/15 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20"
                     title="Remove node preference and let the scheduler decide"
                   >
                     <StarOff className="w-3.5 h-3.5" />
@@ -454,7 +454,7 @@ export default function SchedulerDecisions() {
                 )}
                 <button type="button"
                   onClick={() => handleChangeNodeClick(decision)}
-                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200 hover:bg-blue-500/20"
+                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-500/50 bg-blue-600/15 text-blue-800 dark:text-blue-200 hover:bg-blue-600/25"
                 >
                   <ArrowRightLeft className="w-3.5 h-3.5" />
                   Change Node
@@ -464,7 +464,7 @@ export default function SchedulerDecisions() {
                   disabled={isOptimized}
                   className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
                     ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-dim)]'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20'
+                    : 'border-emerald-500/50 bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-600/25'
                     }`}
                 >
                   {isOptimized ? <CheckCircle className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -486,7 +486,7 @@ export default function SchedulerDecisions() {
                       type="button"
                       onClick={() => handleResetPreference(decision)}
                       disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                      className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
+                      className="flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-amber-600/15 px-2.5 py-1 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
                     >
                       <StarOff className="w-3.5 h-3.5" />
                       Clear &amp; let scheduler decide
@@ -571,11 +571,10 @@ export default function SchedulerDecisions() {
                             type="button"
                             onClick={() => handleSetPreference(decision, node)}
                             disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                            className={`ml-1 p-0.5 rounded transition-colors ${
-                              decision.preferredNode === node
-                                ? 'text-amber-400'
-                                : 'text-[var(--text-dim)] hover:text-amber-400'
-                            }`}
+                            className={`ml-1 p-0.5 rounded transition-colors ${decision.preferredNode === node
+                              ? 'text-amber-400'
+                              : 'text-[var(--text-dim)] hover:text-amber-400'
+                              }`}
                             title={decision.preferredNode === node ? `${node} is preferred` : `Set ${node} as preferred`}
                           >
                             <Star className={`w-3.5 h-3.5 ${decision.preferredNode === node ? 'fill-amber-400' : ''}`} />
@@ -645,7 +644,7 @@ export default function SchedulerDecisions() {
                           ))}
                         </Select>
                       ) : (
-                        <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
+                        <div className="p-3 bg-amber-100/50 dark:bg-yellow-900/10 border border-amber-500/30 dark:border-yellow-700/30 rounded-lg text-sm text-amber-800 dark:text-yellow-300">
                           No active pods found for this service.
                         </div>
                       )}
@@ -762,7 +761,7 @@ export default function SchedulerDecisions() {
                           ))}
                         </Select>
                       ) : (
-                        <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
+                        <div className="p-3 bg-amber-100/50 dark:bg-yellow-900/10 border border-amber-500/30 dark:border-yellow-700/30 rounded-lg text-sm text-amber-800 dark:text-yellow-300">
                           No active pods found for this service.
                         </div>
                       )}

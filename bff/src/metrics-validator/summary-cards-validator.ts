@@ -1,5 +1,6 @@
 import { type LatestPerServiceTelemetryPoint } from './influx-telemetry-collector'
 import {
+  formatLatencyForDisplay,
   formatPercentForDisplay,
   formatRequestRateForDisplay,
   normalizeErrorRateForDisplay
@@ -23,6 +24,16 @@ type SystemHealthCardComparison = {
   pass: boolean
   expectedRawHealthScore: number | null
   displayedRawHealthScore: number | null
+}
+
+type SpeedCardComparison = {
+  metric: 'speed'
+  expected: string
+  displayed: string
+  absoluteDelta: number | null
+  pass: boolean
+  expectedRawP95Milliseconds: number | null
+  displayedRawP95Milliseconds: number | null
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -52,6 +63,24 @@ function computeExpectedTrafficVolumeRequestRate(
     }
     return sum + requestRate
   }, 0)
+}
+
+function computeExpectedSpeedP95Milliseconds(
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+): number | null {
+  if (latestPerServicePoints.length === 0) {
+    return null
+  }
+
+  const p95Values = latestPerServicePoints
+    .map((point) => toFiniteNumber(point.datapoint.p95))
+    .filter((value): value is number => value !== null)
+
+  if (p95Values.length === 0) {
+    return null
+  }
+
+  return Math.max(...p95Values)
 }
 
 function average(values: ReadonlyArray<number>): number | null {
@@ -130,6 +159,34 @@ function parseDisplayedPercent(value: string): number | null {
   return toFiniteNumber(withoutPercentSuffix)
 }
 
+function parseDisplayedLatencyMilliseconds(value: string): number | null {
+  const normalized = value.trim()
+  if (normalized === 'N/A') {
+    return null
+  }
+
+  const withUnitMatch = normalized.match(/^(-?\d+(?:\.\d+)?)\s*(μs|ms|s)$/)
+  if (withUnitMatch) {
+    const magnitude = toFiniteNumber(withUnitMatch[1])
+    if (magnitude === null) {
+      return null
+    }
+
+    const unit = withUnitMatch[2]
+    if (unit === 'μs') {
+      return magnitude / 1000
+    }
+
+    if (unit === 'ms') {
+      return magnitude
+    }
+
+    return magnitude * 1000
+  }
+
+  return toFiniteNumber(normalized)
+}
+
 function compareTrafficVolumeSummaryCard(input: {
   latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
   displayedTrafficVolume: string
@@ -190,9 +247,41 @@ function compareSystemHealthSummaryCard(input: {
   }
 }
 
+function compareSpeedSummaryCard(input: {
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  displayedSpeed: string
+}): SpeedCardComparison {
+  const expectedRawP95Milliseconds = computeExpectedSpeedP95Milliseconds(
+    input.latestPerServicePoints
+  )
+  const expected = formatLatencyForDisplay(expectedRawP95Milliseconds)
+  const displayed = input.displayedSpeed.trim()
+  const pass = expected === displayed
+
+  const displayedRawP95Milliseconds = parseDisplayedLatencyMilliseconds(displayed)
+  const absoluteDelta =
+    expectedRawP95Milliseconds !== null && displayedRawP95Milliseconds !== null
+      ? Math.abs(expectedRawP95Milliseconds - displayedRawP95Milliseconds)
+      : pass
+        ? 0
+        : null
+
+  return {
+    metric: 'speed',
+    expected,
+    displayed,
+    absoluteDelta,
+    pass,
+    expectedRawP95Milliseconds,
+    displayedRawP95Milliseconds
+  }
+}
+
 export {
   compareTrafficVolumeSummaryCard,
   compareSystemHealthSummaryCard,
+  compareSpeedSummaryCard,
   type TrafficVolumeCardComparison,
-  type SystemHealthCardComparison
+  type SystemHealthCardComparison,
+  type SpeedCardComparison
 }

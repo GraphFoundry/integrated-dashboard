@@ -9,6 +9,7 @@ import { collectInfluxTelemetry } from './influx-telemetry-collector'
 import { openMetricsPageWithSelectedWindowAndScope } from './metrics-page-browser'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
 import {
+  compareSpeedSummaryCard,
   compareSystemHealthSummaryCard,
   compareTrafficVolumeSummaryCard
 } from './summary-cards-validator'
@@ -962,6 +963,10 @@ async function run(argv: string[]): Promise<number> {
       systemHealth: compareSystemHealthSummaryCard({
         latestPerServicePoints: influxTelemetry.latestPerServicePoints,
         displayedSystemHealth: metricsPageOpen.displayedValues.summaryCards.systemHealth
+      }),
+      speed: compareSpeedSummaryCard({
+        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+        displayedSpeed: metricsPageOpen.displayedValues.summaryCards.speed
       })
     }
 

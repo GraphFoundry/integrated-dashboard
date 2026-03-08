@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  compareSpeedSummaryCard,
   compareSystemHealthSummaryCard,
   compareTrafficVolumeSummaryCard
 } from './summary-cards-validator'
@@ -132,3 +133,86 @@ test(
     assert.equal(result.displayedRawHealthScore, 97)
   }
 )
+
+test(
+  'computes speed as max latest p95 across services while ignoring missing p95 values',
+  () => {
+    const result = compareSpeedSummaryCard({
+      latestPerServicePoints: [
+        {
+          serviceKey: 'default:frontend',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: { p95: 420 }
+        },
+        {
+          serviceKey: 'default:checkoutservice',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: { p95: '850' }
+        },
+        {
+          serviceKey: 'default:inventoryservice',
+          selectionReason: 'latestOverallFallback',
+          datapoint: { p95: undefined }
+        },
+        {
+          serviceKey: 'default:paymentservice',
+          selectionReason: 'latestOverallFallback',
+          datapoint: { p95: 'not-a-number' }
+        }
+      ],
+      displayedSpeed: '850ms'
+    })
+
+    assert.equal(result.expected, '850ms')
+    assert.equal(result.displayed, '850ms')
+    assert.equal(result.pass, true)
+    assert.equal(result.absoluteDelta, 0)
+    assert.equal(result.expectedRawP95Milliseconds, 850)
+    assert.equal(result.displayedRawP95Milliseconds, 850)
+  }
+)
+
+test('fails speed card comparison when displayed latency diverges', () => {
+  const result = compareSpeedSummaryCard({
+    latestPerServicePoints: [
+      {
+        serviceKey: 'default:frontend',
+        selectionReason: 'latestPositiveTraffic',
+        datapoint: { p95: 1200 }
+      }
+    ],
+    displayedSpeed: '1.00s'
+  })
+
+  assert.equal(result.expected, '1.20s')
+  assert.equal(result.displayed, '1.00s')
+  assert.equal(result.pass, false)
+  assert.equal(result.absoluteDelta, 200)
+  assert.equal(result.expectedRawP95Milliseconds, 1200)
+  assert.equal(result.displayedRawP95Milliseconds, 1000)
+})
+
+test('uses N/A speed expectation when no finite p95 datapoints exist', () => {
+  const result = compareSpeedSummaryCard({
+    latestPerServicePoints: [
+      {
+        serviceKey: 'default:frontend',
+        selectionReason: 'latestPositiveTraffic',
+        datapoint: { p95: null }
+      },
+      {
+        serviceKey: 'default:checkoutservice',
+        selectionReason: 'latestPositiveTraffic',
+        datapoint: {}
+      }
+    ],
+    displayedSpeed: 'N/A'
+  })
+
+  assert.equal(result.expected, 'N/A')
+  assert.equal(result.displayed, 'N/A')
+  assert.equal(result.pass, true)
+  assert.equal(result.absoluteDelta, 0)
+  assert.equal(result.expectedRawP95Milliseconds, null)
+  assert.equal(result.displayedRawP95Milliseconds, null)
+})

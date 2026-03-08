@@ -11,6 +11,7 @@ import { collectSgeSnapshot } from './sge-snapshot-collector'
 import {
   validateVitalSignsSummaryCards
 } from './summary-cards-validator'
+import { validateSystemComponentsTable } from './system-components-validator'
 
 type CliArgs = {
   vmHost: string
@@ -957,6 +958,10 @@ async function run(argv: string[]): Promise<number> {
       latestPerServicePoints: influxTelemetry.latestPerServicePoints,
       displayedSummaryCards: metricsPageOpen.displayedValues.summaryCards
     })
+    const systemComponentsValidation = validateSystemComponentsTable({
+      latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+      displayedTableRows: metricsPageOpen.displayedValues.tableRows
+    })
 
     process.stdout.write(
       `${JSON.stringify(
@@ -974,7 +979,8 @@ async function run(argv: string[]): Promise<number> {
             metricsPageOpen
           },
           validations: {
-            summaryCards: summaryCardsValidation
+            summaryCards: summaryCardsValidation,
+            systemComponents: systemComponentsValidation
           },
           preflight: {
             serviceHealthChecks: preflight,

@@ -8,6 +8,7 @@ import {
 import { collectInfluxTelemetry } from './influx-telemetry-collector'
 import { openMetricsPageWithSelectedWindowAndScope } from './metrics-page-browser'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
+import { compareTrafficVolumeSummaryCard } from './summary-cards-validator'
 
 type CliArgs = {
   vmHost: string
@@ -950,6 +951,12 @@ async function run(argv: string[]): Promise<number> {
         auditScreenshotPath: metricsPageAuditScreenshotPath
       })
     ])
+    const summaryCardsValidation = {
+      trafficVolume: compareTrafficVolumeSummaryCard({
+        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+        displayedTrafficVolume: metricsPageOpen.displayedValues.summaryCards.trafficVolume
+      })
+    }
 
     process.stdout.write(
       `${JSON.stringify(
@@ -965,6 +972,9 @@ async function run(argv: string[]): Promise<number> {
           },
           browserAutomation: {
             metricsPageOpen
+          },
+          validations: {
+            summaryCards: summaryCardsValidation
           },
           preflight: {
             serviceHealthChecks: preflight,

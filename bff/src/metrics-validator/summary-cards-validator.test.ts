@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compareTrafficVolumeSummaryCard } from './summary-cards-validator'
+import {
+  compareSystemHealthSummaryCard,
+  compareTrafficVolumeSummaryCard
+} from './summary-cards-validator'
 
 test(
   'computes traffic volume as sum of latest positive-traffic request rates and passes on match',
@@ -68,3 +71,64 @@ test('uses N/A expectation when no per-service points were collected', () => {
   assert.equal(result.expectedRawRequestRate, null)
   assert.equal(result.displayedRawRequestRate, null)
 })
+
+test(
+  'computes system health as 100 - weighted error rate using positive request-rate weighting',
+  () => {
+    const result = compareSystemHealthSummaryCard({
+      latestPerServicePoints: [
+        {
+          serviceKey: 'default:frontend',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: { requestRate: 80, errorRate: 0.02 }
+        },
+        {
+          serviceKey: 'default:checkoutservice',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: { requestRate: 20, errorRate: 5 }
+        },
+        {
+          serviceKey: 'default:inventoryservice',
+          selectionReason: 'latestOverallFallback',
+          datapoint: { requestRate: 0, errorRate: 0.5 }
+        }
+      ],
+      displayedSystemHealth: '97.40%'
+    })
+
+    assert.equal(result.expected, '97.40%')
+    assert.equal(result.displayed, '97.40%')
+    assert.equal(result.pass, true)
+    assert.equal(result.absoluteDelta, 0)
+    assert.equal(result.expectedRawHealthScore, 97.4)
+    assert.equal(result.displayedRawHealthScore, 97.4)
+  }
+)
+
+test(
+  'falls back to simple average error rate when no services have positive traffic',
+  () => {
+    const result = compareSystemHealthSummaryCard({
+      latestPerServicePoints: [
+        {
+          serviceKey: 'default:frontend',
+          selectionReason: 'latestOverallFallback',
+          datapoint: { requestRate: 0, errorRate: 0.02 }
+        },
+        {
+          serviceKey: 'default:checkoutservice',
+          selectionReason: 'latestOverallFallback',
+          datapoint: { requestRate: 0, errorRate: 0.04 }
+        }
+      ],
+      displayedSystemHealth: '97.00%'
+    })
+
+    assert.equal(result.expected, '97.00%')
+    assert.equal(result.displayed, '97.00%')
+    assert.equal(result.pass, true)
+    assert.equal(result.absoluteDelta, 0)
+    assert.equal(result.expectedRawHealthScore, 97)
+    assert.equal(result.displayedRawHealthScore, 97)
+  }
+)

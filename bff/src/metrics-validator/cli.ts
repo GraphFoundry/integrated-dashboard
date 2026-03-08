@@ -8,7 +8,10 @@ import {
 import { collectInfluxTelemetry } from './influx-telemetry-collector'
 import { openMetricsPageWithSelectedWindowAndScope } from './metrics-page-browser'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
-import { compareTrafficVolumeSummaryCard } from './summary-cards-validator'
+import {
+  compareSystemHealthSummaryCard,
+  compareTrafficVolumeSummaryCard
+} from './summary-cards-validator'
 
 type CliArgs = {
   vmHost: string
@@ -955,6 +958,10 @@ async function run(argv: string[]): Promise<number> {
       trafficVolume: compareTrafficVolumeSummaryCard({
         latestPerServicePoints: influxTelemetry.latestPerServicePoints,
         displayedTrafficVolume: metricsPageOpen.displayedValues.summaryCards.trafficVolume
+      }),
+      systemHealth: compareSystemHealthSummaryCard({
+        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+        displayedSystemHealth: metricsPageOpen.displayedValues.summaryCards.systemHealth
       })
     }
 

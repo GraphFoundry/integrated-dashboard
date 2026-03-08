@@ -1,5 +1,9 @@
 import { type LatestPerServiceTelemetryPoint } from './influx-telemetry-collector'
-import { formatRequestRateForDisplay } from './normalization'
+import {
+  formatPercentForDisplay,
+  formatRequestRateForDisplay,
+  normalizeErrorRateForDisplay
+} from './normalization'
 
 type TrafficVolumeCardComparison = {
   metric: 'trafficVolume'
@@ -9,6 +13,16 @@ type TrafficVolumeCardComparison = {
   pass: boolean
   expectedRawRequestRate: number | null
   displayedRawRequestRate: number | null
+}
+
+type SystemHealthCardComparison = {
+  metric: 'systemHealth'
+  expected: string
+  displayed: string
+  absoluteDelta: number | null
+  pass: boolean
+  expectedRawHealthScore: number | null
+  displayedRawHealthScore: number | null
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -40,6 +54,61 @@ function computeExpectedTrafficVolumeRequestRate(
   }, 0)
 }
 
+function average(values: ReadonlyArray<number>): number | null {
+  if (values.length === 0) {
+    return null
+  }
+
+  return values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function computeExpectedSystemHealthScore(
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+): number | null {
+  if (latestPerServicePoints.length === 0) {
+    return null
+  }
+
+  const weightedErrorPairs = latestPerServicePoints
+    .map((point) => {
+      const rate = toFiniteNumber(point.datapoint.requestRate)
+      const errorRate = normalizeErrorRateForDisplay(
+        toFiniteNumber(point.datapoint.errorRate)
+      )
+      if (rate === null || errorRate === null || rate <= 0) {
+        return null
+      }
+
+      return { rate, errorRate }
+    })
+    .filter((pair): pair is { rate: number; errorRate: number } => pair !== null)
+
+  const weightedRateTotal = weightedErrorPairs.reduce((sum, pair) => sum + pair.rate, 0)
+  const weightedErrorSum = weightedErrorPairs.reduce(
+    (sum, pair) => sum + pair.rate * pair.errorRate,
+    0
+  )
+
+  const fallbackErrorRateAverage = average(
+    latestPerServicePoints
+      .map((point) =>
+        normalizeErrorRateForDisplay(toFiniteNumber(point.datapoint.errorRate))
+      )
+      .filter((errorRate): errorRate is number => errorRate !== null)
+  )
+
+  const effectiveErrorRate =
+    weightedRateTotal > 0
+      ? weightedErrorSum / weightedRateTotal
+      : fallbackErrorRateAverage
+
+  if (effectiveErrorRate === null) {
+    return null
+  }
+
+  return 100 - effectiveErrorRate
+}
+
 function parseDisplayedRequestRate(value: string): number | null {
   const normalized = value.trim()
   if (normalized === 'N/A' || normalized === '<0.0001') {
@@ -47,6 +116,18 @@ function parseDisplayedRequestRate(value: string): number | null {
   }
 
   return toFiniteNumber(normalized)
+}
+
+function parseDisplayedPercent(value: string): number | null {
+  const normalized = value.trim()
+  if (normalized === 'N/A') {
+    return null
+  }
+
+  const withoutPercentSuffix = normalized.endsWith('%')
+    ? normalized.slice(0, -1).trim()
+    : normalized
+  return toFiniteNumber(withoutPercentSuffix)
 }
 
 function compareTrafficVolumeSummaryCard(input: {
@@ -79,4 +160,39 @@ function compareTrafficVolumeSummaryCard(input: {
   }
 }
 
-export { compareTrafficVolumeSummaryCard, type TrafficVolumeCardComparison }
+function compareSystemHealthSummaryCard(input: {
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  displayedSystemHealth: string
+}): SystemHealthCardComparison {
+  const expectedRawHealthScore = computeExpectedSystemHealthScore(
+    input.latestPerServicePoints
+  )
+  const expected = formatPercentForDisplay(expectedRawHealthScore)
+  const displayed = input.displayedSystemHealth.trim()
+  const pass = expected === displayed
+
+  const displayedRawHealthScore = parseDisplayedPercent(displayed)
+  const absoluteDelta =
+    expectedRawHealthScore !== null && displayedRawHealthScore !== null
+      ? Math.abs(expectedRawHealthScore - displayedRawHealthScore)
+      : pass
+        ? 0
+        : null
+
+  return {
+    metric: 'systemHealth',
+    expected,
+    displayed,
+    absoluteDelta,
+    pass,
+    expectedRawHealthScore,
+    displayedRawHealthScore
+  }
+}
+
+export {
+  compareTrafficVolumeSummaryCard,
+  compareSystemHealthSummaryCard,
+  type TrafficVolumeCardComparison,
+  type SystemHealthCardComparison
+}

@@ -4,6 +4,7 @@ import {
   buildSimulationSevenDayWindowUtc,
   collectSimulationDecisionHistoryFromSqlite,
   computeSimulationAverageAffectedServicesFromSqlite,
+  computeSimulationAverageLatencyDeltaFromSqlite,
   computeSimulationRunCountsFromSqlite
 } from './simulation-outcomes-validator'
 
@@ -235,6 +236,89 @@ test('computes average affected services using failure/scaling estimation and ex
       failure: 'affectedCallers + affectedDownstream',
       scaling: 'affectedPaths',
       excludesZeroEstimates: true
+    }
+  })
+})
+
+test('computes average latency delta from scaling records with numeric latency deltas only', () => {
+  const window = buildSimulationSevenDayWindowUtc('2026-03-08T10:20:30.000Z')
+  const averageLatencyDelta = computeSimulationAverageLatencyDeltaFromSqlite(
+    [
+      {
+        timestamp: '2026-03-02T10:20:30.000Z',
+        type: 'scaling',
+        result: {
+          latencyEstimate: {
+            deltaMs: 25.5
+          }
+        }
+      },
+      {
+        timestamp: '2026-03-03T10:20:30.000Z',
+        type: ' scale ',
+        result: {
+          latencyEstimate: {
+            deltaMs: -4
+          }
+        }
+      },
+      {
+        timestamp: '2026-03-04T10:20:30.000Z',
+        type: 'scaling',
+        result: {
+          latencyEstimate: {
+            deltaMs: '12.5'
+          }
+        }
+      },
+      {
+        timestamp: '2026-03-05T10:20:30.000Z',
+        type: 'failure',
+        result: {
+          latencyEstimate: {
+            deltaMs: 100
+          }
+        }
+      },
+      {
+        timestamp: '2026-02-28T10:20:29.999Z',
+        type: 'scaling',
+        result: {
+          latencyEstimate: {
+            deltaMs: 50
+          }
+        }
+      },
+      {
+        timestamp: 'invalid-timestamp',
+        type: 'scale',
+        result: {
+          latencyEstimate: {
+            deltaMs: 75
+          }
+        }
+      },
+      {
+        timestamp: '2026-03-06T10:20:30.000Z',
+        type: 'scale',
+        result: {}
+      }
+    ],
+    window
+  )
+
+  assert.deepEqual(averageLatencyDelta, {
+    avgLatencyDeltaMs: 10.75,
+    contributingRuns: 2,
+    filters: {
+      windowStartUtc: '2026-03-01T10:20:30.000Z',
+      windowEndUtc: '2026-03-08T10:20:30.000Z',
+      timezone: 'UTC'
+    },
+    estimationRules: {
+      decisionTypes: ['scaling', 'scale'],
+      sourceField: 'latencyEstimate.deltaMs',
+      requiresNumericDelta: true
     }
   })
 })

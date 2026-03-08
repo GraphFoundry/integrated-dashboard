@@ -16,6 +16,7 @@ import {
   buildSimulationSevenDayWindowUtc,
   collectSimulationDecisionHistoryFromSqlite,
   computeSimulationAverageAffectedServicesFromSqlite,
+  computeSimulationAverageLatencyDeltaFromSqlite,
   computeSimulationRunCountsFromSqlite
 } from './simulation-outcomes-validator'
 
@@ -982,6 +983,11 @@ async function run(argv: string[]): Promise<number> {
         simulationDecisionHistory.records,
         simulationOutcomesWindow
       )
+    const simulationAverageLatencyDeltaFromSqlite =
+      computeSimulationAverageLatencyDeltaFromSqlite(
+        simulationDecisionHistory.records,
+        simulationOutcomesWindow
+      )
 
     process.stdout.write(
       `${JSON.stringify(
@@ -1006,7 +1012,9 @@ async function run(argv: string[]): Promise<number> {
               sevenDayWindowUtc: simulationOutcomesWindow,
               runCountsFromSqlite: simulationRunCountsFromSqlite,
               averageAffectedServicesFromSqlite:
-                simulationAverageAffectedServicesFromSqlite
+                simulationAverageAffectedServicesFromSqlite,
+              averageLatencyDeltaFromSqlite:
+                simulationAverageLatencyDeltaFromSqlite
             }
           },
           preflight: {

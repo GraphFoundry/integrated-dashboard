@@ -54,6 +54,21 @@ type SimulationAverageAffectedServicesFromSqlite = {
   }
 }
 
+type SimulationAverageLatencyDeltaFromSqlite = {
+  avgLatencyDeltaMs: number
+  contributingRuns: number
+  filters: {
+    windowStartUtc: string
+    windowEndUtc: string
+    timezone: 'UTC'
+  }
+  estimationRules: {
+    decisionTypes: ReadonlyArray<'scaling' | 'scale'>
+    sourceField: 'latencyEstimate.deltaMs'
+    requiresNumericDelta: true
+  }
+}
+
 type HttpJsonResponseLike = {
   status: number
   statusText: string
@@ -348,6 +363,25 @@ function estimateAffectedServices(record: SimulationDecisionHistoryRecord): numb
   return 0
 }
 
+function extractNumericLatencyDeltaMs(result: unknown): number | null {
+  const resultRecord = asRecord(result)
+  if (!resultRecord) {
+    return null
+  }
+
+  const latencyEstimate = asRecord(resultRecord.latencyEstimate)
+  if (!latencyEstimate) {
+    return null
+  }
+
+  const delta = latencyEstimate.deltaMs
+  if (typeof delta !== 'number' || !Number.isFinite(delta)) {
+    return null
+  }
+
+  return delta
+}
+
 function roundFloat(value: number, decimals: number): number {
   const factor = 10 ** decimals
   return Math.trunc(value * factor + 0.5) / factor
@@ -467,15 +501,79 @@ function computeSimulationAverageAffectedServicesFromSqlite(
   }
 }
 
+function computeSimulationAverageLatencyDeltaFromSqlite(
+  records: ReadonlyArray<SimulationDecisionHistoryRecord>,
+  window: SimulationSevenDayWindowUtc
+): SimulationAverageLatencyDeltaFromSqlite {
+  const windowStartMs = normalizeTimestampToMs(
+    window.windowStartUtc,
+    'simulation window start'
+  )
+  const windowEndMs = normalizeTimestampToMs(
+    window.windowEndUtc,
+    'simulation window end'
+  )
+  if (windowStartMs > windowEndMs) {
+    throw new Error('Simulation window start must be before or equal to window end')
+  }
+
+  let totalLatencyDeltaMs = 0
+  let contributingRuns = 0
+
+  for (const record of records) {
+    const timestampMs = Date.parse(record.timestamp)
+    if (!Number.isFinite(timestampMs)) {
+      continue
+    }
+
+    if (timestampMs < windowStartMs || timestampMs > windowEndMs) {
+      continue
+    }
+
+    const normalizedType = record.type.trim().toLowerCase()
+    if (normalizedType !== 'scaling' && normalizedType !== 'scale') {
+      continue
+    }
+
+    const latencyDeltaMs = extractNumericLatencyDeltaMs(record.result)
+    if (latencyDeltaMs === null) {
+      continue
+    }
+
+    totalLatencyDeltaMs += latencyDeltaMs
+    contributingRuns += 1
+  }
+
+  const avgLatencyDeltaMs =
+    contributingRuns > 0 ? roundFloat(totalLatencyDeltaMs / contributingRuns, 2) : 0
+
+  return {
+    avgLatencyDeltaMs,
+    contributingRuns,
+    filters: {
+      windowStartUtc: new Date(windowStartMs).toISOString(),
+      windowEndUtc: new Date(windowEndMs).toISOString(),
+      timezone: 'UTC'
+    },
+    estimationRules: {
+      decisionTypes: ['scaling', 'scale'],
+      sourceField: 'latencyEstimate.deltaMs',
+      requiresNumericDelta: true
+    }
+  }
+}
+
 export {
   buildSimulationSevenDayWindowUtc,
   buildSimulationDecisionHistoryEndpoint,
   collectSimulationDecisionHistoryFromSqlite,
   computeSimulationRunCountsFromSqlite,
   computeSimulationAverageAffectedServicesFromSqlite,
+  computeSimulationAverageLatencyDeltaFromSqlite,
   type SimulationSevenDayWindowUtc,
   type SimulationDecisionHistoryRecord,
   type SimulationDecisionHistoryCollection,
   type SimulationRunCountsFromSqlite,
-  type SimulationAverageAffectedServicesFromSqlite
+  type SimulationAverageAffectedServicesFromSqlite,
+  type SimulationAverageLatencyDeltaFromSqlite
 }

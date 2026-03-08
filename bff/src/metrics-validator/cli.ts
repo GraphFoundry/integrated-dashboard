@@ -9,10 +9,7 @@ import { collectInfluxTelemetry } from './influx-telemetry-collector'
 import { openMetricsPageWithSelectedWindowAndScope } from './metrics-page-browser'
 import { collectSgeSnapshot } from './sge-snapshot-collector'
 import {
-  compareSpeedSummaryCard,
-  compareSystemHealthSummaryCard,
-  compareTrafficVolumeSummaryCard,
-  compareUptimeReliabilitySummaryCard
+  validateVitalSignsSummaryCards
 } from './summary-cards-validator'
 
 type CliArgs = {
@@ -956,25 +953,10 @@ async function run(argv: string[]): Promise<number> {
         auditScreenshotPath: metricsPageAuditScreenshotPath
       })
     ])
-    const summaryCardsValidation = {
-      trafficVolume: compareTrafficVolumeSummaryCard({
-        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
-        displayedTrafficVolume: metricsPageOpen.displayedValues.summaryCards.trafficVolume
-      }),
-      systemHealth: compareSystemHealthSummaryCard({
-        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
-        displayedSystemHealth: metricsPageOpen.displayedValues.summaryCards.systemHealth
-      }),
-      speed: compareSpeedSummaryCard({
-        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
-        displayedSpeed: metricsPageOpen.displayedValues.summaryCards.speed
-      }),
-      uptimeReliability: compareUptimeReliabilitySummaryCard({
-        latestPerServicePoints: influxTelemetry.latestPerServicePoints,
-        displayedUptimeReliability:
-          metricsPageOpen.displayedValues.summaryCards.uptimeReliability
-      })
-    }
+    const summaryCardsValidation = validateVitalSignsSummaryCards({
+      latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+      displayedSummaryCards: metricsPageOpen.displayedValues.summaryCards
+    })
 
     process.stdout.write(
       `${JSON.stringify(

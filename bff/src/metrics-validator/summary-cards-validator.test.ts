@@ -4,7 +4,8 @@ import {
   compareSpeedSummaryCard,
   compareSystemHealthSummaryCard,
   compareTrafficVolumeSummaryCard,
-  compareUptimeReliabilitySummaryCard
+  compareUptimeReliabilitySummaryCard,
+  validateVitalSignsSummaryCards
 } from './summary-cards-validator'
 
 test(
@@ -275,3 +276,40 @@ test('uses N/A uptime reliability expectation when no finite availability exists
   assert.equal(result.expectedRawUptimeReliabilityPercent, null)
   assert.equal(result.displayedRawUptimeReliabilityPercent, null)
 })
+
+test(
+  'records expected, displayed, absolute delta, and pass/fail for every summary card comparison',
+  () => {
+    const result = validateVitalSignsSummaryCards({
+      latestPerServicePoints: [
+        {
+          serviceKey: 'default:frontend',
+          selectionReason: 'latestPositiveTraffic',
+          datapoint: {
+            requestRate: 10,
+            errorRate: 0.02,
+            p95: 275,
+            availability: 0.99
+          }
+        }
+      ],
+      displayedSummaryCards: {
+        trafficVolume: '10.00',
+        systemHealth: '98.00%',
+        speed: '275ms',
+        uptimeReliability: '99.00%'
+      }
+    })
+
+    for (const comparison of Object.values(result)) {
+      assert.equal(typeof comparison.expected, 'string')
+      assert.equal(typeof comparison.displayed, 'string')
+      assert.equal(
+        typeof comparison.absoluteDelta === 'number' ||
+          comparison.absoluteDelta === null,
+        true
+      )
+      assert.equal(typeof comparison.pass, 'boolean')
+    }
+  }
+)

@@ -7,44 +7,54 @@ import {
   normalizeErrorRateForDisplay
 } from './normalization'
 
-type TrafficVolumeCardComparison = {
-  metric: 'trafficVolume'
+type SummaryCardComparisonEnvelope = {
   expected: string
   displayed: string
   absoluteDelta: number | null
   pass: boolean
+}
+
+type TrafficVolumeCardComparison = SummaryCardComparisonEnvelope & {
+  metric: 'trafficVolume'
   expectedRawRequestRate: number | null
   displayedRawRequestRate: number | null
 }
 
-type SystemHealthCardComparison = {
+type SystemHealthCardComparison = SummaryCardComparisonEnvelope & {
   metric: 'systemHealth'
-  expected: string
-  displayed: string
-  absoluteDelta: number | null
-  pass: boolean
   expectedRawHealthScore: number | null
   displayedRawHealthScore: number | null
 }
 
-type SpeedCardComparison = {
+type SpeedCardComparison = SummaryCardComparisonEnvelope & {
   metric: 'speed'
-  expected: string
-  displayed: string
-  absoluteDelta: number | null
-  pass: boolean
   expectedRawP95Milliseconds: number | null
   displayedRawP95Milliseconds: number | null
 }
 
-type UptimeReliabilityCardComparison = {
+type UptimeReliabilityCardComparison = SummaryCardComparisonEnvelope & {
   metric: 'uptimeReliability'
-  expected: string
-  displayed: string
-  absoluteDelta: number | null
-  pass: boolean
   expectedRawUptimeReliabilityPercent: number | null
   displayedRawUptimeReliabilityPercent: number | null
+}
+
+type DisplayedSummaryCardValues = {
+  trafficVolume: string
+  systemHealth: string
+  speed: string
+  uptimeReliability: string
+}
+
+type ValidateVitalSignsSummaryCardsInput = {
+  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  displayedSummaryCards: DisplayedSummaryCardValues
+}
+
+type VitalSignsSummaryCardsValidation = {
+  trafficVolume: TrafficVolumeCardComparison
+  systemHealth: SystemHealthCardComparison
+  speed: SpeedCardComparison
+  uptimeReliability: UptimeReliabilityCardComparison
 }
 
 function toFiniteNumber(value: unknown): number | null {
@@ -338,11 +348,39 @@ function compareUptimeReliabilitySummaryCard(input: {
   }
 }
 
+function validateVitalSignsSummaryCards(
+  input: ValidateVitalSignsSummaryCardsInput
+): VitalSignsSummaryCardsValidation {
+  return {
+    trafficVolume: compareTrafficVolumeSummaryCard({
+      latestPerServicePoints: input.latestPerServicePoints,
+      displayedTrafficVolume: input.displayedSummaryCards.trafficVolume
+    }),
+    systemHealth: compareSystemHealthSummaryCard({
+      latestPerServicePoints: input.latestPerServicePoints,
+      displayedSystemHealth: input.displayedSummaryCards.systemHealth
+    }),
+    speed: compareSpeedSummaryCard({
+      latestPerServicePoints: input.latestPerServicePoints,
+      displayedSpeed: input.displayedSummaryCards.speed
+    }),
+    uptimeReliability: compareUptimeReliabilitySummaryCard({
+      latestPerServicePoints: input.latestPerServicePoints,
+      displayedUptimeReliability: input.displayedSummaryCards.uptimeReliability
+    })
+  }
+}
+
 export {
   compareTrafficVolumeSummaryCard,
   compareSystemHealthSummaryCard,
   compareSpeedSummaryCard,
   compareUptimeReliabilitySummaryCard,
+  validateVitalSignsSummaryCards,
+  type SummaryCardComparisonEnvelope,
+  type DisplayedSummaryCardValues,
+  type ValidateVitalSignsSummaryCardsInput,
+  type VitalSignsSummaryCardsValidation,
   type TrafficVolumeCardComparison,
   type SystemHealthCardComparison,
   type SpeedCardComparison,

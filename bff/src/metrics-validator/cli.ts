@@ -12,7 +12,12 @@ import {
   validateVitalSignsSummaryCards
 } from './summary-cards-validator'
 import { validateSystemComponentsTable } from './system-components-validator'
-import { buildSimulationSevenDayWindowUtc } from './simulation-outcomes-validator'
+import {
+  buildSimulationSevenDayWindowUtc,
+  collectSimulationDecisionHistoryFromSqlite,
+  computeSimulationAverageAffectedServicesFromSqlite,
+  computeSimulationRunCountsFromSqlite
+} from './simulation-outcomes-validator'
 
 type CliArgs = {
   vmHost: string
@@ -939,22 +944,24 @@ async function run(argv: string[]): Promise<number> {
     assertAnalysisEnginePollWorkerActive(pollWorkerActivity)
     const reportMetadata = buildReportMetadata(pollWorkerActivity)
     const metricsPageAuditScreenshotPath = buildMetricsPageAuditScreenshotPath(args.outputPath)
-    const [sgeSnapshot, influxTelemetry, metricsPageOpen] = await Promise.all([
-      collectSgeSnapshot(args.vmHost),
-      collectInfluxTelemetry({
-        vmHost: args.vmHost,
-        windowStartUtc: runContext.selectedTimeWindowUtc.start,
-        windowEndUtc: runContext.selectedTimeWindowUtc.end,
-        serviceScope: runContext.selectedServiceScope
-      }),
-      openMetricsPageWithSelectedWindowAndScope({
-        dashboardUrl: args.dashboardUrl,
-        windowStartUtc: runContext.selectedTimeWindowUtc.start,
-        windowEndUtc: runContext.selectedTimeWindowUtc.end,
-        serviceScope: runContext.selectedServiceScope,
-        auditScreenshotPath: metricsPageAuditScreenshotPath
-      })
-    ])
+    const [sgeSnapshot, influxTelemetry, simulationDecisionHistory, metricsPageOpen] =
+      await Promise.all([
+        collectSgeSnapshot(args.vmHost),
+        collectInfluxTelemetry({
+          vmHost: args.vmHost,
+          windowStartUtc: runContext.selectedTimeWindowUtc.start,
+          windowEndUtc: runContext.selectedTimeWindowUtc.end,
+          serviceScope: runContext.selectedServiceScope
+        }),
+        collectSimulationDecisionHistoryFromSqlite(args.vmHost),
+        openMetricsPageWithSelectedWindowAndScope({
+          dashboardUrl: args.dashboardUrl,
+          windowStartUtc: runContext.selectedTimeWindowUtc.start,
+          windowEndUtc: runContext.selectedTimeWindowUtc.end,
+          serviceScope: runContext.selectedServiceScope,
+          auditScreenshotPath: metricsPageAuditScreenshotPath
+        })
+      ])
     const summaryCardsValidation = validateVitalSignsSummaryCards({
       latestPerServicePoints: influxTelemetry.latestPerServicePoints,
       displayedSummaryCards: metricsPageOpen.displayedValues.summaryCards
@@ -966,6 +973,15 @@ async function run(argv: string[]): Promise<number> {
     const simulationOutcomesWindow = buildSimulationSevenDayWindowUtc(
       metricsPageOpen.pageLoadTimestampUtc
     )
+    const simulationRunCountsFromSqlite = computeSimulationRunCountsFromSqlite(
+      simulationDecisionHistory.records,
+      simulationOutcomesWindow
+    )
+    const simulationAverageAffectedServicesFromSqlite =
+      computeSimulationAverageAffectedServicesFromSqlite(
+        simulationDecisionHistory.records,
+        simulationOutcomesWindow
+      )
 
     process.stdout.write(
       `${JSON.stringify(
@@ -977,7 +993,8 @@ async function run(argv: string[]): Promise<number> {
           reportMetadata,
           collectors: {
             sgeSnapshot,
-            influxTelemetry
+            influxTelemetry,
+            simulationDecisionHistory
           },
           browserAutomation: {
             metricsPageOpen
@@ -986,7 +1003,10 @@ async function run(argv: string[]): Promise<number> {
             summaryCards: summaryCardsValidation,
             systemComponents: systemComponentsValidation,
             simulationOutcomes: {
-              sevenDayWindowUtc: simulationOutcomesWindow
+              sevenDayWindowUtc: simulationOutcomesWindow,
+              runCountsFromSqlite: simulationRunCountsFromSqlite,
+              averageAffectedServicesFromSqlite:
+                simulationAverageAffectedServicesFromSqlite
             }
           },
           preflight: {

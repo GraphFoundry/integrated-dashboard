@@ -7,6 +7,7 @@ import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import InfoHint from '@/components/common/InfoHint'
 import {
   loadingCardClass,
   pageContainerClass,
@@ -784,7 +785,7 @@ export default function Simulations() {
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className={`rounded-xl border px-4 py-3 ${healthTone}`}>
-                <div className="text-[11px] font-semibold uppercase tracking-wider">Health Score</div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">Health Score <InfoHint text="A single number (0–100) showing how healthy the selected service and its neighbors are right now. 100 = everything is working perfectly. Below 70 = something needs attention soon." /></div>
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-3xl font-black leading-none">{healthScore}</span>
                   <span className="pb-0.5 text-sm font-semibold">/100</span>
@@ -793,8 +794,8 @@ export default function Simulations() {
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Primary Bottleneck
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Primary Bottleneck <InfoHint text="The service or connection that is currently under the most stress. Think of it like the weakest link in a chain — if something breaks, it will likely break here first." />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -806,8 +807,8 @@ export default function Simulations() {
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Time To Impact
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Time To Impact <InfoHint text="How long before real users might start noticing problems like slow loading or errors. 'Stable' means no problems expected soon. A short time (like < 2 min) means action may be needed right away." />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-2xl font-black">
                   <Clock3 className="h-5 w-5 text-cyan-600" />
@@ -821,13 +822,13 @@ export default function Simulations() {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Services In Scope</div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Services In Scope <InfoHint text="The total number of services (small programs) that are connected to your selected service. These are the services that could be affected if something goes wrong." /></div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">{contextData.nodes.length}</div>
             <p className="mt-1 text-xs text-[var(--text-secondary)]">Neighborhood around {contextData.target.name ?? shortServiceName(contextData.target.serviceId)}.</p>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Busiest Link</div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Busiest Link <InfoHint text="The connection between two services that is handling the most traffic right now. The number shows requests per second (how many times one service talks to another every second). Higher = busier." /></div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
               {hottestEdge ? formatRps(hottestEdge.peakRate) : formatRps(0)}
             </div>
@@ -839,8 +840,8 @@ export default function Simulations() {
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Worst Slow-End Latency
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Worst Slow-End Latency <InfoHint text="The slowest response time seen among the connected services (measured in milliseconds). This shows how long the slowest 5% of requests are taking. If this number is high, some users are experiencing noticeable delays." />
             </div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
               {hottestEdge ? formatMs(hottestEdge.peakP95) : formatMs(0)}
@@ -854,7 +855,7 @@ export default function Simulations() {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Recommended Operator Action</h3>
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-secondary)]">Recommended Operator Action <InfoHint text="A suggested next step based on what the system is seeing right now. Following this advice can help prevent problems before users notice them." /></h3>
               <p className="mt-1 text-base font-bold text-[var(--text-primary)]">{recommendationTitle}</p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{recommendationMessage}</p>
             </div>
@@ -872,11 +873,13 @@ export default function Simulations() {
                 (contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)
                   ?.availability ?? 1) * 100
               )}
+              <InfoHint text="What percentage of the time this service is working correctly. 100% = always available. Lower values mean the service is sometimes failing or unreachable." />
             </span>
             {hottestEdge && (
               <span className="inline-flex items-center gap-1">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                 Peak error exposure: {formatPercent(hottestEdge.maxErrorRate * 100)}
+                <InfoHint text="The highest error rate seen on any connection right now. A higher percentage means more requests are failing. Even a small percentage (like 2%) can affect many users if traffic is high." />
               </span>
             )}
             {contextLoading && (
@@ -1162,43 +1165,46 @@ export default function Simulations() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Snapshot
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Data Snapshot <InfoHint text="A frozen copy of all the service data at the exact moment the simulation ran. The timestamp shows when, and the fingerprint is a unique ID so you can refer back to this exact run later." />
               </h3>
               <div className="space-y-2 text-sm text-[var(--text-primary)]">
                 <p className="break-all">
-                  Timestamp: <span className="font-mono">{runResult.snapshotTimestamp}</span>
+                  Taken at: <span className="font-mono">{runResult.snapshotTimestamp}</span>
                 </p>
                 <p className="break-all">
-                  Hash: <span className="font-mono">{runResult.snapshotHash ?? 'n/a'}</span>
+                  Fingerprint: <span className="font-mono">{runResult.snapshotHash ?? 'n/a'}</span>
                 </p>
               </div>
             </div>
 
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Result State
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Simulation Outcome <InfoHint text="A summary of what the simulation found. It tells you what kind of test was run, whether it passed or flagged issues, how the results were calculated, and how confident the system is in the answer." />
               </h3>
               <div className="space-y-2 text-sm text-[var(--text-primary)]">
-                <p>
-                  Scenario type: <span className="font-mono">{runResult.scenarioType}</span>
+                <p className="flex items-center gap-1">
+                  What was tested: <span className="font-mono">{runResult.scenarioType}</span>
                 </p>
-                <p>
-                  Result status: <span className="font-mono">{runResult.resultStatus}</span>
+                <p className="flex items-center gap-1">
+                  Outcome: <span className="font-mono">{runResult.resultStatus}</span>
+                  <InfoHint text="Whether the simulation completed successfully, found issues, or could not run. A 'COMPLETED' status means results are ready to review." />
                 </p>
-                <p>
-                  Evidence mode: <span className="font-mono">{runResult.evidenceMode}</span>
+                <p className="flex items-center gap-1">
+                  How results were calculated: <span className="font-mono">{runResult.evidenceMode}</span>
+                  <InfoHint text="Shows whether results came from real historical data, a mathematical model, or a mix of both. Real data = higher reliability." />
                 </p>
-                <p>
+                <p className="flex items-center gap-1">
                   Confidence: <span className="font-mono">{runResult.confidenceLevel}</span>
+                  <InfoHint text="How sure the system is about these results. 'HIGH' means the data strongly supports the conclusion. 'LOW' means treat as a rough estimate." />
                 </p>
               </div>
             </div>
           </div>
 
           <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Evidence Sources
+            <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Where the Evidence Came From <InfoHint text="Lists all the data sources the simulation used to produce its results — for example, live metrics, the service dependency graph, or historical records. More sources generally means more reliable results." />
             </h3>
             <div className="flex flex-wrap gap-2">
               {runResult.evidenceSources.map((source) => (

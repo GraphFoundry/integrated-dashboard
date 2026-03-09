@@ -1,6 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Activity, AlertTriangle, ArrowRight, CheckCircle, Clock3, Lightbulb, Network, RefreshCw, Settings, ShieldCheck, Sparkles, TrendingUp, XCircle, Zap } from 'lucide-react'
+import {
+  Activity,
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowRight,
+  ArrowUpFromLine,
+  CheckCircle,
+  Clock3,
+  Network,
+  RefreshCw,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  TrendingUp,
+  XCircle,
+  Zap,
+} from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
@@ -1020,17 +1037,24 @@ export default function Simulations() {
                 {runResult.impactedServices.map((service) => {
                   const role = service.role?.toLowerCase() ?? ''
                   const isTarget = role === 'target'
-                  const isCaller = role === 'caller'
-                  const roleLabel = isTarget ? 'Directly hit' : isCaller ? 'Sends requests here' : 'Depends on target'
+                  const isInbound = role === 'caller' || role.includes('source')
+                  const roleLabel = isTarget ? 'Directly hit' : isInbound ? 'Inbound' : 'Outbound'
                   const roleBadgeClass = isTarget
                     ? 'border-rose-500/50 bg-rose-500/12 text-rose-700'
-                    : isCaller
+                    : isInbound
                       ? 'border-amber-500/50 bg-amber-500/12 text-amber-700'
                       : 'border-sky-500/50 bg-sky-500/12 text-sky-700'
-                  const roleIcon = isTarget ? '🎯' : isCaller ? '📤' : '📥'
+                  const RoleIcon = isTarget ? Target : isInbound ? ArrowDownToLine : ArrowUpFromLine
+                  const roleIconClass = isTarget
+                    ? 'border-rose-500/35 bg-rose-500/15 text-rose-700'
+                    : isInbound
+                      ? 'border-amber-500/35 bg-amber-500/15 text-amber-700'
+                      : 'border-sky-500/35 bg-sky-500/15 text-sky-700'
                   return (
                     <div key={`${service.serviceId}:${service.role}`} className="flex flex-col items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-3 text-center">
-                      <span className="text-2xl">{roleIcon}</span>
+                      <span className={`inline-flex h-12 w-12 items-center justify-center rounded-full border ${roleIconClass}`}>
+                        <RoleIcon className="h-6 w-6" />
+                      </span>
                       <p className="text-sm font-semibold text-[var(--text-primary)]">{shortServiceName(service.name || service.serviceId)}</p>
                       <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}>
                         {roleLabel}
@@ -1040,9 +1064,21 @@ export default function Simulations() {
                 })}
               </div>
               <div className="flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
-                <span className="inline-flex items-center gap-1">🎯 Directly hit <InfoHint text="This is the service you chose to test. It's the one that would go down or change." /></span>
-                <span className="inline-flex items-center gap-1">📤 Sends requests <InfoHint text="This service sends traffic to the target. When the target fails, this service will get errors back." /></span>
-                <span className="inline-flex items-center gap-1">📥 Depends on target <InfoHint text="This service relies on the target to work. If the target goes down, this service loses functionality too." /></span>
+                <span className="inline-flex items-center gap-1">
+                  <Target className="h-3.5 w-3.5 text-rose-700" />
+                  Directly hit
+                  <InfoHint text="This is the exact service you selected for the scenario. It is the service being scaled, stressed, degraded, or failed." />
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <ArrowDownToLine className="h-3.5 w-3.5 text-amber-700" />
+                  Inbound
+                  <InfoHint text="These services send requests into the selected service or path, so they feel the effect on the incoming side." />
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <ArrowUpFromLine className="h-3.5 w-3.5 text-sky-700" />
+                  Outbound
+                  <InfoHint text="These services sit on the outgoing side of the selected service or affected link, so they are impacted downstream." />
+                </span>
               </div>
             </div>
           )}

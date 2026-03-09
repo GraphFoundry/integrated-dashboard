@@ -65,6 +65,11 @@ function getScenarioSummary(record: DecisionRecord): string {
     return `Network Cut: ${src ?? 'unknown'} → ${tgt ?? 'unknown'}`
   }
 
+  if (type === 'add' || type === 'add-service') {
+    const name = (scenario.serviceName as string | undefined) ?? (scenario.serviceId as string | undefined)
+    return `Add Service: ${name ?? 'unnamed'}`
+  }
+
   return `${type}: ${(scenario.serviceId as string) ?? 'unknown'}`
 }
 
@@ -120,6 +125,16 @@ function getTypeBadge(type: string) {
       label: 'Network Cut',
       icon: <Zap className="h-3 w-3" />,
       cls: 'bg-orange-500/12 text-orange-400 border-orange-500/35',
+    },
+    add: {
+      label: 'Add Service',
+      icon: <Layers className="h-3 w-3" />,
+      cls: 'bg-violet-500/12 text-violet-400 border-violet-500/35',
+    },
+    'add-service': {
+      label: 'Add Service',
+      icon: <Layers className="h-3 w-3" />,
+      cls: 'bg-violet-500/12 text-violet-400 border-violet-500/35',
     },
   }
   const c = cfg[type] ?? { label: type, icon: <Database className="h-3 w-3" />, cls: 'bg-[var(--surface-soft)] text-[var(--text-secondary)] border-[var(--border)]' }

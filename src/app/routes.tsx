@@ -12,6 +12,7 @@ import AlertsPlaceholder from '@/pages/alerts/AlertsPlaceholder'
 import IncidentDetail from '@/pages/alerts/IncidentDetail'
 import SchedulerDecisions from '@/pages/decisions/SchedulerDecisions'
 import Latency from '@/pages/latency/Latency'
+import Config from '@/pages/config/Config'
 
 export const router = createBrowserRouter([
   {
@@ -82,6 +83,10 @@ export const router = createBrowserRouter([
       {
         path: 'latency',
         element: <Latency />,
+      },
+      {
+        path: 'config',
+        element: <Config />,
       },
     ],
   },

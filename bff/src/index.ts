@@ -205,12 +205,12 @@ function parseIntEnv(name: string, fallback: number): number {
 }
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || ''
-const WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
-const WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
+let WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
+let WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
 const WEBHOOK_DEDUPE_FILE =
   process.env.WEBHOOK_DEDUPE_FILE || path.resolve(__dirname, '../data/webhook-dedupe.json')
-const WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
-const WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
+let WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
+let WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
 const GRAPH_HEALTH_URL = process.env.GRAPH_HEALTH_URL || 'http://localhost:3000/graph/health'
 const GRAPH_STALE_WINDOW_MINUTES = 5
 
@@ -681,6 +681,116 @@ app.get('/api/stats', (req: Request, res: Response) => {
     },
     ...overview,
   })
+})
+
+// ── Config management endpoints ─────────────────────────────────────────────
+import {
+  getAllConfigs,
+  getServiceConfig,
+  updateConfigKey as updateConfigKeyFn,
+  applyConfig,
+} from './configManager'
+
+app.get('/api/configs', async (_req: Request, res: Response) => {
+  try {
+    const configs = await getAllConfigs()
+    res.json(configs)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[Config] Failed to get configs:', message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.get('/api/configs/:serviceId', async (req: Request, res: Response) => {
+  try {
+    const config = await getServiceConfig(req.params.serviceId)
+    if (!config) {
+      res.status(404).json({ error: 'Service not found' })
+      return
+    }
+    res.json(config)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[Config] Failed to get config for ${req.params.serviceId}:`, message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.put('/api/configs/:serviceId/:key', async (req: Request, res: Response) => {
+  try {
+    const { serviceId, key } = req.params
+    const { value } = req.body as { value: string }
+    if (value === undefined || value === null) {
+      res.status(400).json({ error: 'Missing "value" in request body' })
+      return
+    }
+    const result = await updateConfigKeyFn(serviceId, key, String(value))
+    if (!result.updated) {
+      res.status(400).json({ error: result.error })
+      return
+    }
+    res.json({ updated: true })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[Config] Failed to update key:`, message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.post('/api/configs/:serviceId/apply', async (req: Request, res: Response) => {
+  try {
+    const { serviceId } = req.params
+    const updates = req.body?.updates as Record<string, string> | undefined
+    const result = await applyConfig(serviceId, updates)
+    if (!result.applied) {
+      res.status(400).json({ error: result.error })
+      return
+    }
+    res.json(result)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[Config] Failed to apply config for ${req.params.serviceId}:`, message)
+    res.status(500).json({ error: message })
+  }
+})
+
+// ── Runtime config reload endpoint ──────────────────────────────────────────
+function loadRuntimeEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return
+  const content = fs.readFileSync(filePath, 'utf8')
+  content.split('\n').forEach((line) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx < 0) return
+    const key = trimmed.substring(0, eqIdx).trim()
+    const value = trimmed.substring(eqIdx + 1).trim()
+    process.env[key] = value
+  })
+}
+
+app.post('/admin/reload-config', (req: Request, res: Response) => {
+  try {
+    loadRuntimeEnvFile('/etc/runtime-config/runtime.env')
+    // Apply env overrides from request body (takes precedence over file)
+    const envOverrides = req.body?.env as Record<string, string> | undefined
+    if (envOverrides && typeof envOverrides === 'object') {
+      for (const [key, value] of Object.entries(envOverrides)) {
+        process.env[key] = String(value)
+      }
+    }
+    WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
+    WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
+    WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
+    WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
+    console.log('[CONFIG] Runtime config reloaded')
+    res.json({ status: 'reloaded' })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[CONFIG] Reload failed:', message)
+    res.status(500).json({ status: 'error', message })
+  }
 })
 
 // Start server

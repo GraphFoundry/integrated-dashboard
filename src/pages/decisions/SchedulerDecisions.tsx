@@ -38,12 +38,6 @@ interface SchedulerDecision {
 }
 
 
-interface RestartResponse {
-  success: boolean
-  message: string
-  error?: string
-}
-
 interface ChangeNodeResponse {
   success: boolean
   message: string
@@ -119,7 +113,7 @@ export default function SchedulerDecisions() {
   const [selectedPod, setSelectedPod] = useState('')
   const [availablePods, setAvailablePods] = useState<string[]>([])
   const [applying, setApplying] = useState(false)
-  const [applyResult, setApplyResult] = useState<RestartResponse | null>(null)
+  const [applyResult, setApplyResult] = useState<ChangeNodeResponse | null>(null)
 
   // Change Node modal state
   const [changeNodeModalOpen, setChangeNodeModalOpen] = useState(false)
@@ -255,17 +249,19 @@ export default function SchedulerDecisions() {
     setApplyResult(null)
 
     try {
-      const { data } = await schedulerApi.post<RestartResponse>('/restart', {
+      const { data } = await schedulerApi.post<ChangeNodeResponse>('/change-node', {
         namespace: selectedDecision.namespace,
         podName: selectedPod,
-        force: true,
+        targetNode: selectedDecision.bestNode,
       })
 
       setApplyResult({
         success: true,
-        message: data.message || 'Placement applied successfully (Pod restarted)',
+        message: data.message || `Pod migrated to ${selectedDecision.bestNode}`,
+        previousNode: data.previousNode,
+        targetNode: data.targetNode,
       })
-      toast.success(data.message || 'Placement applied successfully')
+      toast.success(data.message || `Pod migrated to ${selectedDecision.bestNode}`)
 
       setTimeout(() => loadData(), 2000)
     } catch (err) {
@@ -625,12 +621,12 @@ export default function SchedulerDecisions() {
                 {!applyResult ? (
                   <>
                     <div className="surface-glass rounded-lg border border-cyan-300/24 bg-cyan-400/10 p-3 text-sm text-[var(--text-secondary)]">
-                      <p>This action will restart the pod to allow it to be rescheduled onto the best node (<b>{selectedDecision?.bestNode}</b>).</p>
+                      <p>This action will migrate the pod to the best node (<b>{selectedDecision?.bestNode}</b>). A new pod will be started on the target node first, and the old pod will be removed only after the new one is healthy (zero-downtime).</p>
                     </div>
 
                     <div>
                       <label htmlFor="pod-select" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-                        Select Pod to Restart
+                        Select Pod to Migrate
                       </label>
                       {availablePods.length > 0 ? (
                         <Select
@@ -671,7 +667,7 @@ export default function SchedulerDecisions() {
                         {applying ? (
                           <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            Applying...
+                            Migrating...
                           </>
                         ) : (
                           'Confirm Apply'
@@ -686,13 +682,18 @@ export default function SchedulerDecisions() {
                         <div className="p-2 bg-green-900/20 rounded-full border border-green-900/50 mb-2">
                           <CheckCircle className="w-6 h-6" />
                         </div>
-                        <h4 className="font-semibold text-lg">Applied Successfully</h4>
+                        <h4 className="font-semibold text-lg">Migration Complete</h4>
                         <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
+                        {applyResult.previousNode && (
+                          <p className="text-xs text-[var(--text-dim)]">
+                            {applyResult.previousNode} → {applyResult.targetNode}
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <AlertTriangle className="w-8 h-8 mb-2" />
-                        <h4 className="font-semibold text-lg">Apply Failed</h4>
+                        <h4 className="font-semibold text-lg">Migration Failed</h4>
                         <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
                       </div>
                     )}

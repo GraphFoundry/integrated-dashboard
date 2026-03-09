@@ -504,6 +504,7 @@ export default function Simulations() {
       setContextData(null)
       setContextPrediction(null)
       setContextError(null)
+      setContextLoading(false)
       return
     }
 
@@ -550,6 +551,12 @@ export default function Simulations() {
         }
       }
     }
+
+    // Clear the last preview immediately when the scenario inputs change so
+    // the panel does not keep showing stale context while the next request loads.
+    setContextData(null)
+    setContextPrediction(null)
+    setContextError(null)
 
     void fetchContext()
     refreshTimer = setInterval(() => {
@@ -1462,6 +1469,9 @@ export default function Simulations() {
                 setLastScenario(null)
                 setLastRequest(null)
                 setReplayComparison(null)
+                setContextData(null)
+                setContextPrediction(null)
+                setContextError(null)
               }}
               onServiceSelectionChange={setSelectedServiceId}
               onDepthChange={setSelectedDepth}

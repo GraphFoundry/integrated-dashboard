@@ -706,11 +706,7 @@ export default function NodeResourceGraph({
                                   </span>
                                 </div>
                                 <div className="text-[var(--text-dim)] mt-0.5">
-                                  {hoveredNode.data.ramTotalMB != null
-                                    ? (hoveredNode.data.ramTotalMB / 1024).toFixed(2)
-                                    : 'N/A'}
-                                  GB allocatable (
-                                  {hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}%)
+                                  {hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}% used
                                 </div>
                               </div>
                             </div>

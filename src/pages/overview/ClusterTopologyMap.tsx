@@ -995,7 +995,7 @@ function TopologyTooltip({
                     <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="text-[var(--text-muted)]">Memory:</span>
                     <span className="font-mono font-semibold text-[var(--text-primary)]">
-                      {friendlyMemory(node.data.ram.usedMB)} / {friendlyMemory(node.data.ram.totalMB)} allocatable
+                      {friendlyMemory(node.data.ram.usedMB)}
                     </span>
                   </div>
                   <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
@@ -1535,7 +1535,7 @@ function TopologyDetailsDrawer({
             <>
               <DrawerRow label="Name" value={node.data?.name} />
               <DrawerRow label="CPU (allocatable)" value={node.data?.cpu ? `${node.data.cpu.usagePercent?.toFixed(1)}% · ${node.data.cpu.cores} cores` : 'N/A'} />
-              <DrawerRow label="RAM (allocatable)" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} / ${(node.data.ram.totalMB / 1024).toFixed(1)} GB` : 'N/A'} />
+              <DrawerRow label="RAM used" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} GB` : 'N/A'} />
             </>
           )}
           {kind === 'service' && (

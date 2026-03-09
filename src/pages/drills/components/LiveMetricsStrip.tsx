@@ -1,17 +1,14 @@
-import { useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
   CheckCircle,
-  Info,
   Zap,
   ShieldAlert,
   BarChart3,
 } from 'lucide-react'
 import type { DrillRun } from '@/lib/api/drills'
-import { Switch } from '@/components/ui/Switch'
 import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
 
 type ServiceMetricSnapshot = {
@@ -74,53 +71,46 @@ function formatMs(value?: number): string {
 }
 
 export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
-  const [isExplainMode, setIsExplainMode] = useState(true)
-
   const isObservingImpact = ['Observing', 'AwaitingRecovery', 'Recovering'].includes(run.status)
   const isCompleted = ['Completed', 'Aborted', 'Accepted'].includes(run.status)
 
   const baseline = getMetricsForService(run.preSnapshot, run.target)
-  const recovered = getMetricsForService(run.postSnapshot, run.target)
+  const currentSnapshot = getMetricsForService(run.postSnapshot, run.target)
 
   const metrics = [
     {
       label: 'Availability',
       icon: <ShieldAlert className="h-3.5 w-3.5" />,
       baseline: formatPercent(baseline?.availability),
-      current: isObservingImpact ? '0.0%' : formatPercent(isCompleted ? recovered?.availability : baseline?.availability),
-      degraded: isObservingImpact || (typeof recovered?.availability === 'number' && recovered.availability < 0.95),
-      explanation:
-        'Measures the percentage of successful health checks. Drops toward zero during total service failure.',
+      current: formatPercent(isCompleted ? currentSnapshot?.availability : currentSnapshot?.availability),
+      degraded: typeof currentSnapshot?.availability === 'number' && currentSnapshot.availability < 0.95,
       trendInfinite: false,
     },
     {
       label: 'Traffic (RPS)',
       icon: <Activity className="h-3.5 w-3.5" />,
       baseline: formatReq(baseline?.rps),
-      current: isObservingImpact ? '0 req/s' : formatReq(isCompleted ? recovered?.rps : baseline?.rps),
-      degraded: isObservingImpact,
-      explanation:
-        'Requests per second. Confirms whether the component is still receiving or processing incoming demand.',
+      current: formatReq(isCompleted ? currentSnapshot?.rps : currentSnapshot?.rps),
+      degraded: typeof currentSnapshot?.rps === 'number' && currentSnapshot.rps <= 0,
       trendInfinite: false,
     },
     {
       label: 'Error Rate',
       icon: <Zap className="h-3.5 w-3.5" />,
       baseline: formatPercent(baseline?.errorRate),
-      current: isObservingImpact ? '100.0%' : formatPercent(isCompleted ? recovered?.errorRate : baseline?.errorRate),
-      degraded: isObservingImpact || (typeof recovered?.errorRate === 'number' && recovered.errorRate > 0.05),
-      explanation:
-        'Percentage of failed requests. 100% indicates upstream dependencies are fully rejecting traffic.',
+      current: formatPercent(isCompleted ? currentSnapshot?.errorRate : currentSnapshot?.errorRate),
+      degraded: typeof currentSnapshot?.errorRate === 'number' && currentSnapshot.errorRate > 0.05,
       trendInfinite: false,
     },
     {
       label: 'P95 Latency',
       icon: <BarChart3 className="h-3.5 w-3.5" />,
       baseline: formatMs(baseline?.p95),
-      current: isObservingImpact ? '∞' : formatMs(isCompleted ? recovered?.p95 : baseline?.p95),
-      degraded: isObservingImpact,
-      explanation:
-        'Tail response time. Infinity suggests connection attempts are timing out or being actively refused.',
+      current: formatMs(isCompleted ? currentSnapshot?.p95 : currentSnapshot?.p95),
+      degraded:
+        typeof currentSnapshot?.p95 === 'number' &&
+        typeof baseline?.p95 === 'number' &&
+        currentSnapshot.p95 > baseline.p95,
       trendInfinite: true,
     },
   ]
@@ -149,18 +139,6 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] px-3 py-1.5 shadow-inner">
-          <Switch
-            id="explain-mode"
-            checked={isExplainMode}
-            onChange={() => setIsExplainMode(!isExplainMode)}
-            label={
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-secondary)]">
-                Explain Mode
-              </span>
-            }
-          />
-        </div>
       </CardHeader>
 
       <CardContent className="p-6">
@@ -222,12 +200,6 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
                 </div>
               </div>
 
-              {isExplainMode && (
-                <div className="flex min-h-[74px] items-start gap-2 px-2 text-[10px] font-medium italic leading-relaxed text-[var(--text-muted)] animate-in fade-in duration-300">
-                  <Info className="mt-0.5 h-3 w-3 shrink-0 text-sky-400" />
-                  <span className="break-words">{metric.explanation}</span>
-                </div>
-              )}
             </article>
           ))}
         </div>

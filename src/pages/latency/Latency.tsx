@@ -221,11 +221,10 @@ function openLatencyPdfPreview(summary: LatencyReportSummary, windows: Completed
       .join('')
   }
 
-  function buildHalfChart(value: number, maxVal: number, color: string, fillColor: string, fmt: (v: number) => string, label: string, sublabel: string): string {
-    const MCW = 480, MCH = 150, LEFT = 56, RIGHT = 16, TOP = 38, BOTTOM = 12
+  function buildHalfChart(value: number, maxVal: number, color: string, fillColor: string, fmt: (v: number) => string, label: string, sublabel: string, windowNum: number): string {
+    const MCW = 480, MCH = 170, LEFT = 56, RIGHT = 16, TOP = 38, BOTTOM = 28
     const plotW = MCW - LEFT - RIGHT
     const plotH = MCH - TOP - BOTTOM
-    // Single bar-style area chart showing one value against the max
     const barH = maxVal > 0 ? (value / maxVal) * plotH : 0
     const barY = TOP + plotH - barH
     // Y-axis: 5 ticks
@@ -238,7 +237,9 @@ function openLatencyPdfPreview(summary: LatencyReportSummary, windows: Completed
       })
       .join('')
     const valY = TOP + plotH - barH
-    return `<svg viewBox="0 0 ${MCW} ${MCH}" width="100%" height="150" role="img">
+    // X-axis: window number label
+    const xCenter = LEFT + plotW / 2
+    return `<svg viewBox="0 0 ${MCW} ${MCH}" width="100%" height="170" role="img">
       <text x="${LEFT}" y="16" font-size="12" font-weight="700" fill="#4b5563">${escapeHtml(label)}</text>
       <text x="${LEFT}" y="30" font-size="10" fill="#9ca3af">${escapeHtml(sublabel)}</text>
       <rect x="${LEFT}" y="${TOP}" width="${plotW}" height="${plotH}" fill="#fbfbfd" rx="0"/>
@@ -246,6 +247,7 @@ function openLatencyPdfPreview(summary: LatencyReportSummary, windows: Completed
       <rect x="${LEFT}" y="${barY.toFixed(1)}" width="${plotW}" height="${barH.toFixed(1)}" fill="${fillColor}" opacity="0.7" rx="0"/>
       <line x1="${LEFT}" y1="${valY.toFixed(1)}" x2="${MCW - RIGHT}" y2="${valY.toFixed(1)}" stroke="${color}" stroke-width="1.5"/>
       <line x1="${LEFT}" y1="${TOP + plotH}" x2="${MCW - RIGHT}" y2="${TOP + plotH}" stroke="#e0e0e0" stroke-width="0.5"/>
+      <text x="${xCenter.toFixed(1)}" y="${MCH - 6}" text-anchor="middle" font-size="10" fill="#b0b0b0">Window #${escapeHtml(windowNum)}</text>
     </svg>`
   }
 
@@ -323,9 +325,9 @@ h1{font-size:24px;font-weight:700;color:#111827}
 .cmp-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .cmp-row-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin-bottom:6px}
 .cmp-panel{border:1px solid #e8eaed;border-radius:8px;padding:16px 18px;background:#fff}
-.cmp-val-row{display:flex;align-items:baseline;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6}
-.cmp-val-num{font-size:20px;font-weight:800;color:#111827}
-.cmp-val-unit{font-size:12px;color:#9ca3af;font-weight:500}
+.cmp-val-row{display:flex;align-items:baseline;gap:4px;margin-top:10px;padding-top:10px;border-top:1px solid #f3f4f6}
+.cmp-val-label{font-size:13px;color:#6b7280;font-weight:500}
+.cmp-val-num{font-size:13px;font-weight:700;color:#111827}
 .cmp-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280;margin-bottom:4px}
 .cmp-footer{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid #f3f4f6}
 .cmp-label{font-size:10px;color:#9ca3af;font-weight:600;margin-bottom:2px}
@@ -371,12 +373,12 @@ tr:last-child td{border-bottom:none}
     <div class="cmp-row-label">P95 Latency</div>
     <div class="cmp-row">
       <div class="cmp-panel">
-        ${buildHalfChart(first.meanP95, p95Max, '#7ab4f5', '#e8f2fe', formatMs, 'Before', `Window #${escapeHtml(first.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(first.timestamp))}`)}
-        <div class="cmp-val-row"><span class="cmp-val-num">${escapeHtml(formatMs(first.meanP95))}</span><span class="cmp-val-unit">avg P95</span></div>
+        ${buildHalfChart(first.meanP95, p95Max, '#7ab4f5', '#e8f2fe', formatMs, 'Before', `Window #${escapeHtml(first.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(first.timestamp))}`, first.windowNumber)}
+        <div class="cmp-val-row"><span class="cmp-val-label">Average P95 =&nbsp;</span><span class="cmp-val-num">${escapeHtml(formatMs(first.meanP95))}</span></div>
       </div>
       <div class="cmp-panel">
-        ${buildHalfChart(last.meanP95, p95Max, '#7ab4f5', '#e8f2fe', formatMs, 'After', `Window #${escapeHtml(last.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(last.timestamp))}`)}
-        <div class="cmp-val-row"><span class="cmp-val-num" style="color:${p95Delta < 0 ? '#16a34a' : p95Delta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatMs(last.meanP95))}</span><span class="cmp-val-unit">avg P95</span></div>
+        ${buildHalfChart(last.meanP95, p95Max, '#7ab4f5', '#e8f2fe', formatMs, 'After', `Window #${escapeHtml(last.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(last.timestamp))}`, last.windowNumber)}
+        <div class="cmp-val-row"><span class="cmp-val-label">Average P95 =&nbsp;</span><span class="cmp-val-num" style="color:${p95Delta < 0 ? '#16a34a' : p95Delta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatMs(last.meanP95))}</span></div>
       </div>
     </div>
     <div style="text-align:center;margin-top:-8px;margin-bottom:8px"><span class="cmp-delta ${dClass(p95Delta)}" style="font-size:14px">${dFmt(p95Delta, formatMs)}</span></div>
@@ -384,12 +386,12 @@ tr:last-child td{border-bottom:none}
     <div class="cmp-row-label">P50 Latency</div>
     <div class="cmp-row">
       <div class="cmp-panel">
-        ${buildHalfChart(first.meanP50, p50Max, '#6dcf9e', '#e6f9ef', formatMs, 'Before', `Window #${escapeHtml(first.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(first.timestamp))}`)}
-        <div class="cmp-val-row"><span class="cmp-val-num">${escapeHtml(formatMs(first.meanP50))}</span><span class="cmp-val-unit">avg P50</span></div>
+        ${buildHalfChart(first.meanP50, p50Max, '#6dcf9e', '#e6f9ef', formatMs, 'Before', `Window #${escapeHtml(first.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(first.timestamp))}`, first.windowNumber)}
+        <div class="cmp-val-row"><span class="cmp-val-label">Average P50 =&nbsp;</span><span class="cmp-val-num">${escapeHtml(formatMs(first.meanP50))}</span></div>
       </div>
       <div class="cmp-panel">
-        ${buildHalfChart(last.meanP50, p50Max, '#6dcf9e', '#e6f9ef', formatMs, 'After', `Window #${escapeHtml(last.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(last.timestamp))}`)}
-        <div class="cmp-val-row"><span class="cmp-val-num" style="color:${p50Delta < 0 ? '#16a34a' : p50Delta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatMs(last.meanP50))}</span><span class="cmp-val-unit">avg P50</span></div>
+        ${buildHalfChart(last.meanP50, p50Max, '#6dcf9e', '#e6f9ef', formatMs, 'After', `Window #${escapeHtml(last.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(last.timestamp))}`, last.windowNumber)}
+        <div class="cmp-val-row"><span class="cmp-val-label">Average P50 =&nbsp;</span><span class="cmp-val-num" style="color:${p50Delta < 0 ? '#16a34a' : p50Delta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatMs(last.meanP50))}</span></div>
       </div>
     </div>
     <div style="text-align:center;margin-top:-8px;margin-bottom:8px"><span class="cmp-delta ${dClass(p50Delta)}" style="font-size:14px">${dFmt(p50Delta, formatMs)}</span></div>
@@ -397,12 +399,12 @@ tr:last-child td{border-bottom:none}
     <div class="cmp-row-label">Error Rate</div>
     <div class="cmp-row">
       <div class="cmp-panel">
-        ${buildHalfChart(first.avgErrorRate, errMax, '#f09898', '#fde8e8', (v) => formatPercent(v * 100), 'Before', `Window #${escapeHtml(first.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(first.timestamp))}`)}
-        <div class="cmp-val-row"><span class="cmp-val-num">${escapeHtml(formatPercent(first.avgErrorRate * 100))}</span><span class="cmp-val-unit">error rate</span></div>
+        ${buildHalfChart(first.avgErrorRate, errMax, '#f09898', '#fde8e8', (v) => formatPercent(v * 100), 'Before', `Window #${escapeHtml(first.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(first.timestamp))}`, first.windowNumber)}
+        <div class="cmp-val-row"><span class="cmp-val-label">Average Error Rate =&nbsp;</span><span class="cmp-val-num">${escapeHtml(formatPercent(first.avgErrorRate * 100))}</span></div>
       </div>
       <div class="cmp-panel">
-        ${buildHalfChart(last.avgErrorRate, errMax, '#f09898', '#fde8e8', (v) => formatPercent(v * 100), 'After', `Window #${escapeHtml(last.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(last.timestamp))}`)}
-        <div class="cmp-val-row"><span class="cmp-val-num" style="color:${errDelta < 0 ? '#16a34a' : errDelta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatPercent(last.avgErrorRate * 100))}</span><span class="cmp-val-unit">error rate</span></div>
+        ${buildHalfChart(last.avgErrorRate, errMax, '#f09898', '#fde8e8', (v) => formatPercent(v * 100), 'After', `Window #${escapeHtml(last.windowNumber)} \u00b7 ${escapeHtml(formatWindowTime(last.timestamp))}`, last.windowNumber)}
+        <div class="cmp-val-row"><span class="cmp-val-label">Average Error Rate =&nbsp;</span><span class="cmp-val-num" style="color:${errDelta < 0 ? '#16a34a' : errDelta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatPercent(last.avgErrorRate * 100))}</span></div>
       </div>
     </div>
     <div style="text-align:center;margin-top:-8px;margin-bottom:8px"><span class="cmp-delta ${dClass(errDelta)}" style="font-size:14px">${dFmt(errDelta, (v) => formatPercent(v * 100))}</span></div>

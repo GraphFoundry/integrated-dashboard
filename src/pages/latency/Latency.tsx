@@ -237,24 +237,32 @@ function openLatencyPdfPreview(summary: LatencyReportSummary, windows: Completed
       })
       .join('')
     const valY = TOP + plotH - barH
-    // X-axis: value label centered, and tick marks at edges
-    const xCenter = LEFT + plotW / 2
     const plotBottom = TOP + plotH
+    // X-axis: 5-second intervals from 0 to 30
+    const xInterval = 5
+    const totalSeconds = 30
+    const xTicks: string[] = []
+    for (let s = 0; s <= totalSeconds; s += xInterval) {
+      const x = LEFT + (s / totalSeconds) * plotW
+      // Vertical dashed grid line (skip 0 to avoid overlapping Y-axis)
+      if (s > 0) {
+        xTicks.push(`<line x1="${x.toFixed(1)}" y1="${TOP}" x2="${x.toFixed(1)}" y2="${plotBottom}" stroke="#ebebeb" stroke-width="0.5" stroke-dasharray="4 3"/>`)
+      }
+      // Tick mark
+      xTicks.push(`<line x1="${x.toFixed(1)}" y1="${plotBottom}" x2="${x.toFixed(1)}" y2="${plotBottom + 5}" stroke="#d0d0d0" stroke-width="0.5"/>`)
+      // Label
+      xTicks.push(`<text x="${x.toFixed(1)}" y="${plotBottom + 18}" text-anchor="middle" font-size="9" fill="#b0b0b0">${s}s</text>`)
+    }
     return `<svg viewBox="0 0 ${MCW} ${MCH}" width="100%" height="200" role="img">
       <text x="${LEFT}" y="16" font-size="12" font-weight="700" fill="#4b5563">${escapeHtml(label)}</text>
       <text x="${LEFT}" y="30" font-size="10" fill="#9ca3af">${escapeHtml(sublabel)}</text>
       <rect x="${LEFT}" y="${TOP}" width="${plotW}" height="${plotH}" fill="#fbfbfd" rx="0"/>
       ${gridLines}
+      ${xTicks.join('\n      ')}
       <rect x="${LEFT}" y="${barY.toFixed(1)}" width="${plotW}" height="${barH.toFixed(1)}" fill="${fillColor}" opacity="0.7" rx="0"/>
       <line x1="${LEFT}" y1="${valY.toFixed(1)}" x2="${MCW - RIGHT}" y2="${valY.toFixed(1)}" stroke="${color}" stroke-width="1.5"/>
       <line x1="${LEFT}" y1="${plotBottom}" x2="${MCW - RIGHT}" y2="${plotBottom}" stroke="#d0d0d0" stroke-width="1"/>
-      <line x1="${LEFT}" y1="${plotBottom}" x2="${LEFT}" y2="${plotBottom + 5}" stroke="#d0d0d0" stroke-width="0.5"/>
-      <line x1="${MCW - RIGHT}" y1="${plotBottom}" x2="${MCW - RIGHT}" y2="${plotBottom + 5}" stroke="#d0d0d0" stroke-width="0.5"/>
-      <line x1="${xCenter.toFixed(1)}" y1="${plotBottom}" x2="${xCenter.toFixed(1)}" y2="${plotBottom + 5}" stroke="#d0d0d0" stroke-width="0.5"/>
-      <text x="${LEFT}" y="${plotBottom + 20}" text-anchor="start" font-size="10" fill="#9ca3af">0</text>
-      <text x="${xCenter.toFixed(1)}" y="${plotBottom + 20}" text-anchor="middle" font-size="10" fill="#9ca3af">${escapeHtml(fmt(value))}</text>
-      <text x="${MCW - RIGHT}" y="${plotBottom + 20}" text-anchor="end" font-size="10" fill="#9ca3af">${escapeHtml(fmt(maxVal))}</text>
-      <text x="${xCenter.toFixed(1)}" y="${plotBottom + 34}" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">Window #${escapeHtml(windowNum)}</text>
+      <text x="${LEFT + plotW / 2}" y="${plotBottom + 34}" text-anchor="middle" font-size="10" font-weight="600" fill="#6b7280">Window #${escapeHtml(windowNum)}</text>
     </svg>`
   }
 

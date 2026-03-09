@@ -803,7 +803,7 @@ export default function SchedulerDecisions() {
                             className="mt-0.5 h-4 w-4 rounded border-[var(--border)] bg-[var(--surface-subtle)] text-blue-500 focus:ring-blue-500/30"
                           />
                           <span className="text-sm text-[var(--text-secondary)]">
-                            I confirm that I want to move pod <b className="font-mono text-xs">{changeNodePod}</b> to node <b className="font-mono text-xs">{changeNodeTarget}</b>. This will delete the pod and the controller will recreate it.
+                            I confirm that I want to move pod <b className="font-mono text-xs">{changeNodePod}</b> to node <b className="font-mono text-xs">{changeNodeTarget}</b>. A new pod will be started on the target node first, and the old pod will be removed only after the new one is healthy (zero-downtime).
                           </span>
                         </label>
                       </div>
@@ -824,7 +824,7 @@ export default function SchedulerDecisions() {
                         {changingNode ? (
                           <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            Moving...
+                            Migrating...
                           </>
                         ) : (
                           'Confirm Change'
@@ -839,7 +839,7 @@ export default function SchedulerDecisions() {
                         <div className="p-2 bg-green-900/20 rounded-full border border-green-900/50 mb-2">
                           <CheckCircle className="w-6 h-6" />
                         </div>
-                        <h4 className="font-semibold text-lg">Node Changed</h4>
+                        <h4 className="font-semibold text-lg">Migration Complete</h4>
                         <p className="text-sm text-[var(--text-muted)] px-4">{changeNodeResult.message}</p>
                         {changeNodeResult.previousNode && (
                           <p className="text-xs text-[var(--text-dim)]">

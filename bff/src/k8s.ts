@@ -51,30 +51,32 @@ export interface PodsByService {
 
 /**
  * Derive the service (deployment) name from a pod.
- * Priority: ownerReference → app label → pod name prefix.
+ * Priority matches the scheduler extender's label resolution so that
+ * pod-to-decision mapping is consistent across the UI.
  */
 function deriveServiceName(pod: K8sPodItem): string | null {
-  // 1. Owner reference (ReplicaSet name → strip suffix)
+  const labels = pod.metadata.labels
+
+  // 1. Standard Kubernetes labels
+  if (labels?.app) return labels.app
+  if (labels?.['app.kubernetes.io/name']) return labels['app.kubernetes.io/name']
+  if (labels?.['service.istio.io/canonical-name']) return labels['service.istio.io/canonical-name']
+
+  // 2. Fallback: Owner reference (ReplicaSet name → strip suffix)
   const owners = pod.metadata.ownerReferences
   if (owners?.length) {
     const rs = owners.find((o) => o.kind === 'ReplicaSet')
     if (rs) {
-      // ReplicaSet name = <deployment>-<hash>  →  strip last segment
       const parts = rs.name.split('-')
       if (parts.length > 1) {
-        parts.pop() // remove hash
+        parts.pop()
         return parts.join('-')
       }
       return rs.name
     }
-    // StatefulSet, DaemonSet etc. – use the owner name directly
     const other = owners[0]
     return other.name
   }
-
-  // 2. 'app' label
-  const labels = pod.metadata.labels
-  if (labels?.app) return labels.app
 
   return null
 }

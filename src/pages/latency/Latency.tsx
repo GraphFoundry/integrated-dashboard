@@ -43,7 +43,7 @@ import Section from '@/components/layout/Section'
 import type { GraphUpdateData } from '@/lib/bffApiClient'
 
 const WINDOW_DURATION_S = 30
-const LATEST_WINDOW_STORAGE_KEY = 'latency_latest_completed_window_v1'
+const ALL_WINDOWS_STORAGE_KEY = 'latency_all_windows_v1'
 
 type KpiVariant = 'default' | 'success' | 'warning' | 'danger'
 type VerdictTone = 'improved' | 'degraded' | 'stable'
@@ -111,25 +111,30 @@ function isCompletedWindow(value: unknown): value is CompletedWindow {
   )
 }
 
-function getStoredLatencyWindow(): CompletedWindow | null {
-  if (typeof window === 'undefined') return null
+function getStoredWindows(): CompletedWindow[] {
+  if (typeof window === 'undefined') return []
 
   try {
-    const raw = window.localStorage.getItem(LATEST_WINDOW_STORAGE_KEY)
-    if (!raw) return null
+    const raw = window.localStorage.getItem(ALL_WINDOWS_STORAGE_KEY)
+    if (!raw) return []
 
     const parsed = JSON.parse(raw)
-    return isCompletedWindow(parsed) ? parsed : null
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isCompletedWindow)
   } catch {
-    return null
+    return []
   }
 }
 
-function cacheLatencyWindow(windowData: CompletedWindow): void {
+function cacheAllWindows(windows: CompletedWindow[]): void {
   if (typeof window === 'undefined') return
 
   try {
-    window.localStorage.setItem(LATEST_WINDOW_STORAGE_KEY, JSON.stringify(windowData))
+    if (windows.length === 0) {
+      window.localStorage.removeItem(ALL_WINDOWS_STORAGE_KEY)
+    } else {
+      window.localStorage.setItem(ALL_WINDOWS_STORAGE_KEY, JSON.stringify(windows))
+    }
   } catch {
     // Ignore localStorage quota and private mode failures.
   }
@@ -772,15 +777,22 @@ function ArcGauge({ value, max, measuring }: { value: number; max: number; measu
 
 export default function Latency() {
   const { graphData, loading } = useGraphStream()
-  const [completedWindows, setCompletedWindows] = useState<CompletedWindow[]>([])
+  const [completedWindows, setCompletedWindows] = useState<CompletedWindow[]>(() => getStoredWindows())
   const [currentSnapshots, setCurrentSnapshots] = useState<Snapshot[]>([])
   const [secondsRemaining, setSecondsRemaining] = useState(WINDOW_DURATION_S)
   const [measuring, setMeasuring] = useState(false)
-  const [storedWindowAtLoad] = useState<CompletedWindow | null>(() => getStoredLatencyWindow())
 
   const windowStartRef = useRef<number>(0)
   const windowCountRef = useRef(0)
   const snapshotsRef = useRef<Snapshot[]>([])
+
+  // Sync window counter with restored data on mount
+  useEffect(() => {
+    if (completedWindows.length > 0) {
+      windowCountRef.current = Math.max(...completedWindows.map(w => w.windowNumber))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const startWindow = useCallback(() => {
     windowStartRef.current = Date.now()
@@ -834,13 +846,8 @@ export default function Latency() {
     completedWindows.length > 0 ? completedWindows[completedWindows.length - 1] : null
   const prevWindow =
     completedWindows.length > 1 ? completedWindows[completedWindows.length - 2] : null
-  const storedComparisonWindow = completedWindows.length === 1 ? storedWindowAtLoad : null
-  const comparisonWindow = prevWindow ?? storedComparisonWindow
-  const comparisonWindowLabel = prevWindow
-    ? 'Previous Window'
-    : storedComparisonWindow
-      ? 'Stored Baseline'
-      : null
+  const comparisonWindow = prevWindow ?? null
+  const comparisonWindowLabel = prevWindow ? 'Previous Window' : null
   const latestDelta =
     lastWindow && comparisonWindow ? getDelta(lastWindow.meanP95, comparisonWindow.meanP95) : null
   const improved = latestDelta !== null && latestDelta < 0
@@ -853,9 +860,8 @@ export default function Latency() {
   }))
 
   useEffect(() => {
-    if (!lastWindow) return
-    cacheLatencyWindow(lastWindow)
-  }, [lastWindow])
+    cacheAllWindows(completedWindows)
+  }, [completedWindows])
 
   const handleMeasure = useCallback(() => {
     startWindow()
@@ -975,11 +981,7 @@ export default function Latency() {
               {comparisonWindow ? (
                 <MetricHighlightCard
                   label={comparisonWindowLabel ?? 'Comparison Window'}
-                  description={
-                    comparisonWindowLabel === 'Stored Baseline'
-                      ? `Loaded from local storage - ${formatWindowTime(comparisonWindow.timestamp)}`
-                      : `Window #${comparisonWindow.windowNumber} - ${formatWindowTime(comparisonWindow.timestamp)}`
-                  }
+                  description={`Window #${comparisonWindow.windowNumber} - ${formatWindowTime(comparisonWindow.timestamp)}`}
                   icon={Clock}
                   tone="default"
                   value={formatMs(comparisonWindow.meanP95)}
@@ -989,11 +991,7 @@ export default function Latency() {
                       {formatPercent(comparisonWindow.avgErrorRate * 100)}
                     </p>
                   }
-                  tooltip={
-                    comparisonWindowLabel === 'Stored Baseline'
-                      ? 'Persisted 30-second window loaded from local storage before this session began'
-                      : 'Aggregate metrics from the previous 30-second window'
-                  }
+                  tooltip="Aggregate metrics from the previous 30-second window"
                 />
               ) : (
                 <div

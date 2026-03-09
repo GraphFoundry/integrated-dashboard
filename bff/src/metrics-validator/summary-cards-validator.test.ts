@@ -9,45 +9,55 @@ import {
 } from './summary-cards-validator'
 
 test(
-  'computes traffic volume as sum of latest positive-traffic request rates and passes on match',
+  'computes traffic volume as the average total request rate across the selected window',
   () => {
     const result = compareTrafficVolumeSummaryCard({
-      latestPerServicePoints: [
+      rawTelemetryPoints: [
         {
-          serviceKey: 'default:frontend',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { requestRate: 12.3456 }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          requestRate: 12.3456
         },
         {
-          serviceKey: 'default:checkoutservice',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { requestRate: '7.6544' }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'checkoutservice',
+          namespace: 'default',
+          requestRate: '7.6544'
         },
         {
-          serviceKey: 'default:inventoryservice',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { requestRate: 0 }
+          timestamp: '2026-03-08T00:01:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          requestRate: 20
+        },
+        {
+          timestamp: '2026-03-08T00:01:00.000Z',
+          service: 'checkoutservice',
+          namespace: 'default',
+          requestRate: 5
         }
       ],
-      displayedTrafficVolume: '20.00'
+      displayedTrafficVolume: '22.50'
     })
 
-    assert.equal(result.expected, '20.00')
-    assert.equal(result.displayed, '20.00')
+    assert.equal(result.expected, '22.50')
+    assert.equal(result.displayed, '22.50')
     assert.equal(result.pass, true)
     assert.equal(result.absoluteDelta, 0)
-    assert.equal(result.expectedRawRequestRate, 20)
-    assert.equal(result.displayedRawRequestRate, 20)
+    assert.equal(result.expectedRawRequestRate, 22.5)
+    assert.equal(result.displayedRawRequestRate, 22.5)
   }
 )
 
 test('fails traffic volume card comparison when displayed value diverges', () => {
   const result = compareTrafficVolumeSummaryCard({
-    latestPerServicePoints: [
+    rawTelemetryPoints: [
       {
-        serviceKey: 'default:frontend',
-        selectionReason: 'latestPositiveTraffic',
-        datapoint: { requestRate: 12.5 }
+        timestamp: '2026-03-08T00:00:00.000Z',
+        service: 'frontend',
+        namespace: 'default',
+        requestRate: 12.5
       }
     ],
     displayedTrafficVolume: '12.00'
@@ -63,7 +73,7 @@ test('fails traffic volume card comparison when displayed value diverges', () =>
 
 test('uses N/A expectation when no per-service points were collected', () => {
   const result = compareTrafficVolumeSummaryCard({
-    latestPerServicePoints: [],
+    rawTelemetryPoints: [],
     displayedTrafficVolume: 'N/A'
   })
 
@@ -76,24 +86,30 @@ test('uses N/A expectation when no per-service points were collected', () => {
 })
 
 test(
-  'computes system health as 100 - weighted error rate using positive request-rate weighting',
+  'computes system health as 100 - weighted error rate across raw window telemetry',
   () => {
     const result = compareSystemHealthSummaryCard({
-      latestPerServicePoints: [
+      rawTelemetryPoints: [
         {
-          serviceKey: 'default:frontend',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { requestRate: 80, errorRate: 0.02 }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          requestRate: 80,
+          errorRate: 0.02
         },
         {
-          serviceKey: 'default:checkoutservice',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { requestRate: 20, errorRate: 5 }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'checkoutservice',
+          namespace: 'default',
+          requestRate: 20,
+          errorRate: 5
         },
         {
-          serviceKey: 'default:inventoryservice',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { requestRate: 0, errorRate: 0.5 }
+          timestamp: '2026-03-08T00:01:00.000Z',
+          service: 'inventoryservice',
+          namespace: 'default',
+          requestRate: 0,
+          errorRate: 0.5
         }
       ],
       displayedSystemHealth: '97.40%'
@@ -112,16 +128,20 @@ test(
   'falls back to simple average error rate when no services have positive traffic',
   () => {
     const result = compareSystemHealthSummaryCard({
-      latestPerServicePoints: [
+      rawTelemetryPoints: [
         {
-          serviceKey: 'default:frontend',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { requestRate: 0, errorRate: 0.02 }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          requestRate: 0,
+          errorRate: 0.02
         },
         {
-          serviceKey: 'default:checkoutservice',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { requestRate: 0, errorRate: 0.04 }
+          timestamp: '2026-03-08T00:01:00.000Z',
+          service: 'checkoutservice',
+          namespace: 'default',
+          requestRate: 0,
+          errorRate: 0.04
         }
       ],
       displayedSystemHealth: '97.00%'
@@ -137,29 +157,33 @@ test(
 )
 
 test(
-  'computes speed as max latest p95 across services while ignoring missing p95 values',
+  'computes speed as the worst p95 seen anywhere in the selected window',
   () => {
     const result = compareSpeedSummaryCard({
-      latestPerServicePoints: [
+      rawTelemetryPoints: [
         {
-          serviceKey: 'default:frontend',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { p95: 420 }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          p95: 420
         },
         {
-          serviceKey: 'default:checkoutservice',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { p95: '850' }
+          timestamp: '2026-03-08T00:01:00.000Z',
+          service: 'checkoutservice',
+          namespace: 'default',
+          p95: '850'
         },
         {
-          serviceKey: 'default:inventoryservice',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { p95: undefined }
+          timestamp: '2026-03-08T00:02:00.000Z',
+          service: 'inventoryservice',
+          namespace: 'default',
+          p95: undefined
         },
         {
-          serviceKey: 'default:paymentservice',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { p95: 'not-a-number' }
+          timestamp: '2026-03-08T00:03:00.000Z',
+          service: 'paymentservice',
+          namespace: 'default',
+          p95: 'not-a-number'
         }
       ],
       displayedSpeed: '850ms'
@@ -176,11 +200,12 @@ test(
 
 test('fails speed card comparison when displayed latency diverges', () => {
   const result = compareSpeedSummaryCard({
-    latestPerServicePoints: [
+    rawTelemetryPoints: [
       {
-        serviceKey: 'default:frontend',
-        selectionReason: 'latestPositiveTraffic',
-        datapoint: { p95: 1200 }
+        timestamp: '2026-03-08T00:00:00.000Z',
+        service: 'frontend',
+        namespace: 'default',
+        p95: 1200
       }
     ],
     displayedSpeed: '1.00s'
@@ -196,16 +221,17 @@ test('fails speed card comparison when displayed latency diverges', () => {
 
 test('uses N/A speed expectation when no finite p95 datapoints exist', () => {
   const result = compareSpeedSummaryCard({
-    latestPerServicePoints: [
+    rawTelemetryPoints: [
       {
-        serviceKey: 'default:frontend',
-        selectionReason: 'latestPositiveTraffic',
-        datapoint: { p95: null }
+        timestamp: '2026-03-08T00:00:00.000Z',
+        service: 'frontend',
+        namespace: 'default',
+        p95: null
       },
       {
-        serviceKey: 'default:checkoutservice',
-        selectionReason: 'latestPositiveTraffic',
-        datapoint: {}
+        timestamp: '2026-03-08T00:01:00.000Z',
+        service: 'checkoutservice',
+        namespace: 'default'
       }
     ],
     displayedSpeed: 'N/A'
@@ -220,24 +246,27 @@ test('uses N/A speed expectation when no finite p95 datapoints exist', () => {
 })
 
 test(
-  'computes uptime reliability as average normalized availability across services',
+  'computes uptime reliability as average normalized availability across the selected window',
   () => {
     const result = compareUptimeReliabilitySummaryCard({
-      latestPerServicePoints: [
+      rawTelemetryPoints: [
         {
-          serviceKey: 'default:frontend',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { availability: 0.99 }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          availability: 0.99
         },
         {
-          serviceKey: 'default:checkoutservice',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: { availability: '98.5' }
+          timestamp: '2026-03-08T00:01:00.000Z',
+          service: 'checkoutservice',
+          namespace: 'default',
+          availability: '98.5'
         },
         {
-          serviceKey: 'default:inventoryservice',
-          selectionReason: 'latestOverallFallback',
-          datapoint: { availability: null }
+          timestamp: '2026-03-08T00:02:00.000Z',
+          service: 'inventoryservice',
+          namespace: 'default',
+          availability: null
         }
       ],
       displayedUptimeReliability: '98.75%'
@@ -254,16 +283,18 @@ test(
 
 test('uses N/A uptime reliability expectation when no finite availability exists', () => {
   const result = compareUptimeReliabilitySummaryCard({
-    latestPerServicePoints: [
+    rawTelemetryPoints: [
       {
-        serviceKey: 'default:frontend',
-        selectionReason: 'latestPositiveTraffic',
-        datapoint: { availability: null }
+        timestamp: '2026-03-08T00:00:00.000Z',
+        service: 'frontend',
+        namespace: 'default',
+        availability: null
       },
       {
-        serviceKey: 'default:checkoutservice',
-        selectionReason: 'latestPositiveTraffic',
-        datapoint: { availability: 'unknown' }
+        timestamp: '2026-03-08T00:01:00.000Z',
+        service: 'checkoutservice',
+        namespace: 'default',
+        availability: 'unknown'
       }
     ],
     displayedUptimeReliability: 'N/A'
@@ -281,16 +312,15 @@ test(
   'records expected, displayed, absolute delta, and pass/fail for every summary card comparison',
   () => {
     const result = validateVitalSignsSummaryCards({
-      latestPerServicePoints: [
+      rawTelemetryPoints: [
         {
-          serviceKey: 'default:frontend',
-          selectionReason: 'latestPositiveTraffic',
-          datapoint: {
-            requestRate: 10,
-            errorRate: 0.02,
-            p95: 275,
-            availability: 0.99
-          }
+          timestamp: '2026-03-08T00:00:00.000Z',
+          service: 'frontend',
+          namespace: 'default',
+          requestRate: 10,
+          errorRate: 0.02,
+          p95: 275,
+          availability: 0.99
         }
       ],
       displayedSummaryCards: {

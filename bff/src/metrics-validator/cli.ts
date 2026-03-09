@@ -966,7 +966,7 @@ async function run(argv: string[]): Promise<number> {
         })
       ])
     const summaryCardsValidation = validateVitalSignsSummaryCards({
-      latestPerServicePoints: influxTelemetry.latestPerServicePoints,
+      rawTelemetryPoints: influxTelemetry.rawPoints,
       displayedSummaryCards: metricsPageOpen.displayedValues.summaryCards
     })
     const systemComponentsValidation = validateSystemComponentsTable({

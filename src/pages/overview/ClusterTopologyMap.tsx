@@ -981,7 +981,7 @@ function TopologyTooltip({
                   <Cpu className="w-3.5 h-3.5 text-cyan-400" />
                   <span className="text-[var(--text-muted)]">CPU:</span>
                   <span className="font-mono font-semibold text-[var(--text-primary)]">
-                    {cpuPct.toFixed(0)}% used ({node.data.cpu?.cores ?? '?'} cores)
+                    {cpuPct.toFixed(0)}% used ({node.data.cpu?.cores ?? '?'} allocatable cores)
                   </span>
                 </div>
                 <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
@@ -995,7 +995,7 @@ function TopologyTooltip({
                     <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="text-[var(--text-muted)]">Memory:</span>
                     <span className="font-mono font-semibold text-[var(--text-primary)]">
-                      {friendlyMemory(node.data.ram.usedMB)} / {friendlyMemory(node.data.ram.totalMB)}
+                      {friendlyMemory(node.data.ram.usedMB)} / {friendlyMemory(node.data.ram.totalMB)} allocatable
                     </span>
                   </div>
                   <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
@@ -1534,8 +1534,8 @@ function TopologyDetailsDrawer({
           {kind === 'node' && (
             <>
               <DrawerRow label="Name" value={node.data?.name} />
-              <DrawerRow label="CPU" value={node.data?.cpu ? `${node.data.cpu.usagePercent?.toFixed(1)}% · ${node.data.cpu.cores} cores` : 'N/A'} />
-              <DrawerRow label="RAM" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} / ${(node.data.ram.totalMB / 1024).toFixed(1)} GB` : 'N/A'} />
+              <DrawerRow label="CPU (allocatable)" value={node.data?.cpu ? `${node.data.cpu.usagePercent?.toFixed(1)}% · ${node.data.cpu.cores} cores` : 'N/A'} />
+              <DrawerRow label="RAM (allocatable)" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} / ${(node.data.ram.totalMB / 1024).toFixed(1)} GB` : 'N/A'} />
             </>
           )}
           {kind === 'service' && (
@@ -2897,11 +2897,11 @@ export default function ClusterTopologyMap() {
 
     let reason = ''
     if (feasible) {
-      reason = `Target node "${targetNodeName}" has ${cpuAvail.toFixed(0)}% CPU available and ${friendlyMemory(ramAvail)} free memory — enough to host this service. Source node: "${sourceNodeName}".`
+      reason = `Target node "${targetNodeName}" has ${cpuAvail.toFixed(0)}% allocatable CPU headroom and ${friendlyMemory(ramAvail)} allocatable memory free — enough to host this service. Source node: "${sourceNodeName}".`
     } else {
       const issues: string[] = []
-      if (!cpuFeasible) issues.push(`not enough CPU (only ${cpuAvail.toFixed(0)}% free)`)
-      if (!ramFeasible) issues.push(`not enough memory (only ${friendlyMemory(ramAvail)} free)`)
+      if (!cpuFeasible) issues.push(`not enough allocatable CPU (only ${cpuAvail.toFixed(0)}% free)`)
+      if (!ramFeasible) issues.push(`not enough allocatable memory (only ${friendlyMemory(ramAvail)} free)`)
       reason = `Target node "${targetNodeName}" may not have enough resources: ${issues.join(', ')}.`
     }
 

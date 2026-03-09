@@ -100,6 +100,10 @@ function average(values: number[]): number | null {
   return values.reduce((sum, v) => sum + v, 0) / values.length
 }
 
+function telemetryServiceKey(point: Pick<TelemetryDatapoint, 'namespace' | 'service'>): string {
+  return `${point.namespace}:${point.service}`
+}
+
 type MetricsValidatorRiskLevel = 'high' | 'medium' | 'low'
 
 type MetricsValidatorCapturePayload = {
@@ -385,18 +389,28 @@ export default function Metrics() {
     })
   }, [sortedDatapoints])
 
-  // Summary cards: global mode aggregates latest per service; service mode reflects selected scope.
+  // Summary cards summarize the selected window, while the table remains latest-biased.
   const summaryStats = useMemo(() => {
-    if (latestPerService.length === 0) return null
+    if (sortedDatapoints.length === 0) return null
 
-    const requestRates = latestPerService
-      .map((point) => toFiniteNumber(point.requestRate))
-      .filter((value): value is number => value !== null)
-    const requestRate = requestRates.length
-      ? requestRates.reduce((sum, value) => sum + value, 0)
-      : null
+    const requestRateTotalsByTimestamp = new Map<string, number>()
+    sortedDatapoints.forEach((point, index) => {
+      const rate = toFiniteNumber(point.requestRate)
+      if (rate === null) return
 
-    const weightedErrorPairs = latestPerService
+      const timestampMs = toTimestampMs(point.timestamp)
+      const bucketKey = Number.isFinite(timestampMs)
+        ? String(timestampMs)
+        : `${point.timestamp}-${index}`
+      requestRateTotalsByTimestamp.set(
+        bucketKey,
+        (requestRateTotalsByTimestamp.get(bucketKey) ?? 0) + rate
+      )
+    })
+
+    const requestRate = average(Array.from(requestRateTotalsByTimestamp.values()))
+
+    const weightedErrorPairs = sortedDatapoints
       .map((point) => {
         const rate = toFiniteNumber(point.requestRate)
         const error = normalizeErrorRatePercent(toFiniteNumber(point.errorRate))
@@ -411,19 +425,19 @@ export default function Metrics() {
       0
     )
     const fallbackErrorAvg = average(
-      latestPerService
+      sortedDatapoints
         .map((point) => normalizeErrorRatePercent(toFiniteNumber(point.errorRate)))
         .filter((value): value is number => value !== null)
     )
     const errorRate =
       weightedRateTotal > 0 ? weightedErrorSum / weightedRateTotal : fallbackErrorAvg
 
-    const p95Values = latestPerService
+    const p95Values = sortedDatapoints
       .map((point) => toFiniteNumber(point.p95))
       .filter((value): value is number => value !== null)
     const p95 = p95Values.length ? Math.max(...p95Values) : null
 
-    const availabilityValues = latestPerService
+    const availabilityValues = sortedDatapoints
       .map((point) => toFiniteNumber((point as { availability?: unknown }).availability))
       .filter((value): value is number => value !== null)
     const availability = average(availabilityValues)
@@ -435,9 +449,9 @@ export default function Metrics() {
       p95,
       availability,
       isGlobalScope: selectedServiceId === '',
-      servicesInScope: latestPerService.length,
+      servicesInScope: new Set(sortedDatapoints.map((point) => telemetryServiceKey(point))).size,
     }
-  }, [latestPerService, selectedServiceId])
+  }, [selectedServiceId, sortedDatapoints])
 
   const systemStatus = useMemo(() => {
     if (latestPerService.length === 0) return []
@@ -727,11 +741,11 @@ export default function Metrics() {
             note={
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {summaryStats.isGlobalScope
-                  ? `Aggregate: SUM of latest request rate across ${summaryStats.servicesInScope} services`
-                  : 'Scope: selected service(s) latest datapoint'}
+                  ? `Window summary: AVG total request rate across ${summaryStats.servicesInScope} services`
+                  : 'Window summary: AVG request rate across the selected time horizon'}
               </p>
             }
-            tooltip="How many requests are reaching the system each second. Global mode uses SUM across latest per-service datapoints."
+            tooltip="Average request rate over the selected time horizon. Global mode averages the total in-scope request rate per timestamp."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.errorRate.label}
@@ -755,13 +769,13 @@ export default function Metrics() {
               ) : (
                 <p className="mt-1 text-xs text-[var(--text-muted)]">
                   {summaryStats.isGlobalScope
-                    ? 'Aggregate: weighted AVG success across in-scope services'
-                    : 'Scope: selected service(s) latest datapoint'}
+                    ? 'Window summary: traffic-weighted AVG success across in-scope telemetry'
+                    : 'Window summary: traffic-weighted AVG success across the selected time horizon'}
                 </p>
               )
             }
             tone="emerald"
-            tooltip="Overall success score. Global mode uses request-rate-weighted average error rate across latest per-service datapoints."
+            tooltip="Overall success score across the selected time horizon. Computed as 100 minus the traffic-weighted average error rate."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.p95.label}
@@ -780,12 +794,12 @@ export default function Metrics() {
             note={
               <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {summaryStats.isGlobalScope
-                  ? 'Aggregate: MAX of latest P95 values across in-scope services'
-                  : 'Scope: selected service(s) latest datapoint'}
+                  ? 'Window summary: worst P95 seen across in-scope services'
+                  : 'Window summary: worst P95 seen in the selected time horizon'}
               </p>
             }
             tone="amber"
-            tooltip="How slow responses become during heavier periods. Global mode uses MAX latest P95 to surface the slowest service."
+            tooltip="Worst P95 response time observed during the selected time horizon."
           />
           <MetricHighlightCard
             label={METRIC_LABELS.availability.label}
@@ -809,13 +823,13 @@ export default function Metrics() {
               ) : (
                 <p className="mt-1 text-xs text-[var(--text-muted)]">
                   {summaryStats.isGlobalScope
-                    ? 'Aggregate: AVG of latest availability across services with availability data'
-                    : 'Scope: selected service(s) latest datapoint'}
+                    ? 'Window summary: AVG availability across services with availability data'
+                    : 'Window summary: AVG availability across the selected time horizon'}
                 </p>
               )
             }
             tone="purple"
-            tooltip="How often services stay online and reachable. Renders N/A when availability is missing; no fallback values are fabricated."
+            tooltip="Average availability over the selected time horizon. Renders N/A when availability is missing; no fallback values are fabricated."
           />
         </div>
       )}

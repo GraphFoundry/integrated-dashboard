@@ -5,7 +5,7 @@ import type {
   DiscoveredService,
   TimeWindow,
 } from '@/lib/types'
-import { getResilientServices, getServices } from '@/lib/api'
+import { getDependencyGraphSnapshot, getResilientServices, getServices } from '@/lib/api'
 import InfoHint from '@/components/common/InfoHint'
 import {
   cn,
@@ -14,16 +14,6 @@ import {
   primaryButtonClass,
 } from '@/components/common/uiClassTokens'
 import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
-
-// Fallback examples used when live discovery is unavailable.
-const EXAMPLE_SERVICES = [
-  'onlineboutique:frontend',
-  'onlineboutique:checkoutservice',
-  'onlineboutique:cartservice',
-  'onlineboutique:recommendationservice',
-  'onlineboutique:paymentservice',
-  'onlineboutique:productcatalogservice',
-]
 
 // Validate serviceId format: must be "namespace:name"
 function isValidLiveServiceId(serviceId: string): boolean {
@@ -116,14 +106,46 @@ export default function ScenarioForm({
     setServicesError(null)
     setServicesNotice(null)
     try {
-      const response = await getServices(signal)
-      const resilientServices = getResilientServices(response.services)
+      const [serviceResponse, graphSnapshot] = await Promise.all([
+        getServices(signal).catch(() => null),
+        getDependencyGraphSnapshot(signal).catch(() => null),
+      ])
+
+      if (!serviceResponse && !graphSnapshot) {
+        setServicesStale(true)
+        setServicesNotice(
+          'Live service discovery is unavailable. Showing any cached services; if none appear, check predictive API connectivity and OVERVIEW_NAMESPACE configuration.'
+        )
+        setDiscoveredServices(getResilientServices([], { includeSeeded: false }))
+        return
+      }
+
+      const graphServices: DiscoveredService[] = (graphSnapshot?.nodes ?? [])
+        .filter((node) => Boolean(node.name))
+        .map((node) => ({
+          serviceId: `${node.namespace || 'default'}:${node.name}`,
+          name: node.name,
+          namespace: node.namespace || 'default',
+          podCount: typeof node.podCount === 'number' ? node.podCount : undefined,
+          availability: typeof node.availability === 'number' ? node.availability : undefined,
+        }))
+
+      const resilientServices = getResilientServices(
+        [...(serviceResponse?.services ?? []), ...graphServices],
+        { includeSeeded: false }
+      )
       setDiscoveredServices(resilientServices)
-      setServicesStale(response.stale)
-      if (response.error) {
-        setServicesNotice(response.error)
-      } else if (response.stale) {
+      const sourcesAreStale = Boolean(serviceResponse?.stale || graphSnapshot?.metadata?.stale)
+      setServicesStale(sourcesAreStale)
+
+      if (serviceResponse?.error) {
+        setServicesNotice(serviceResponse.error)
+      } else if (sourcesAreStale) {
         setServicesNotice('Showing latest available services (data source is currently stale).')
+      } else if (resilientServices.length === 0) {
+        setServicesNotice(
+          'No live services were found in the configured workload namespace. Check that analysis-engine and service-graph-engine use the same OVERVIEW_NAMESPACE.'
+        )
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'CanceledError') {
@@ -131,8 +153,10 @@ export default function ScenarioForm({
       }
       setServicesError(null)
       setServicesStale(true)
-      setServicesNotice('Live service list is unavailable. Showing fallback service options.')
-      setDiscoveredServices(getResilientServices([]))
+      setServicesNotice(
+        'Live service discovery is unavailable. Showing any cached services; if none appear, check predictive API connectivity and OVERVIEW_NAMESPACE configuration.'
+      )
+      setDiscoveredServices(getResilientServices([], { includeSeeded: false }))
     } finally {
       setServicesLoading(false)
     }
@@ -236,7 +260,7 @@ export default function ScenarioForm({
   const commonServiceHelperText =
     servicesNotice ||
     (!servicesLoading && discoveredServices.length === 0 && !servicesError
-      ? `Examples: ${EXAMPLE_SERVICES.slice(0, 2).join(', ')}`
+      ? 'No live services are currently discoverable. Enter a service as namespace:name or verify the configured workload namespace.'
       : undefined)
 
   const handleSubmit = (e: React.FormEvent) => {

@@ -1,4 +1,3 @@
-import { type LatestPerServiceTelemetryPoint } from './influx-telemetry-collector'
 import {
   formatLatencyForDisplay,
   formatPercentForDisplay,
@@ -46,7 +45,7 @@ type DisplayedSummaryCardValues = {
 }
 
 type ValidateVitalSignsSummaryCardsInput = {
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
   displayedSummaryCards: DisplayedSummaryCardValues
 }
 
@@ -71,30 +70,43 @@ function toFiniteNumber(value: unknown): number | null {
 }
 
 function computeExpectedTrafficVolumeRequestRate(
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
 ): number | null {
-  if (latestPerServicePoints.length === 0) {
+  if (rawTelemetryPoints.length === 0) {
     return null
   }
 
-  return latestPerServicePoints.reduce((sum, point) => {
-    const requestRate = toFiniteNumber(point.datapoint.requestRate)
-    if (requestRate === null || requestRate <= 0) {
-      return sum
+  const totalsByTimestamp = new Map<string, number>()
+  rawTelemetryPoints.forEach((point, index) => {
+    const requestRate = toFiniteNumber(point.requestRate)
+    if (requestRate === null) {
+      return
     }
-    return sum + requestRate
-  }, 0)
+
+    const timestampValue = point.timestamp
+    const timestampKey =
+      (typeof timestampValue === 'string' && timestampValue.trim().length > 0)
+        ? timestampValue
+        : `unknown-${index}`
+
+    totalsByTimestamp.set(
+      timestampKey,
+      (totalsByTimestamp.get(timestampKey) ?? 0) + requestRate
+    )
+  })
+
+  return average(Array.from(totalsByTimestamp.values()))
 }
 
 function computeExpectedSpeedP95Milliseconds(
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
 ): number | null {
-  if (latestPerServicePoints.length === 0) {
+  if (rawTelemetryPoints.length === 0) {
     return null
   }
 
-  const p95Values = latestPerServicePoints
-    .map((point) => toFiniteNumber(point.datapoint.p95))
+  const p95Values = rawTelemetryPoints
+    .map((point) => toFiniteNumber(point.p95))
     .filter((value): value is number => value !== null)
 
   if (p95Values.length === 0) {
@@ -113,17 +125,17 @@ function average(values: ReadonlyArray<number>): number | null {
 }
 
 function computeExpectedSystemHealthScore(
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
 ): number | null {
-  if (latestPerServicePoints.length === 0) {
+  if (rawTelemetryPoints.length === 0) {
     return null
   }
 
-  const weightedErrorPairs = latestPerServicePoints
+  const weightedErrorPairs = rawTelemetryPoints
     .map((point) => {
-      const rate = toFiniteNumber(point.datapoint.requestRate)
+      const rate = toFiniteNumber(point.requestRate)
       const errorRate = normalizeErrorRateForDisplay(
-        toFiniteNumber(point.datapoint.errorRate)
+        toFiniteNumber(point.errorRate)
       )
       if (rate === null || errorRate === null || rate <= 0) {
         return null
@@ -140,9 +152,9 @@ function computeExpectedSystemHealthScore(
   )
 
   const fallbackErrorRateAverage = average(
-    latestPerServicePoints
+    rawTelemetryPoints
       .map((point) =>
-        normalizeErrorRateForDisplay(toFiniteNumber(point.datapoint.errorRate))
+        normalizeErrorRateForDisplay(toFiniteNumber(point.errorRate))
       )
       .filter((errorRate): errorRate is number => errorRate !== null)
   )
@@ -160,15 +172,15 @@ function computeExpectedSystemHealthScore(
 }
 
 function computeExpectedUptimeReliabilityScore(
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
 ): number | null {
-  if (latestPerServicePoints.length === 0) {
+  if (rawTelemetryPoints.length === 0) {
     return null
   }
 
-  const availabilityValues = latestPerServicePoints
+  const availabilityValues = rawTelemetryPoints
     .map((point) =>
-      normalizeAvailabilityForDisplay(toFiniteNumber(point.datapoint.availability))
+      normalizeAvailabilityForDisplay(toFiniteNumber(point.availability))
     )
     .filter((availability): availability is number => availability !== null)
 
@@ -225,11 +237,11 @@ function parseDisplayedLatencyMilliseconds(value: string): number | null {
 }
 
 function compareTrafficVolumeSummaryCard(input: {
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
   displayedTrafficVolume: string
 }): TrafficVolumeCardComparison {
   const expectedRawRequestRate = computeExpectedTrafficVolumeRequestRate(
-    input.latestPerServicePoints
+    input.rawTelemetryPoints
   )
   const expected = formatRequestRateForDisplay(expectedRawRequestRate)
   const displayed = input.displayedTrafficVolume.trim()
@@ -255,11 +267,11 @@ function compareTrafficVolumeSummaryCard(input: {
 }
 
 function compareSystemHealthSummaryCard(input: {
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
   displayedSystemHealth: string
 }): SystemHealthCardComparison {
   const expectedRawHealthScore = computeExpectedSystemHealthScore(
-    input.latestPerServicePoints
+    input.rawTelemetryPoints
   )
   const expected = formatPercentForDisplay(expectedRawHealthScore)
   const displayed = input.displayedSystemHealth.trim()
@@ -285,11 +297,11 @@ function compareSystemHealthSummaryCard(input: {
 }
 
 function compareSpeedSummaryCard(input: {
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
   displayedSpeed: string
 }): SpeedCardComparison {
   const expectedRawP95Milliseconds = computeExpectedSpeedP95Milliseconds(
-    input.latestPerServicePoints
+    input.rawTelemetryPoints
   )
   const expected = formatLatencyForDisplay(expectedRawP95Milliseconds)
   const displayed = input.displayedSpeed.trim()
@@ -315,11 +327,11 @@ function compareSpeedSummaryCard(input: {
 }
 
 function compareUptimeReliabilitySummaryCard(input: {
-  latestPerServicePoints: ReadonlyArray<LatestPerServiceTelemetryPoint>
+  rawTelemetryPoints: ReadonlyArray<Record<string, unknown>>
   displayedUptimeReliability: string
 }): UptimeReliabilityCardComparison {
   const expectedRawUptimeReliabilityPercent = computeExpectedUptimeReliabilityScore(
-    input.latestPerServicePoints
+    input.rawTelemetryPoints
   )
   const expected = formatPercentForDisplay(expectedRawUptimeReliabilityPercent)
   const displayed = input.displayedUptimeReliability.trim()
@@ -353,19 +365,19 @@ function validateVitalSignsSummaryCards(
 ): VitalSignsSummaryCardsValidation {
   return {
     trafficVolume: compareTrafficVolumeSummaryCard({
-      latestPerServicePoints: input.latestPerServicePoints,
+      rawTelemetryPoints: input.rawTelemetryPoints,
       displayedTrafficVolume: input.displayedSummaryCards.trafficVolume
     }),
     systemHealth: compareSystemHealthSummaryCard({
-      latestPerServicePoints: input.latestPerServicePoints,
+      rawTelemetryPoints: input.rawTelemetryPoints,
       displayedSystemHealth: input.displayedSummaryCards.systemHealth
     }),
     speed: compareSpeedSummaryCard({
-      latestPerServicePoints: input.latestPerServicePoints,
+      rawTelemetryPoints: input.rawTelemetryPoints,
       displayedSpeed: input.displayedSummaryCards.speed
     }),
     uptimeReliability: compareUptimeReliabilitySummaryCard({
-      latestPerServicePoints: input.latestPerServicePoints,
+      rawTelemetryPoints: input.rawTelemetryPoints,
       displayedUptimeReliability: input.displayedSummaryCards.uptimeReliability
     })
   }

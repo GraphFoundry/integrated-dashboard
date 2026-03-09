@@ -689,7 +689,7 @@ export default function NodeResourceGraph({
                                 </div>
                                 <div className="text-[var(--text-dim)] mt-0.5">
                                   {hoveredNode.data.cpuUsed?.toFixed?.(1) ?? 'N/A'}/
-                                  {hoveredNode.data.cpuTotal ?? 'N/A'} cores
+                                  {hoveredNode.data.cpuTotal ?? 'N/A'} allocatable cores
                                 </div>
                               </div>
                             </div>
@@ -709,7 +709,7 @@ export default function NodeResourceGraph({
                                   {hoveredNode.data.ramTotalMB != null
                                     ? (hoveredNode.data.ramTotalMB / 1024).toFixed(2)
                                     : 'N/A'}
-                                  GB total (
+                                  GB allocatable (
                                   {hoveredNode.data.ramUsagePercent?.toFixed?.(1) ?? 'N/A'}%)
                                 </div>
                               </div>

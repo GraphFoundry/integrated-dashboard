@@ -90,7 +90,7 @@ export function extractNodesFromServices(services: ServiceWithPlacement[]): Arra
 
   // Calculate percentages
   nodeMap.forEach((node) => {
-    // If usage percent is still 0 (not set by backend), and we have capacity, calc from pods
+    // If usage percent is still 0 (not set by backend), and we have allocatable totals, calc from pods
     if (node.cpuUsagePercent === 0 && node.cpuTotal > 0) {
       node.cpuUsagePercent = (node.cpuUsed / node.cpuTotal) * 100
     }

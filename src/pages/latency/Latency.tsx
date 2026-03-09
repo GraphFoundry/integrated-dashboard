@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Area,
-  AreaChart,
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
-  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,22 +10,19 @@ import {
 } from 'recharts'
 import {
   Activity,
-  AlertTriangle,
   ArrowDown,
   ArrowUp,
   CheckCircle,
   Clock,
   Download,
-  FileText,
   Gauge,
-  Minus,
   TrendingDown,
   TrendingUp,
   Zap,
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useGraphStream } from '@/lib/useGraphStream'
-import { formatDate, formatMs, formatPercent, formatRps, formatShortDate } from '@/lib/format'
+import { formatDate, formatMs, formatPercent, formatRps } from '@/lib/format'
 import {
   cn,
   glassPanelClass,
@@ -43,7 +36,6 @@ import {
   tableShellClass,
 } from '@/components/common/uiClassTokens'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
-import EmptyState from '@/components/layout/EmptyState'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import MetricHighlightCard from '@/components/layout/MetricHighlightCard'
 import PageHeader from '@/components/layout/PageHeader'
@@ -99,14 +91,6 @@ interface LatencyReportSummary {
   verdict: VerdictTone
 }
 
-interface ReportChartPoint {
-  label: string
-  windowNumber: number
-  timestamp: string
-  meanP95: number
-  meanP50: number
-  avgErrorRate: number
-}
 
 
 function isCompletedWindow(value: unknown): value is CompletedWindow {
@@ -572,11 +556,6 @@ function getErrorVariant(errorRate: number): KpiVariant {
   return 'success'
 }
 
-function getOverallLatencyTone(latencyMs: number): 'default' | 'emerald' | 'rose' {
-  if (latencyMs < 100) return 'emerald'
-  if (latencyMs < 300) return 'default'
-  return 'rose'
-}
 
 function formatWindowTime(timestamp: string): string {
   const date = new Date(timestamp)
@@ -735,8 +714,6 @@ export default function Latency() {
   const [currentSnapshots, setCurrentSnapshots] = useState<Snapshot[]>([])
   const [secondsRemaining, setSecondsRemaining] = useState(WINDOW_DURATION_S)
   const [measuring, setMeasuring] = useState(false)
-  const [reportOpen, setReportOpen] = useState(false)
-  const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null)
   const [storedWindowAtLoad] = useState<CompletedWindow | null>(() => getStoredLatencyWindow())
 
   const windowStartRef = useRef<number>(0)
@@ -781,11 +758,6 @@ export default function Latency() {
     setCurrentSnapshots([...snapshotsRef.current])
   }, [graphData, measuring])
 
-  useEffect(() => {
-    if (reportOpen && completedWindows.length < 2) {
-      setReportOpen(false)
-    }
-  }, [completedWindows.length, reportOpen])
 
   const latestSnapshot =
     currentSnapshots.length > 0 ? currentSnapshots[currentSnapshots.length - 1] : null
@@ -818,29 +790,10 @@ export default function Latency() {
     p50: Number(window.meanP50.toFixed(1)),
   }))
 
-  const reportSummary =
-    reportGeneratedAt && completedWindows.length >= 2
-      ? buildReportSummary(completedWindows, reportGeneratedAt)
-      : null
-
   useEffect(() => {
     if (!lastWindow) return
     cacheLatencyWindow(lastWindow)
   }, [lastWindow])
-
-  const handleOpenReport = useCallback(() => {
-    if (completedWindows.length < 2) {
-      toast.error('Complete at least two windows to generate a report')
-      return
-    }
-
-    setReportGeneratedAt(new Date().toISOString())
-    setReportOpen(true)
-  }, [completedWindows.length])
-
-  const handleCloseReport = useCallback(() => {
-    setReportOpen(false)
-  }, [])
 
   const handleMeasure = useCallback(() => {
     startWindow()
@@ -853,8 +806,6 @@ export default function Latency() {
     windowCountRef.current = 0
     setMeasuring(false)
     setSecondsRemaining(WINDOW_DURATION_S)
-    setReportOpen(false)
-    setReportGeneratedAt(null)
   }, [])
 
   const handleExportPdf = useCallback(() => {
@@ -863,698 +814,9 @@ export default function Latency() {
       return
     }
 
-    const generatedAt =
-      reportOpen && reportGeneratedAt ? reportGeneratedAt : new Date().toISOString()
-    const summaryForPdf =
-      reportOpen && reportSummary
-        ? reportSummary
-        : buildReportSummary(completedWindows, generatedAt)
-
+    const summaryForPdf = buildReportSummary(completedWindows, new Date().toISOString())
     openLatencyPdfPreview(summaryForPdf, completedWindows)
-  }, [completedWindows, reportGeneratedAt, reportOpen, reportSummary])
-
-  const renderReportExecutiveSummary = () => {
-    if (!reportSummary) return null
-
-    const netTrendTone =
-      reportSummary.netP95Delta < 0 ? 'emerald' : reportSummary.netP95Delta > 0 ? 'rose' : 'default'
-    const netTrendLabel =
-      reportSummary.netP95Delta < 0
-        ? `-${formatMs(Math.abs(reportSummary.netP95Delta))}`
-        : reportSummary.netP95Delta > 0
-          ? `+${formatMs(reportSummary.netP95Delta)}`
-          : '0ms'
-
-    return (
-      <div className={cn(glassPanelClass, 'relative overflow-hidden p-6 md:p-8')}>
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-20 right-0 h-72 w-72 rounded-full bg-emerald-400/12 blur-3xl" />
-          <div className="absolute -bottom-24 left-1/4 h-64 w-64 rounded-full bg-sky-400/12 blur-3xl" />
-        </div>
-
-        <div className="relative z-10 space-y-6">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-                Executive Summary
-              </p>
-              <h2 className="mt-2 text-3xl font-bold text-[var(--text-primary)] md:text-4xl">
-                System Latency Report
-              </h2>
-              <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                Generated at {formatDate(reportSummary.generatedAt)}
-              </p>
-            </div>
-
-            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--text-secondary)]">
-              Covering {reportSummary.windowCount} measurement windows (
-              {reportSummary.observationSeconds}s total observation)
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricHighlightCard
-              label="Overall Average p95"
-              description="Mean p95 across all completed 30-second windows."
-              icon={Clock}
-              tone={getOverallLatencyTone(reportSummary.overallAverageP95)}
-              value={formatMs(reportSummary.overallAverageP95)}
-              note={
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  Average p50: {formatMs(reportSummary.overallAverageP50)}
-                </p>
-              }
-            />
-
-            <MetricHighlightCard
-              label="Best Window"
-              description="Window with the lowest mean p95, the strongest latency outcome in this report."
-              icon={TrendingDown}
-              tone="emerald"
-              value={`#${reportSummary.bestWindow.windowNumber}`}
-              note={
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  {formatMs(reportSummary.bestWindow.meanP95)} mean p95,{' '}
-                  {formatShortDate(reportSummary.bestWindow.timestamp)}
-                </p>
-              }
-            />
-
-            <MetricHighlightCard
-              label="Worst Window"
-              description="Window with the highest mean p95, the weakest latency outcome in this report."
-              icon={TrendingUp}
-              tone="rose"
-              value={`#${reportSummary.worstWindow.windowNumber}`}
-              note={
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  {formatMs(reportSummary.worstWindow.meanP95)} mean p95,{' '}
-                  {formatShortDate(reportSummary.worstWindow.timestamp)}
-                </p>
-              }
-            />
-
-            <MetricHighlightCard
-              label="Net Trend"
-              description="First window baseline versus the latest completed window."
-              icon={Zap}
-              tone={netTrendTone}
-              value={netTrendLabel}
-              note={
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  Window #{reportSummary.firstWindow.windowNumber} to #
-                  {reportSummary.lastWindow.windowNumber}
-                </p>
-              }
-            />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const renderLatencyTrendSection = () => {
-    if (!reportSummary) return null
-
-    const chartData: ReportChartPoint[] = completedWindows.map((window) => ({
-      label: `#${window.windowNumber}`,
-      windowNumber: window.windowNumber,
-      timestamp: window.timestamp,
-      meanP95: Number(window.meanP95.toFixed(2)),
-      meanP50: Number(window.meanP50.toFixed(2)),
-      avgErrorRate: Number(window.avgErrorRate.toFixed(4)),
-    }))
-
-    const ReportTrendTooltip = ({
-      active,
-      payload,
-    }: {
-      active?: boolean
-      payload?: Array<{ color?: string; value?: number; payload: ReportChartPoint }>
-    }) => {
-      if (!active || !payload || payload.length === 0) return null
-
-      const point = payload[0].payload
-      return (
-        <div className="rounded-lg border border-[var(--chart-tooltip-border)] bg-[var(--chart-tooltip-bg)] p-3 shadow-lg">
-          <p className="mb-2 text-xs text-[var(--text-muted)]">
-            Window #{point.windowNumber} &middot; {formatWindowTime(point.timestamp)}
-          </p>
-          <p className="text-sm font-medium text-[var(--text-primary)]">
-            Mean P95: {formatMs(point.meanP95)}
-          </p>
-          <p className="text-sm font-medium text-[var(--text-primary)]">
-            Mean P50: {formatMs(point.meanP50)}
-          </p>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Error rate: {formatPercent(point.avgErrorRate * 100)}
-          </p>
-        </div>
-      )
-    }
-
-    return (
-      <Section
-        title="Latency Trend Over Time"
-        description="Mean p95 and p50 across completed windows, with the first-window p95 held as a baseline."
-        icon={TrendingUp}
-      >
-        <div className={cn(glassSurfaceClass, 'rounded-[var(--radius-md)] p-4 md:p-6')}>
-          <ResponsiveContainer width="100%" height={320}>
-            <AreaChart data={chartData} margin={{ top: 12, right: 24, left: 8, bottom: 8 }}>
-              <defs>
-                <linearGradient id="latency-report-p95" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--accent-primary)" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="var(--accent-primary)" stopOpacity={0.02} />
-                </linearGradient>
-                <linearGradient id="latency-report-p50" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="var(--success)" stopOpacity={0.24} />
-                  <stop offset="95%" stopColor="var(--success)" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis
-                dataKey="label"
-                stroke="var(--chart-axis)"
-                tick={{ fill: 'var(--chart-axis-label)', fontSize: 12 }}
-              />
-              <YAxis
-                stroke="var(--chart-axis)"
-                tick={{ fill: 'var(--chart-axis-label)', fontSize: 12 }}
-                tickFormatter={(value: number) => formatMs(value)}
-              />
-              <Tooltip content={<ReportTrendTooltip />} />
-              <Legend wrapperStyle={{ fontSize: '12px', color: 'var(--chart-axis-label)' }} />
-              <ReferenceLine
-                y={reportSummary.firstWindow.meanP95}
-                stroke="var(--chart-axis-label)"
-                strokeDasharray="6 6"
-                label={{
-                  value: 'Baseline',
-                  position: 'insideTopRight',
-                  fill: 'var(--chart-axis-label)',
-                  fontSize: 12,
-                }}
-              />
-              <Area
-                type="monotone"
-                dataKey="meanP95"
-                name="Mean P95"
-                stroke="var(--accent-primary)"
-                fill="url(#latency-report-p95)"
-                strokeWidth={2.5}
-                activeDot={{ r: 4 }}
-              />
-              <Area
-                type="monotone"
-                dataKey="meanP50"
-                name="Mean P50"
-                stroke="var(--success)"
-                fill="url(#latency-report-p50)"
-                strokeWidth={2.5}
-                activeDot={{ r: 4 }}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </Section>
-    )
-  }
-
-  const renderWindowEvidence = () => {
-    if (!reportSummary) return null
-
-    return (
-      <Section
-        title="Window-by-Window Evidence"
-        description="Each row is one completed 30-second measurement window with the mean p95 delta versus its predecessor."
-        icon={Activity}
-      >
-        <div className="space-y-4">
-          <div className={tableShellClass}>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className={tableHeadRowClass}>
-                    <th className={tableHeaderCellClass}>#</th>
-                    <th className={tableHeaderCellClass}>Time</th>
-                    <th className={tableHeaderCellClass}>Avg p95</th>
-                    <th className={tableHeaderCellClass}>Avg p50</th>
-                    <th className={tableHeaderCellClass}>Peak p95</th>
-                    <th className={tableHeaderCellClass}>Error Rate</th>
-                    <th className={tableHeaderCellClass}>Traffic</th>
-                    <th className={tableHeaderCellClass}>Services</th>
-                    <th className={tableHeaderCellClass}>Delta from Previous</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {completedWindows.map((window, index) => {
-                    const previousWindow = index > 0 ? completedWindows[index - 1] : null
-                    const delta = previousWindow
-                      ? getDelta(window.meanP95, previousWindow.meanP95)
-                      : null
-                    return (
-                      <tr key={window.windowNumber} className={tableBodyRowClass}>
-                        <td className={tableCellClass}>#{window.windowNumber}</td>
-                        <td className={tableCellClass}>{formatWindowTime(window.timestamp)}</td>
-                        <td className={tableCellClass}>{formatMs(window.meanP95)}</td>
-                        <td className={tableCellClass}>{formatMs(window.meanP50)}</td>
-                        <td className={tableCellClass}>{formatMs(window.peakP95)}</td>
-                        <td className={tableCellClass}>
-                          {formatPercent(window.avgErrorRate * 100)}
-                        </td>
-                        <td className={tableCellClass}>{formatRps(window.totalRps)} RPS</td>
-                        <td className={tableCellClass}>{window.serviceCount}</td>
-                        <td className={tableCellClass}>
-                          {delta === null ? (
-                            <span className="text-xs text-[var(--text-muted)]">&mdash;</span>
-                          ) : (
-                            <span
-                              className={cn(
-                                'text-sm font-semibold',
-                                delta < 0
-                                  ? 'text-emerald-400'
-                                  : delta > 0
-                                    ? 'text-rose-400'
-                                    : 'text-[var(--text-muted)]'
-                              )}
-                            >
-                              {formatLatencyDelta(delta)}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <p className="text-sm text-[var(--text-secondary)]">
-            {reportSummary.improvedComparisons} of {reportSummary.comparisonCount} windows showed
-            improvement vs their predecessor.
-          </p>
-        </div>
-      </Section>
-    )
-  }
-
-  const renderImprovementVerdict = () => {
-    if (!reportSummary) return null
-
-    const p50Delta = getDelta(reportSummary.lastWindow.meanP50, reportSummary.firstWindow.meanP50)
-    const errorDelta = getDelta(
-      reportSummary.lastWindow.avgErrorRate,
-      reportSummary.firstWindow.avgErrorRate,
-      4
-    )
-    const trafficDelta = getDelta(
-      reportSummary.lastWindow.totalRps,
-      reportSummary.firstWindow.totalRps
-    )
-
-    const deltaToneClass = {
-      positive: 'border-emerald-500/45 bg-emerald-500/12 text-[var(--text-primary)]',
-      negative: 'border-rose-500/45 bg-rose-500/12 text-[var(--text-primary)]',
-      neutral: 'border-amber-500/35 bg-amber-500/12 text-[var(--text-primary)]',
-      increase: 'border-blue-500/35 bg-blue-500/12 text-[var(--text-primary)]',
-      decrease: 'border-amber-500/35 bg-amber-500/12 text-[var(--text-primary)]',
-    } as const
-
-    const renderMetricComparisonRow = ({
-      key,
-      label,
-      firstValue,
-      lastValue,
-      firstVariant,
-      lastVariant,
-      formatValue,
-      deltaText,
-      deltaClassKey,
-      DeltaIcon,
-      firstTooltip,
-      lastTooltip,
-    }: {
-      key: string
-      label: string
-      firstValue: number
-      lastValue: number
-      firstVariant: KpiVariant
-      lastVariant: KpiVariant
-      formatValue: (value: number) => string
-      deltaText: string
-      deltaClassKey: keyof typeof deltaToneClass
-      DeltaIcon: typeof ArrowDown
-      firstTooltip: string
-      lastTooltip: string
-    }) => (
-      <div
-        key={key}
-        className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-stretch"
-      >
-        <KPIStatCard
-          label={`First Window ${label}`}
-          value={formatValue(firstValue)}
-          variant={firstVariant}
-          tooltip={firstTooltip}
-        />
-        <div
-          className={cn(
-            glassSurfaceClass,
-            'flex items-center justify-center rounded-[var(--radius-md)] border px-4 py-4 text-sm font-semibold',
-            deltaToneClass[deltaClassKey]
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <DeltaIcon className="h-4 w-4" />
-            <span>{deltaText}</span>
-          </div>
-        </div>
-        <KPIStatCard
-          label={`Last Window ${label}`}
-          value={formatValue(lastValue)}
-          variant={lastVariant}
-          tooltip={lastTooltip}
-        />
-      </div>
-    )
-
-    const verdictBanner =
-      reportSummary.verdict === 'improved'
-        ? {
-            icon: CheckCircle,
-            title: 'Latency Improved',
-            className: 'border-emerald-500/55 bg-emerald-500/10',
-            iconClassName: 'text-emerald-700',
-            message:
-              reportSummary.netP95ChangePercent !== null
-                ? `Mean p95 improved by ${formatPercent(reportSummary.netP95ChangePercent)} from the first window to the latest window.`
-                : `Mean p95 improved by ${formatMs(Math.abs(reportSummary.netP95Delta))} from the first window to the latest window.`,
-          }
-        : reportSummary.verdict === 'degraded'
-          ? {
-              icon: AlertTriangle,
-              title: 'Latency Degraded',
-              className: 'border-rose-500/55 bg-rose-500/10',
-              iconClassName: 'text-rose-700',
-              message:
-                reportSummary.netP95ChangePercent !== null
-                  ? `Mean p95 degraded by ${formatPercent(reportSummary.netP95ChangePercent)} from the first window to the latest window.`
-                  : `Mean p95 degraded by ${formatMs(Math.abs(reportSummary.netP95Delta))} from the first window to the latest window.`,
-            }
-          : {
-              icon: Minus,
-              title: 'Latency Unchanged',
-              className: 'border-amber-500/55 bg-amber-500/10',
-              iconClassName: 'text-amber-700',
-              message: 'The latest window closed at the same mean p95 as the first window.',
-            }
-
-    const VerdictIcon = verdictBanner.icon
-
-    return (
-      <Section
-        title="Improvement Verdict"
-        description="Side-by-side evidence for the first and latest windows, followed by the overall latency verdict."
-        icon={CheckCircle}
-      >
-        <div className="space-y-4">
-          {renderMetricComparisonRow({
-            key: 'p95',
-            label: 'P95',
-            firstValue: reportSummary.firstWindow.meanP95,
-            lastValue: reportSummary.lastWindow.meanP95,
-            firstVariant: getLatencyVariant(reportSummary.firstWindow.meanP95),
-            lastVariant: getLatencyVariant(reportSummary.lastWindow.meanP95),
-            formatValue: formatMs,
-            deltaText:
-              reportSummary.netP95Delta < 0
-                ? `improved by ${formatMs(Math.abs(reportSummary.netP95Delta))}`
-                : reportSummary.netP95Delta > 0
-                  ? `degraded by ${formatMs(reportSummary.netP95Delta)}`
-                  : 'unchanged',
-            deltaClassKey:
-              reportSummary.netP95Delta < 0
-                ? 'positive'
-                : reportSummary.netP95Delta > 0
-                  ? 'negative'
-                  : 'neutral',
-            DeltaIcon:
-              reportSummary.netP95Delta < 0
-                ? ArrowDown
-                : reportSummary.netP95Delta > 0
-                  ? ArrowUp
-                  : Minus,
-            firstTooltip: 'Mean p95 from the first completed 30-second window.',
-            lastTooltip: 'Mean p95 from the latest completed 30-second window.',
-          })}
-
-          {renderMetricComparisonRow({
-            key: 'p50',
-            label: 'P50',
-            firstValue: reportSummary.firstWindow.meanP50,
-            lastValue: reportSummary.lastWindow.meanP50,
-            firstVariant: getLatencyVariant(reportSummary.firstWindow.meanP50),
-            lastVariant: getLatencyVariant(reportSummary.lastWindow.meanP50),
-            formatValue: formatMs,
-            deltaText:
-              p50Delta < 0
-                ? `improved by ${formatMs(Math.abs(p50Delta))}`
-                : p50Delta > 0
-                  ? `degraded by ${formatMs(p50Delta)}`
-                  : 'unchanged',
-            deltaClassKey: p50Delta < 0 ? 'positive' : p50Delta > 0 ? 'negative' : 'neutral',
-            DeltaIcon: p50Delta < 0 ? ArrowDown : p50Delta > 0 ? ArrowUp : Minus,
-            firstTooltip: 'Mean p50 from the first completed 30-second window.',
-            lastTooltip: 'Mean p50 from the latest completed 30-second window.',
-          })}
-
-          {renderMetricComparisonRow({
-            key: 'error-rate',
-            label: 'Error Rate',
-            firstValue: reportSummary.firstWindow.avgErrorRate,
-            lastValue: reportSummary.lastWindow.avgErrorRate,
-            firstVariant: getErrorVariant(reportSummary.firstWindow.avgErrorRate),
-            lastVariant: getErrorVariant(reportSummary.lastWindow.avgErrorRate),
-            formatValue: (value) => formatPercent(value * 100),
-            deltaText:
-              errorDelta < 0
-                ? `improved by ${formatPercent(Math.abs(errorDelta) * 100)}`
-                : errorDelta > 0
-                  ? `degraded by ${formatPercent(errorDelta * 100)}`
-                  : 'unchanged',
-            deltaClassKey: errorDelta < 0 ? 'positive' : errorDelta > 0 ? 'negative' : 'neutral',
-            DeltaIcon: errorDelta < 0 ? ArrowDown : errorDelta > 0 ? ArrowUp : Minus,
-            firstTooltip: 'Average service error rate in the first completed window.',
-            lastTooltip: 'Average service error rate in the latest completed window.',
-          })}
-
-          {renderMetricComparisonRow({
-            key: 'traffic',
-            label: 'Traffic',
-            firstValue: reportSummary.firstWindow.totalRps,
-            lastValue: reportSummary.lastWindow.totalRps,
-            firstVariant: 'default',
-            lastVariant: 'default',
-            formatValue: (value) => `${formatRps(value)} RPS`,
-            deltaText:
-              trafficDelta < 0
-                ? `decreased by ${formatRps(Math.abs(trafficDelta))} RPS`
-                : trafficDelta > 0
-                  ? `increased by ${formatRps(trafficDelta)} RPS`
-                  : 'unchanged',
-            deltaClassKey:
-              trafficDelta < 0 ? 'decrease' : trafficDelta > 0 ? 'increase' : 'neutral',
-            DeltaIcon: trafficDelta < 0 ? ArrowDown : trafficDelta > 0 ? ArrowUp : Minus,
-            firstTooltip:
-              'Average total edge traffic captured across snapshots in the first window.',
-            lastTooltip:
-              'Average total edge traffic captured across snapshots in the latest window.',
-          })}
-
-          <div
-            className={cn(
-              glassSurfaceClass,
-              'flex flex-col gap-4 rounded-[var(--radius-md)] border-2 p-6 md:flex-row md:items-center md:justify-between',
-              verdictBanner.className
-            )}
-          >
-            <div className="flex items-start gap-3">
-              <VerdictIcon className={cn('mt-0.5 h-6 w-6 shrink-0', verdictBanner.iconClassName)} />
-              <div>
-                <h3 className="text-lg font-semibold text-[var(--text-primary)]">
-                  {verdictBanner.title}
-                </h3>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">{verdictBanner.message}</p>
-              </div>
-            </div>
-
-            <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-sm text-[var(--text-secondary)]">
-              Baseline: window #{reportSummary.firstWindow.windowNumber} &middot; Latest: window #
-              {reportSummary.lastWindow.windowNumber}
-            </div>
-          </div>
-        </div>
-      </Section>
-    )
-  }
-
-  const renderStoredBaselineSection = () => {
-    if (!reportSummary) return null
-
-    const latestReportWindow = reportSummary.lastWindow
-
-    if (!storedWindowAtLoad) {
-      return (
-        <Section
-          title="Stored Baseline Memory"
-          description="A persisted 30-second baseline becomes available only after a completed window has been cached from a prior visit."
-          icon={Clock}
-        >
-          <div
-            className={cn(
-              glassSurfaceClass,
-              'rounded-[var(--radius-md)] p-5 text-sm text-[var(--text-secondary)]'
-            )}
-          >
-            No stored 30-second baseline existed when this page loaded. The latest completed window
-            from this session is now cached and will be compared on the next visit.
-          </div>
-        </Section>
-      )
-    }
-
-    const storedDelta = getDelta(latestReportWindow.meanP95, storedWindowAtLoad.meanP95)
-    const storedImproved = storedDelta < 0
-    const storedDegraded = storedDelta > 0
-
-    return (
-      <Section
-        title="Stored Baseline Memory"
-        description="Compares the latest new 30-second window with the baseline window loaded from local storage when this page opened."
-        icon={Clock}
-      >
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <MetricHighlightCard
-              label="Stored 30s Window"
-              description={`Loaded from local storage at ${formatDate(storedWindowAtLoad.timestamp)}.`}
-              icon={Clock}
-              tone="default"
-              value={formatMs(storedWindowAtLoad.meanP95)}
-              note={
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  Window #{storedWindowAtLoad.windowNumber} &middot; Error{' '}
-                  {formatPercent(storedWindowAtLoad.avgErrorRate * 100)}
-                </p>
-              }
-            />
-
-            <div
-              className={cn(
-                glassSurfaceClass,
-                'flex flex-col items-center justify-center rounded-[var(--radius-md)] p-6 text-center',
-                storedImproved
-                  ? 'border-emerald-500/45 bg-emerald-500/12'
-                  : storedDegraded
-                    ? 'border-rose-500/45 bg-rose-500/12'
-                    : 'border-amber-500/35 bg-amber-500/12'
-              )}
-            >
-              <div
-                className={cn(
-                  'mb-2 flex items-center gap-2 text-lg font-bold',
-                  storedImproved
-                    ? 'text-emerald-400'
-                    : storedDegraded
-                      ? 'text-rose-400'
-                      : 'text-[var(--text-muted)]'
-                )}
-              >
-                {storedImproved ? (
-                  <ArrowDown className="h-5 w-5" />
-                ) : storedDegraded ? (
-                  <ArrowUp className="h-5 w-5" />
-                ) : (
-                  <Minus className="h-5 w-5" />
-                )}
-                {formatLatencyDelta(storedDelta)}
-              </div>
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                {storedImproved
-                  ? 'Improved vs stored baseline'
-                  : storedDegraded
-                    ? 'Degraded vs stored baseline'
-                    : 'Matched stored baseline'}
-              </p>
-              <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                Comparison only becomes available after a new window is created in this session.
-              </p>
-            </div>
-
-            <MetricHighlightCard
-              label="Latest New Window"
-              description={`Window #${latestReportWindow.windowNumber} completed during this session.`}
-              icon={Gauge}
-              tone={storedImproved ? 'emerald' : storedDegraded ? 'rose' : 'default'}
-              value={formatMs(latestReportWindow.meanP95)}
-              note={
-                <p className="mt-2 text-xs text-[var(--text-muted)]">
-                  {formatWindowTime(latestReportWindow.timestamp)} &middot; Traffic{' '}
-                  {formatRps(latestReportWindow.totalRps)} RPS
-                </p>
-              }
-            />
-          </div>
-
-          <div
-            className={cn(
-              glassSurfaceClass,
-              'rounded-[var(--radius-md)] p-4 text-sm text-[var(--text-secondary)]'
-            )}
-          >
-            The stored baseline is captured once when the page loads. That avoids comparing on the
-            initial load, while still letting the next completed 30-second window prove whether
-            latency improved or degraded against the last persisted observation.
-          </div>
-        </div>
-      </Section>
-    )
-  }
-
-  const renderReportView = () => {
-    if (!reportSummary) {
-      return (
-        <EmptyState
-          icon={<FileText className="h-12 w-12 text-[var(--color-emerald-300)]" />}
-          message="Need at least two completed windows to render a report"
-          description="Keep the live measurement running until two 30-second windows have completed, then generate the report again."
-          action={
-            <button
-              type="button"
-              onClick={handleCloseReport}
-              className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
-            >
-              <Activity className="h-4 w-4" />
-              Back to Live
-            </button>
-          }
-        />
-      )
-    }
-
-    return (
-      <div className="space-y-6 animate-in fade-in duration-300">
-        {renderReportExecutiveSummary()}
-        {renderLatencyTrendSection()}
-        {renderWindowEvidence()}
-        {renderImprovementVerdict()}
-        {renderStoredBaselineSection()}
-      </div>
-    )
-  }
+  }, [completedWindows])
 
   const renderLiveView = () => (
     <div className="space-y-6 animate-in fade-in duration-300">
@@ -1872,24 +1134,10 @@ export default function Latency() {
     <div className={pageContainerClass}>
       <PageHeader
         title="System Latency"
-        description={
-          reportOpen
-            ? 'High-level evidence report built from completed 30-second measurement windows'
-            : 'Continuous 30-second measurement windows - like a speed test for your microservices'
-        }
+        description="Continuous 30-second measurement windows - like a speed test for your microservices"
         icon={Gauge}
         actions={
           <>
-            {completedWindows.length >= 2 && !reportOpen && (
-              <button
-                type="button"
-                onClick={handleOpenReport}
-                className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
-              >
-                <FileText className="h-4 w-4" />
-                Generate Report
-              </button>
-            )}
             {completedWindows.length >= 2 && (
               <button
                 type="button"
@@ -1898,16 +1146,6 @@ export default function Latency() {
               >
                 <Download className="h-4 w-4" />
                 Export PDF
-              </button>
-            )}
-            {reportOpen && (
-              <button
-                type="button"
-                onClick={handleCloseReport}
-                className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
-              >
-                <Activity className="h-4 w-4" />
-                Back to Live
               </button>
             )}
             {completedWindows.length > 0 && !measuring && (
@@ -1936,7 +1174,7 @@ export default function Latency() {
         }
       />
 
-      {reportOpen ? renderReportView() : renderLiveView()}
+      {renderLiveView()}
     </div>
   )
 }

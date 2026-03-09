@@ -256,7 +256,7 @@ function openEvidencePdfReport(run: DrillRun) {
   <div class="header">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
       <div>
-        <div class="muted">Drill Director Evidence Pack</div>
+        <div class="muted">Execute Evidence Pack</div>
         <h1 style="margin-top:4px; font-size: 28px;">${escapeHtml(run.type)}</h1>
         <div class="muted" style="margin-top:6px;">Run #${escapeHtml(run.id.split('-')[0].toUpperCase())} • Target ${escapeHtml(run.target)}</div>
       </div>
@@ -401,7 +401,9 @@ export default function RunPanel({
       console.error(e)
       const status = e?.response?.status
       const body = e?.response?.data || ''
-      if (status === 412 || (typeof body === 'string' && body.includes('preflight failed'))) {
+      if (status === 409) {
+        toast.error('Rollback gate blocked — a previous run has unverified rollback. Go to Run History and click "Verify Rollback" on the blocking run.', { duration: 8000 })
+      } else if (status === 412 || (typeof body === 'string' && body.includes('preflight failed'))) {
         toast.error('Cluster unreachable — open an SSH tunnel to your Kubernetes API server first, then retry.', { duration: 6000 })
       } else {
         toast.error('Failed to start drill')

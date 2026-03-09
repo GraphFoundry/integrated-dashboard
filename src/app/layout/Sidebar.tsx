@@ -10,7 +10,7 @@ const topNavItems = [
 const predictiveSubItems = [
   { path: '/metrics', label: 'Metrics', icon: LineChart },
   { path: '/simulations', label: 'Simulations', icon: Sparkles },
-  { path: '/drills', label: 'Drill Director', icon: ShieldAlert },
+  { path: '/drills', label: 'Execute', icon: ShieldAlert },
   { path: '/history', label: 'History', icon: History },
 ]
 

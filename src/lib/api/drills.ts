@@ -163,6 +163,11 @@ export const acceptDrillRun = async (runId: string): Promise<{ status: string }>
     return response.data
 }
 
+export const verifyDrillRollback = async (runId: string): Promise<{ status: string }> => {
+    const response = await predictiveApi.post(`/drills/runs/${runId}/verify-rollback`)
+    return response.data
+}
+
 export const listDrillHistory = async (): Promise<DrillRun[]> => {
     const response = await predictiveApi.get(`/drills/history`)
     return response.data

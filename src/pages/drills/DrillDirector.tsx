@@ -7,7 +7,7 @@ import LiveMetricsStrip from './components/LiveMetricsStrip'
 import TimelineReplay from './components/TimelineReplay'
 import ValidationPanel from './components/ValidationPanel'
 import type { DrillPrefillRequest, DrillRun } from '@/lib/api/drills'
-import { getDrillRun, listDrillHistory } from '@/lib/api/drills'
+import { getDrillRun, listDrillHistory, verifyDrillRollback } from '@/lib/api/drills'
 import { useK8sHealth } from '@/lib/useK8sHealth'
 import { History, PlayCircle, ShieldCheck, LayoutDashboard, Loader2, WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -78,6 +78,7 @@ export default function DrillDirector() {
   const [history, setHistory] = useState<DrillRun[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [reviewingRunId, setReviewingRunId] = useState<string | null>(null)
+  const [verifyingRollbackId, setVerifyingRollbackId] = useState<string | null>(null)
   const [pendingHistoryFocus, setPendingHistoryFocus] = useState<'comparison-summary' | null>(null)
   const [prefillDrill, setPrefillDrill] = useState<DrillPrefillRequest | null>(null)
   const [prefillBannerSeenAt, setPrefillBannerSeenAt] = useState<string | null>(null)
@@ -163,6 +164,21 @@ export default function DrillDirector() {
     return () => window.cancelAnimationFrame(animationFrameId)
   }, [activeRun?.id, pendingHistoryFocus])
 
+  const handleVerifyRollback = async (runId: string) => {
+    setVerifyingRollbackId(runId)
+    try {
+      await verifyDrillRollback(runId)
+      toast.success('Rollback verified — you can now start a new drill.')
+      const data = await listDrillHistory()
+      setHistory(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to verify rollback')
+    } finally {
+      setVerifyingRollbackId(null)
+    }
+  }
+
   const openRunReview = async (runId: string, focus: 'comparison-summary' | null = null) => {
     setReviewingRunId(runId)
     setPendingHistoryFocus(focus)
@@ -182,7 +198,7 @@ export default function DrillDirector() {
   return (
     <div className={pageContainerClass}>
       <PageHeader
-        title="Drill Director"
+        title="Execute"
         description="Run safe drills and watch system impact live. Orchestrate chaos sequences with precision and operator-controlled recovery guardrails."
         icon={PlayCircle}
         actions={
@@ -525,6 +541,27 @@ export default function DrillDirector() {
                               >
                                 Expected vs Actual
                               </Button>
+                              {!run.rollbackVerifiedAt && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => event.stopPropagation()}
+                                  onPress={() => void handleVerifyRollback(run.id)}
+                                  className={cn(
+                                    tableActionLinkClass,
+                                    'border-amber-500/25 bg-amber-500/8 text-[10px] font-bold uppercase tracking-widest text-amber-700 hover:bg-amber-500/16 hover:text-amber-800'
+                                  )}
+                                  isDisabled={verifyingRollbackId === run.id}
+                                >
+                                  {verifyingRollbackId === run.id ? (
+                                    <span className="inline-flex items-center gap-2">
+                                      <Loader2 className="h-3 w-3 animate-spin" /> Verifying
+                                    </span>
+                                  ) : (
+                                    'Verify Rollback'
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           </td>
                         </tr>

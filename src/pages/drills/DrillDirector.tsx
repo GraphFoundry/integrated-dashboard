@@ -5,7 +5,6 @@ import DrillCatalog from './components/DrillCatalog'
 import RunPanel from './components/RunPanel'
 import LiveMetricsStrip from './components/LiveMetricsStrip'
 import TimelineReplay from './components/TimelineReplay'
-import ValidationPanel from './components/ValidationPanel'
 import type { DrillPrefillRequest, DrillRun } from '@/lib/api/drills'
 import { getDrillRun, listDrillHistory, verifyDrillRollback } from '@/lib/api/drills'
 import { useK8sHealth } from '@/lib/useK8sHealth'
@@ -157,7 +156,7 @@ export default function DrillDirector() {
     return () => {
       isMounted = false
     }
-  }, [activeRun?.id, activeRun?.status])
+  }, [activeRun])
 
   useEffect(() => {
     if (!activeRun || pendingHistoryFocus !== 'comparison-summary') {
@@ -173,7 +172,7 @@ export default function DrillDirector() {
     })
 
     return () => window.cancelAnimationFrame(animationFrameId)
-  }, [activeRun?.id, pendingHistoryFocus])
+  }, [activeRun, pendingHistoryFocus])
 
   const handleVerifyRollback = async (runId: string) => {
     setVerifyingRollbackId(runId)

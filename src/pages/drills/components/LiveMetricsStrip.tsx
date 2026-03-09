@@ -1,3 +1,4 @@
+import { startTransition, useEffect, useState } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import {
   Activity,
@@ -9,7 +10,9 @@ import {
   BarChart3,
 } from 'lucide-react'
 import type { DrillRun } from '@/lib/api/drills'
+import { getDependencyGraphSnapshot, getServicesWithPlacement } from '@/lib/api'
 import { cn, glassSurfaceClass } from '@/components/common/uiClassTokens'
+import type { GraphNode, ServiceWithPlacement } from '@/lib/types'
 
 type ServiceMetricSnapshot = {
   availability?: number
@@ -18,35 +21,80 @@ type ServiceMetricSnapshot = {
   p95?: number
 }
 
-function getAvailabilityValue(raw: any): number | undefined {
+type DrillTarget = {
+  name: string
+  namespace?: string
+}
+
+type SnapshotAvailability =
+  | number
+  | {
+      value?: number
+      high?: number
+      low?: number
+    }
+
+type SnapshotService = {
+  name?: string | null
+  namespace?: string | null
+  availability?: SnapshotAvailability
+  rps?: number
+  errorRate?: number
+  p95?: number
+}
+
+type SnapshotShape = {
+  services?: SnapshotService[]
+}
+
+const ACTIVE_DRILL_STATUSES = new Set(['Running', 'Observing', 'AwaitingRecovery', 'Recovering'])
+const CAPACITY_DRILL_TYPES = new Set(['PodScaleUp', 'PodScaleDown', 'MigrateService'])
+
+function parseDrillTarget(serviceTag: string): DrillTarget {
+  const [namespaceMaybe, nameMaybe] = String(serviceTag).split('/')
+  return {
+    namespace: nameMaybe ? namespaceMaybe : undefined,
+    name: nameMaybe ?? namespaceMaybe,
+  }
+}
+
+function matchesDrillTarget(
+  item: { name?: string | null; namespace?: string | null },
+  target: DrillTarget
+): boolean {
+  return item?.name === target.name && (!target.namespace || item?.namespace === target.namespace)
+}
+
+function getAvailabilityValue(raw: SnapshotAvailability | undefined): number | undefined {
   if (typeof raw === 'number' && Number.isFinite(raw)) {
     return raw
   }
-  if (typeof raw?.value === 'number' && Number.isFinite(raw.value)) {
+  if (!raw || typeof raw !== 'object') {
+    return undefined
+  }
+  if (typeof raw.value === 'number' && Number.isFinite(raw.value)) {
     return raw.value
   }
-  if (typeof raw?.high === 'number' && Number.isFinite(raw.high)) {
+  if (typeof raw.high === 'number' && Number.isFinite(raw.high)) {
     return raw.high
   }
-  if (typeof raw?.low === 'number' && Number.isFinite(raw.low)) {
+  if (typeof raw.low === 'number' && Number.isFinite(raw.low)) {
     return raw.low
   }
   return undefined
 }
 
-function getNumberValue(raw: any): number | undefined {
+function getNumberValue(raw: unknown): number | undefined {
   return typeof raw === 'number' && Number.isFinite(raw) ? raw : undefined
 }
 
-function getMetricsForService(snapshot: any, serviceTag: string): ServiceMetricSnapshot | null {
+function getMetricsForService(snapshot: SnapshotShape | null | undefined, serviceTag: string): ServiceMetricSnapshot | null {
   if (!snapshot || !Array.isArray(snapshot.services)) return null
 
-  const [namespaceMaybe, nameMaybe] = String(serviceTag).split('/')
-  const namespace = nameMaybe ? namespaceMaybe : undefined
-  const name = nameMaybe ?? namespaceMaybe
+  const target = parseDrillTarget(serviceTag)
 
   const service = snapshot.services.find(
-    (s: any) => s?.name === name && (!namespace || s?.namespace === namespace)
+    (s) => matchesDrillTarget(s, target)
   )
   if (!service) return null
 
@@ -70,47 +118,155 @@ function formatMs(value?: number): string {
   return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(0)}ms` : '--'
 }
 
+function getLiveAvailability(
+  liveService: ServiceWithPlacement | undefined,
+  graphNode: GraphNode | undefined
+): number | undefined {
+  if (typeof liveService?.availability === 'number' && Number.isFinite(liveService.availability)) {
+    return liveService.availability
+  }
+  if (typeof graphNode?.availability === 'number' && Number.isFinite(graphNode.availability)) {
+    return graphNode.availability
+  }
+  if (typeof graphNode?.availabilityPct === 'number' && Number.isFinite(graphNode.availabilityPct)) {
+    return graphNode.availabilityPct / 100
+  }
+  return undefined
+}
+
+async function fetchLiveMetricsForTarget(
+  serviceTag: string,
+  signal: AbortSignal
+): Promise<ServiceMetricSnapshot | null> {
+  const target = parseDrillTarget(serviceTag)
+  const [servicesData, graphSnapshot] = await Promise.all([
+    getServicesWithPlacement(signal),
+    getDependencyGraphSnapshot(signal, target.namespace),
+  ])
+
+  const liveService = servicesData.services.find((service) => matchesDrillTarget(service, target))
+  const graphNode = graphSnapshot.nodes.find((node) => matchesDrillTarget(node, target))
+
+  if (!liveService && !graphNode) {
+    return null
+  }
+
+  return {
+    availability: getLiveAvailability(liveService, graphNode),
+    rps: getNumberValue(graphNode?.reqRate),
+    errorRate:
+      typeof graphNode?.errorRatePct === 'number' && Number.isFinite(graphNode.errorRatePct)
+        ? graphNode.errorRatePct / 100
+        : undefined,
+    p95: getNumberValue(graphNode?.latencyP95Ms),
+  }
+}
+
 export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
+  const [liveMetrics, setLiveMetrics] = useState<ServiceMetricSnapshot | null>(null)
+  const isActiveLifecycle = ACTIVE_DRILL_STATUSES.has(run.status)
   const isObservingImpact = ['Observing', 'AwaitingRecovery', 'Recovering'].includes(run.status)
   const isCompleted = ['Completed', 'Aborted', 'Accepted'].includes(run.status)
+  const isCapacityDrill = CAPACITY_DRILL_TYPES.has(run.type)
 
   const baseline = getMetricsForService(run.preSnapshot, run.target)
-  const currentSnapshot = getMetricsForService(run.postSnapshot, run.target)
+  const finalSnapshot = getMetricsForService(run.postSnapshot, run.target)
+
+  useEffect(() => {
+    setLiveMetrics(null)
+  }, [run.id, run.target])
+
+  useEffect(() => {
+    if (!isActiveLifecycle) {
+      return
+    }
+
+    let isMounted = true
+    let requestInFlight = false
+    const controller = new AbortController()
+
+    const refreshLiveMetrics = async () => {
+      if (requestInFlight) {
+        return
+      }
+      requestInFlight = true
+      try {
+        const nextMetrics = await fetchLiveMetricsForTarget(run.target, controller.signal)
+        if (!isMounted) {
+          return
+        }
+        startTransition(() => {
+          setLiveMetrics(nextMetrics)
+        })
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error('Failed to refresh live drill telemetry', error)
+        }
+      } finally {
+        requestInFlight = false
+      }
+    }
+
+    void refreshLiveMetrics()
+    const interval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return
+      }
+      void refreshLiveMetrics()
+    }, 3000)
+
+    return () => {
+      isMounted = false
+      controller.abort()
+      window.clearInterval(interval)
+    }
+  }, [isActiveLifecycle, run.target])
+
+  const currentMetrics: ServiceMetricSnapshot = {
+    availability: liveMetrics?.availability ?? finalSnapshot?.availability,
+    rps: liveMetrics?.rps ?? finalSnapshot?.rps,
+    errorRate: liveMetrics?.errorRate ?? finalSnapshot?.errorRate,
+    p95: liveMetrics?.p95 ?? finalSnapshot?.p95,
+  }
 
   const metrics = [
     {
       label: 'Availability',
       icon: <ShieldAlert className="h-3.5 w-3.5" />,
       baseline: formatPercent(baseline?.availability),
-      current: formatPercent(isCompleted ? currentSnapshot?.availability : currentSnapshot?.availability),
-      degraded: typeof currentSnapshot?.availability === 'number' && currentSnapshot.availability < 0.95,
+      current: formatPercent(currentMetrics.availability),
+      degraded: typeof currentMetrics.availability === 'number' && currentMetrics.availability < 0.95,
       trendInfinite: false,
     },
     {
       label: 'Traffic (RPS)',
       icon: <Activity className="h-3.5 w-3.5" />,
       baseline: formatReq(baseline?.rps),
-      current: formatReq(isCompleted ? currentSnapshot?.rps : currentSnapshot?.rps),
-      degraded: typeof currentSnapshot?.rps === 'number' && currentSnapshot.rps <= 0,
+      current: formatReq(currentMetrics.rps),
+      degraded:
+        typeof currentMetrics.rps === 'number' &&
+        typeof baseline?.rps === 'number' &&
+        baseline.rps > 0 &&
+        currentMetrics.rps < baseline.rps * 0.5,
       trendInfinite: false,
     },
     {
       label: 'Error Rate',
       icon: <Zap className="h-3.5 w-3.5" />,
       baseline: formatPercent(baseline?.errorRate),
-      current: formatPercent(isCompleted ? currentSnapshot?.errorRate : currentSnapshot?.errorRate),
-      degraded: typeof currentSnapshot?.errorRate === 'number' && currentSnapshot.errorRate > 0.05,
+      current: formatPercent(currentMetrics.errorRate),
+      degraded: typeof currentMetrics.errorRate === 'number' && currentMetrics.errorRate > 0.05,
       trendInfinite: false,
     },
     {
       label: 'P95 Latency',
       icon: <BarChart3 className="h-3.5 w-3.5" />,
       baseline: formatMs(baseline?.p95),
-      current: formatMs(isCompleted ? currentSnapshot?.p95 : currentSnapshot?.p95),
+      current: formatMs(currentMetrics.p95),
       degraded:
-        typeof currentSnapshot?.p95 === 'number' &&
+        typeof currentMetrics.p95 === 'number' &&
         typeof baseline?.p95 === 'number' &&
-        currentSnapshot.p95 > baseline.p95,
+        currentMetrics.p95 > baseline.p95 * 1.15,
       trendInfinite: true,
     },
   ]
@@ -211,11 +367,20 @@ export default function LiveMetricsStrip({ run }: { run: DrillRun }) {
             </div>
             <div>
               <p className="mb-1 text-xs font-bold uppercase tracking-wider text-rose-600">
-                Active Fault Window
+                {isCapacityDrill ? 'Active Drill Window' : 'Active Fault Window'}
               </p>
               <p className="leading-relaxed opacity-90">
-                Drill impact is still active on <strong>{run.target}</strong>. Recover the service when
-                you are ready, or the failsafe timer will initiate rollback automatically.
+                {isCapacityDrill ? (
+                  <>
+                    The infrastructure change is still active on <strong>{run.target}</strong>. Current
+                    values are refreshed from live topology telemetry while the run remains open.
+                  </>
+                ) : (
+                  <>
+                    Drill impact is still active on <strong>{run.target}</strong>. Recover the service when
+                    you are ready, or the failsafe timer will initiate rollback automatically.
+                  </>
+                )}
               </p>
             </div>
           </div>

@@ -108,21 +108,6 @@ interface ReportChartPoint {
   avgErrorRate: number
 }
 
-interface PdfPalette {
-  background: string
-  textPrimary: string
-  textSecondary: string
-  textMuted: string
-  surfacePanel: string
-  surfaceSoft: string
-  surfaceSolid: string
-  border: string
-  ring: string
-  accentPrimary: string
-  success: string
-  warning: string
-  error: string
-}
 
 function isCompletedWindow(value: unknown): value is CompletedWindow {
   if (!value || typeof value !== 'object') return false
@@ -209,717 +194,288 @@ function buildAreaPoints(
   return `${linePoints} ${lastX},${height - padding} ${firstX},${height - padding}`
 }
 
-function openLatencyPdfPreview(
-  summary: LatencyReportSummary,
-  windows: CompletedWindow[],
-  storedWindowAtLoad: CompletedWindow | null
-) {
-  const popup = window.open('', '_blank', 'width=1360,height=960')
+function openLatencyPdfPreview(summary: LatencyReportSummary, windows: CompletedWindow[]) {
+  const popup = window.open('', '_blank', 'width=1240,height=900')
   if (!popup) {
     toast.error('Pop-up blocked. Allow pop-ups to export the PDF report.')
     return
   }
 
-  const rootStyles = window.getComputedStyle(document.documentElement)
-  const readCssVar = (name: string, fallback: string) =>
-    rootStyles.getPropertyValue(name).trim() || fallback
+  const first = summary.firstWindow
+  const last = summary.lastWindow
 
-  const palette: PdfPalette = {
-    background: readCssVar('--background', '#edf2ff'),
-    textPrimary: readCssVar('--text-primary', '#0f172a'),
-    textSecondary: readCssVar('--text-secondary', '#334155'),
-    textMuted: readCssVar('--text-muted', '#64748b'),
-    surfacePanel: readCssVar('--surface-panel', 'rgba(255,255,255,0.84)'),
-    surfaceSoft: readCssVar('--surface-soft', 'rgba(226,232,240,0.58)'),
-    surfaceSolid: readCssVar('--surface-solid', '#f8fafc'),
-    border: readCssVar('--border', 'rgba(148,163,184,0.34)'),
-    ring: readCssVar('--ring', 'rgba(16,185,129,0.45)'),
-    accentPrimary: readCssVar('--accent-primary', '#0ea5e9'),
-    success: readCssVar('--success', '#10b981'),
-    warning: readCssVar('--warning', '#f59e0b'),
-    error: readCssVar('--error', '#ef4444'),
-  }
+  // Chart dimensions
+  const CW = 840
+  const CH = 200
+  const CPAD = 40
+  const xStep = windows.length > 1 ? (CW - CPAD * 2) / (windows.length - 1) : 0
+  const xLabelMod = windows.length > 8 ? Math.ceil(windows.length / 8) : 1
 
-  const latestWindow = summary.lastWindow
-  const storedDelta = storedWindowAtLoad
-    ? getDelta(latestWindow.meanP95, storedWindowAtLoad.meanP95)
-    : null
-  const storedVerdict =
-    storedDelta === null
-      ? 'neutral'
-      : storedDelta < 0
-        ? 'success'
-        : storedDelta > 0
-          ? 'danger'
-          : 'neutral'
-  const storedVerdictText =
-    storedDelta === null
-      ? 'No stored baseline existed when this session loaded.'
-      : storedDelta < 0
-        ? `Improved by ${formatMs(Math.abs(storedDelta))} vs stored baseline`
-        : storedDelta > 0
-          ? `Degraded by ${formatMs(storedDelta)} vs stored baseline`
-          : 'Matched the stored baseline exactly'
-
-  const p95Values = windows.map((window) => window.meanP95)
-  const p50Values = windows.map((window) => window.meanP50)
-  const chartWidth = 920
-  const chartHeight = 320
-  const chartPadding = 44
-  const chartMax = Math.max(...p95Values, ...p50Values, summary.firstWindow.meanP95, 1)
-  const gridValues = Array.from({ length: 5 }, (_, index) => {
-    const ratio = index / 4
-    return chartMax * (1 - ratio)
-  })
-  const xStep = windows.length > 1 ? (chartWidth - chartPadding * 2) / (windows.length - 1) : 0
-  const xLabelModulo = windows.length > 8 ? Math.ceil(windows.length / 8) : 1
-
-  const p95LinePoints = buildSvgPoints(p95Values, chartWidth, chartHeight, chartPadding, chartMax)
-  const p50LinePoints = buildSvgPoints(p50Values, chartWidth, chartHeight, chartPadding, chartMax)
-  const p95AreaPoints = buildAreaPoints(p95Values, chartWidth, chartHeight, chartPadding, chartMax)
-  const p50AreaPoints = buildAreaPoints(p50Values, chartWidth, chartHeight, chartPadding, chartMax)
-  const baselineY =
-    chartHeight -
-    chartPadding -
-    (summary.firstWindow.meanP95 / chartMax) * (chartHeight - chartPadding * 2)
-
-  const evidenceRows = windows
-    .map((window, index) => {
-      const previousWindow = index > 0 ? windows[index - 1] : null
-      const delta = previousWindow ? getDelta(window.meanP95, previousWindow.meanP95) : null
-      const deltaColor =
-        delta === null
-          ? palette.textMuted
-          : delta < 0
-            ? palette.success
-            : delta > 0
-              ? palette.error
-              : palette.textMuted
-
-      return `
-        <tr>
-          <td>#${escapeHtml(window.windowNumber)}</td>
-          <td>${escapeHtml(formatWindowTime(window.timestamp))}</td>
-          <td>${escapeHtml(formatMs(window.meanP95))}</td>
-          <td>${escapeHtml(formatMs(window.meanP50))}</td>
-          <td>${escapeHtml(formatMs(window.peakP95))}</td>
-          <td>${escapeHtml(formatPercent(window.avgErrorRate * 100))}</td>
-          <td>${escapeHtml(`${formatRps(window.totalRps)} RPS`)}</td>
-          <td>${escapeHtml(window.serviceCount)}</td>
-          <td style="color:${deltaColor}; font-weight:700;">${escapeHtml(delta === null ? '--' : formatLatencyDelta(delta))}</td>
-        </tr>
-      `
+  const xLabels = windows
+    .map((w, i) => {
+      if (i % xLabelMod !== 0 && i !== windows.length - 1) return ''
+      const x = CPAD + xStep * i
+      return `<text x="${x.toFixed(1)}" y="${CH - 8}" text-anchor="middle" font-size="10" fill="#9ca3af">#${escapeHtml(w.windowNumber)}</text>`
     })
     .join('')
 
-  const storedBaselineMarkup = storedWindowAtLoad
-    ? `
-      <div class="comparison-grid">
-        <div class="glass-card">
-          <div class="eyebrow">Stored 30s Window</div>
-          <div class="metric-value">${escapeHtml(formatMs(storedWindowAtLoad.meanP95))}</div>
-          <div class="muted">Loaded from local storage at page start</div>
-          <div class="subtext">Window #${escapeHtml(storedWindowAtLoad.windowNumber)} · ${escapeHtml(formatDate(storedWindowAtLoad.timestamp))}</div>
-        </div>
-        <div class="delta-card ${storedVerdict}">
-          <div class="eyebrow">Stored Memory Delta</div>
-          <div class="metric-value">${escapeHtml(storedDelta === null ? '--' : formatLatencyDelta(storedDelta))}</div>
-          <div class="subtext">${escapeHtml(storedVerdictText)}</div>
-        </div>
-        <div class="glass-card">
-          <div class="eyebrow">Latest New Window</div>
-          <div class="metric-value">${escapeHtml(formatMs(latestWindow.meanP95))}</div>
-          <div class="muted">Newest 30-second window from this session</div>
-          <div class="subtext">Window #${escapeHtml(latestWindow.windowNumber)} · ${escapeHtml(formatDate(latestWindow.timestamp))}</div>
-        </div>
-      </div>
-    `
-    : `
-      <div class="glass-card">
-        <div class="eyebrow">Stored Baseline Memory</div>
-        <div class="metric-value">Not available yet</div>
-        <div class="subtext">
-          This was the first load without a stored 30-second latency window. The newest completed window from this session is now cached for the next visit.
-        </div>
-      </div>
-    `
+  function svgGrid(maxVal: number, fmt: (v: number) => string): string {
+    return Array.from({ length: 4 }, (_, i) => {
+      const val = maxVal * (1 - i / 3)
+      const y = CH - CPAD - (val / maxVal) * (CH - CPAD * 2)
+      return `<line x1="${CPAD}" y1="${y.toFixed(1)}" x2="${CW - CPAD}" y2="${y.toFixed(1)}" stroke="#e5e7eb" stroke-dasharray="3 3"/><text x="2" y="${(y + 4).toFixed(1)}" font-size="10" fill="#9ca3af">${escapeHtml(fmt(val))}</text>`
+    }).join('')
+  }
+
+  function svgDots(values: number[], maxVal: number, color: string): string {
+    return windows
+      .map((_, i) => {
+        const x = CPAD + xStep * i
+        const y = CH - CPAD - (values[i] / maxVal) * (CH - CPAD * 2)
+        return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" fill="${color}"/>`
+      })
+      .join('')
+  }
+
+  // Pre-compute chart data
+  const rpsVals = windows.map((w) => w.totalRps)
+  const rpsMax = Math.max(...rpsVals, 1)
+  const rpsLine = buildSvgPoints(rpsVals, CW, CH, CPAD, rpsMax)
+  const rpsArea = buildAreaPoints(rpsVals, CW, CH, CPAD, rpsMax)
+
+  const p95Vals = windows.map((w) => w.meanP95)
+  const p95Max = Math.max(...p95Vals, 1)
+  const p95Line = buildSvgPoints(p95Vals, CW, CH, CPAD, p95Max)
+  const p95Area = buildAreaPoints(p95Vals, CW, CH, CPAD, p95Max)
+  const baselineY = CH - CPAD - (first.meanP95 / p95Max) * (CH - CPAD * 2)
+
+  const errVals = windows.map((w) => w.avgErrorRate)
+  const errMax = Math.max(...errVals, 0.001)
+  const errLine = buildSvgPoints(errVals, CW, CH, CPAD, errMax)
+
+  // Deltas
+  const p95Delta = getDelta(last.meanP95, first.meanP95)
+  const p50Delta = getDelta(last.meanP50, first.meanP50)
+  const errDelta = getDelta(last.avgErrorRate, first.avgErrorRate, 4)
+  const rpsDelta = getDelta(last.totalRps, first.totalRps)
+
+  const dClass = (d: number) => (d < 0 ? 'improved' : d > 0 ? 'degraded' : 'neutral')
+  const dFmt = (d: number, fmt: (v: number) => string) =>
+    d === 0 ? '&mdash;' : `${d < 0 ? '&#9660;' : '&#9650;'} ${escapeHtml(fmt(Math.abs(d)))}`
+
+  // Evidence table rows
+  const evidenceRows = windows
+    .map((w, i) => {
+      const prev = i > 0 ? windows[i - 1] : null
+      const d = prev ? getDelta(w.meanP95, prev.meanP95) : null
+      const dStyle =
+        d === null
+          ? ''
+          : d < 0
+            ? 'color:#16a34a;font-weight:700'
+            : d > 0
+              ? 'color:#dc2626;font-weight:700'
+              : 'color:#6b7280'
+      return `<tr>
+        <td>#${escapeHtml(w.windowNumber)}</td>
+        <td>${escapeHtml(formatWindowTime(w.timestamp))}</td>
+        <td>${escapeHtml(formatMs(w.meanP95))}</td>
+        <td>${escapeHtml(formatMs(w.meanP50))}</td>
+        <td>${escapeHtml(formatMs(w.peakP95))}</td>
+        <td>${escapeHtml(formatPercent(w.avgErrorRate * 100))}</td>
+        <td>${escapeHtml(formatRps(w.totalRps))} RPS</td>
+        <td style="${dStyle}">${d === null ? '&mdash;' : escapeHtml(formatLatencyDelta(d))}</td>
+      </tr>`
+    })
+    .join('')
 
   const html = `<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Latency PDF Report - ${escapeHtml(summary.generatedAt)}</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@600;700&display=swap');
-    :root {
-      --bg: ${palette.background};
-      --text-primary: ${palette.textPrimary};
-      --text-secondary: ${palette.textSecondary};
-      --text-muted: ${palette.textMuted};
-      --surface-panel: ${palette.surfacePanel};
-      --surface-soft: ${palette.surfaceSoft};
-      --surface-solid: ${palette.surfaceSolid};
-      --border: ${palette.border};
-      --ring: ${palette.ring};
-      --accent: ${palette.accentPrimary};
-      --success: ${palette.success};
-      --warning: ${palette.warning};
-      --error: ${palette.error};
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      font-family: 'Manrope', 'Segoe UI', sans-serif;
-      color: var(--text-primary);
-      background:
-        radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 18%, transparent), transparent 28%),
-        radial-gradient(circle at left 20% bottom 10%, color-mix(in srgb, var(--success) 16%, transparent), transparent 30%),
-        linear-gradient(180deg, color-mix(in srgb, var(--bg) 92%, white), white 55%);
-    }
-    .page {
-      max-width: 1180px;
-      margin: 0 auto;
-      padding: 28px 24px 80px;
-    }
-    .toolbar {
-      position: sticky;
-      top: 12px;
-      z-index: 40;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-      padding: 14px 16px;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: color-mix(in srgb, var(--surface-panel) 88%, white);
-      backdrop-filter: blur(18px);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
-    }
-    .toolbar-actions, .toolbar-nav {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    .toolbar button, .toolbar a {
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      background: color-mix(in srgb, var(--surface-soft) 88%, white);
-      color: var(--text-primary);
-      padding: 10px 14px;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    .toolbar button.primary {
-      border-color: color-mix(in srgb, var(--ring) 65%, var(--border));
-      background: linear-gradient(135deg, color-mix(in srgb, var(--success) 82%, white), color-mix(in srgb, var(--accent) 72%, white));
-    }
-    .hero {
-      position: relative;
-      overflow: hidden;
-      border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 28px;
-      background: linear-gradient(135deg, color-mix(in srgb, var(--surface-panel) 92%, var(--accent) 8%), color-mix(in srgb, var(--surface-panel) 94%, var(--success) 6%));
-      box-shadow: 0 24px 54px rgba(15, 23, 42, 0.12);
-    }
-    .hero::before,
-    .hero::after {
-      content: '';
-      position: absolute;
-      border-radius: 999px;
-      filter: blur(22px);
-      opacity: 0.7;
-    }
-    .hero::before {
-      width: 220px;
-      height: 220px;
-      top: -80px;
-      right: -40px;
-      background: color-mix(in srgb, var(--accent) 28%, transparent);
-    }
-    .hero::after {
-      width: 180px;
-      height: 180px;
-      left: 18%;
-      bottom: -80px;
-      background: color-mix(in srgb, var(--success) 22%, transparent);
-    }
-    .eyebrow {
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-      color: var(--text-muted);
-    }
-    h1, h2, h3, p { margin: 0; }
-    h1 {
-      margin-top: 8px;
-      font-family: 'Sora', 'Manrope', sans-serif;
-      font-size: 34px;
-      line-height: 1.05;
-    }
-    .hero-meta {
-      margin-top: 10px;
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-    .hero-summary {
-      margin-top: 18px;
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 10px 14px;
-      background: color-mix(in srgb, var(--surface-soft) 88%, white);
-      color: var(--text-secondary);
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .card-grid {
-      margin-top: 24px;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-    }
-    .summary-card, .glass-card, .section {
-      border: 1px solid var(--border);
-      border-radius: 22px;
-      background: color-mix(in srgb, var(--surface-panel) 90%, white);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-    }
-    .summary-card {
-      padding: 18px;
-      min-height: 148px;
-    }
-    .summary-card .metric-value, .glass-card .metric-value, .delta-card .metric-value {
-      margin-top: 10px;
-      font-size: 28px;
-      font-weight: 800;
-      line-height: 1;
-    }
-    .muted, .subtext {
-      color: var(--text-secondary);
-      font-size: 13px;
-      line-height: 1.5;
-    }
-    .subtext {
-      margin-top: 8px;
-    }
-    .summary-card.emerald { border-color: color-mix(in srgb, var(--success) 42%, var(--border)); }
-    .summary-card.rose { border-color: color-mix(in srgb, var(--error) 42%, var(--border)); }
-    .summary-card.default { border-color: var(--border); }
-    .section {
-      margin-top: 22px;
-      padding: 22px;
-    }
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: end;
-      margin-bottom: 16px;
-    }
-    .section-header p {
-      color: var(--text-secondary);
-      font-size: 14px;
-      margin-top: 8px;
-    }
-    .legend {
-      display: flex;
-      gap: 16px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-      color: var(--text-secondary);
-      font-size: 12px;
-      font-weight: 700;
-    }
-    .legend span {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .legend i {
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-    }
-    .comparison-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-    }
-    .glass-card, .delta-card {
-      padding: 18px;
-      border-radius: 22px;
-      background: color-mix(in srgb, var(--surface-panel) 90%, white);
-      border: 1px solid var(--border);
-    }
-    .delta-card.success {
-      border-color: color-mix(in srgb, var(--success) 45%, var(--border));
-      background: color-mix(in srgb, var(--success) 10%, var(--surface-panel));
-    }
-    .delta-card.danger {
-      border-color: color-mix(in srgb, var(--error) 45%, var(--border));
-      background: color-mix(in srgb, var(--error) 10%, var(--surface-panel));
-    }
-    .delta-card.neutral {
-      border-color: color-mix(in srgb, var(--warning) 38%, var(--border));
-      background: color-mix(in srgb, var(--warning) 9%, var(--surface-panel));
-    }
-    .metric-pair-grid {
-      display: grid;
-      gap: 14px;
-    }
-    .metric-pair {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 240px minmax(0, 1fr);
-      gap: 14px;
-      align-items: stretch;
-    }
-    .verdict-banner {
-      margin-top: 14px;
-      border-width: 2px;
-    }
-    .verdict-banner.success {
-      border-color: color-mix(in srgb, var(--success) 48%, var(--border));
-      background: color-mix(in srgb, var(--success) 9%, var(--surface-panel));
-    }
-    .verdict-banner.danger {
-      border-color: color-mix(in srgb, var(--error) 48%, var(--border));
-      background: color-mix(in srgb, var(--error) 8%, var(--surface-panel));
-    }
-    .verdict-banner.neutral {
-      border-color: color-mix(in srgb, var(--warning) 42%, var(--border));
-      background: color-mix(in srgb, var(--warning) 10%, var(--surface-panel));
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      overflow: hidden;
-      border-radius: 18px;
-      background: color-mix(in srgb, var(--surface-solid) 92%, white);
-    }
-    th, td {
-      padding: 12px 14px;
-      border-bottom: 1px solid color-mix(in srgb, var(--border) 85%, white);
-      text-align: left;
-      font-size: 13px;
-      vertical-align: top;
-    }
-    th {
-      background: color-mix(in srgb, var(--surface-soft) 84%, white);
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-    }
-    tr:last-child td { border-bottom: none; }
-    .footer-note {
-      margin-top: 14px;
-      color: var(--text-secondary);
-      font-size: 13px;
-    }
-    @media (max-width: 980px) {
-      .card-grid,
-      .comparison-grid,
-      .metric-pair {
-        grid-template-columns: 1fr;
-      }
-    }
-    @media print {
-      body { background: white; }
-      .page { padding: 0; }
-      .toolbar { display: none; }
-      .hero, .section, .summary-card, .glass-card, .delta-card {
-        box-shadow: none;
-        break-inside: avoid;
-      }
-      .section { margin-top: 14px; }
-    }
-  </style>
+<head><meta charset="utf-8"/><title>Latency Report</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'Inter','Segoe UI',sans-serif;background:#fff;color:#111827;line-height:1.5;font-size:14px}
+.page{max-width:1100px;margin:0 auto;padding:28px 24px 64px}
+.toolbar{display:flex;gap:10px;padding:10px 0 14px;margin-bottom:20px;border-bottom:1px solid #e5e7eb}
+button{border:1px solid #d1d5db;border-radius:6px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer;background:#f9fafb;color:#374151}
+button.primary{background:#2563eb;color:#fff;border-color:#2563eb}
+h1{font-size:24px;font-weight:700;color:#111827}
+.meta{margin-top:4px;font-size:13px;color:#6b7280}
+.badge{display:inline-flex;align-items:center;gap:4px;border:1px solid #e5e7eb;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:600;color:#374151;background:#f9fafb;margin-top:10px}
+.header{margin-bottom:24px;padding-bottom:20px;border-bottom:1px solid #e5e7eb}
+.eye{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:#9ca3af;margin-bottom:6px}
+.section{margin-bottom:28px}
+.ba{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+.ba-head{display:grid;grid-template-columns:1fr 180px 1fr;background:#f9fafb;border-bottom:1px solid #e5e7eb}
+.ba-h{padding:10px 16px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#6b7280}
+.ba-h.m{border-left:1px solid #e5e7eb;border-right:1px solid #e5e7eb;text-align:center}
+.ba-row{display:grid;grid-template-columns:1fr 180px 1fr;border-bottom:1px solid #f3f4f6}
+.ba-row:last-child{border-bottom:none}
+.bc{padding:14px 16px}
+.bc.m{border-left:1px solid #f3f4f6;border-right:1px solid #f3f4f6;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:4px}
+.ml{font-size:11px;color:#9ca3af;font-weight:600;margin-bottom:3px}
+.mv{font-size:21px;font-weight:700;color:#111827}
+.dv{font-size:16px;font-weight:700}
+.dv.improved{color:#16a34a}.dv.degraded{color:#dc2626}.dv.neutral{color:#6b7280}
+.cbox{border:1px solid #e5e7eb;border-radius:10px;padding:16px;background:#fff}
+.ct{font-size:12px;font-weight:600;color:#374151;margin-bottom:10px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.panel{border:1px solid #e5e7eb;border-radius:10px;padding:16px}
+.pv{font-size:26px;font-weight:800;line-height:1;color:#111827;margin:8px 0 4px}
+.ps{font-size:12px;color:#6b7280;margin-top:3px}
+.panel.improved{border-color:#86efac;background:#f0fdf4}
+.panel.degraded{border-color:#fca5a5;background:#fef2f2}
+.ev{border:1px solid #e5e7eb;border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse}
+th{padding:9px 13px;background:#f9fafb;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#6b7280;text-align:left;border-bottom:1px solid #e5e7eb}
+td{padding:10px 13px;font-size:13px;color:#374151;border-bottom:1px solid #f3f4f6}
+tr:last-child td{border-bottom:none}
+.footer{margin-top:28px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:12px;color:#9ca3af}
+@media print{.toolbar{display:none}}
+</style>
 </head>
 <body>
-  <div class="page">
-    <div class="toolbar no-print">
-      <div class="toolbar-actions">
-        <button type="button" id="print-btn" class="primary">Print / Save as PDF</button>
-        <button type="button" id="close-btn">Close Preview</button>
-      </div>
-      <div class="toolbar-nav">
-        <a href="#summary">Summary</a>
-        <a href="#trend">Trend</a>
-        <a href="#evidence">Evidence</a>
-        <a href="#verdict">Verdict</a>
-        <a href="#memory">Memory</a>
-      </div>
+<div class="page">
+
+<div class="toolbar">
+  <button class="primary" onclick="window.print()">Print / Save as PDF</button>
+  <button onclick="window.close()">Close</button>
+</div>
+
+<div class="header">
+  <div class="eye">Latency Report</div>
+  <h1>System Latency Evidence</h1>
+  <div class="meta">Generated ${escapeHtml(formatDate(summary.generatedAt))}</div>
+  <div class="badge">${escapeHtml(summary.windowCount)} windows &middot; ${escapeHtml(summary.observationSeconds)}s observation &middot; 30s window span</div>
+</div>
+
+<div class="section">
+  <div class="eye">Before vs After</div>
+  <div class="ba">
+    <div class="ba-head">
+      <div class="ba-h">Before &mdash; Window #${escapeHtml(first.windowNumber)} &middot; ${escapeHtml(formatWindowTime(first.timestamp))}</div>
+      <div class="ba-h m">Delta</div>
+      <div class="ba-h" style="text-align:right">After &mdash; Window #${escapeHtml(last.windowNumber)} &middot; ${escapeHtml(formatWindowTime(last.timestamp))}</div>
     </div>
-
-    <section class="hero" id="summary">
-      <div class="eyebrow">Latency PDF Report</div>
-      <h1>System Latency Evidence Pack</h1>
-      <div class="hero-meta">Generated at ${escapeHtml(formatDate(summary.generatedAt))}</div>
-      <div class="hero-summary">
-        Covering ${escapeHtml(summary.windowCount)} measurement windows (${escapeHtml(summary.observationSeconds)}s total observation)
-      </div>
-      <div class="card-grid">
-        <div class="summary-card ${escapeHtml(getOverallLatencyTone(summary.overallAverageP95))}">
-          <div class="eyebrow">Overall Average p95</div>
-          <div class="metric-value">${escapeHtml(formatMs(summary.overallAverageP95))}</div>
-          <div class="subtext">Average p50: ${escapeHtml(formatMs(summary.overallAverageP50))}</div>
-        </div>
-        <div class="summary-card emerald">
-          <div class="eyebrow">Best Window</div>
-          <div class="metric-value">#${escapeHtml(summary.bestWindow.windowNumber)}</div>
-          <div class="subtext">${escapeHtml(formatMs(summary.bestWindow.meanP95))} mean p95</div>
-        </div>
-        <div class="summary-card rose">
-          <div class="eyebrow">Worst Window</div>
-          <div class="metric-value">#${escapeHtml(summary.worstWindow.windowNumber)}</div>
-          <div class="subtext">${escapeHtml(formatMs(summary.worstWindow.meanP95))} mean p95</div>
-        </div>
-        <div class="summary-card ${escapeHtml(summary.verdict === 'improved' ? 'emerald' : summary.verdict === 'degraded' ? 'rose' : 'default')}">
-          <div class="eyebrow">Net Trend</div>
-          <div class="metric-value">${escapeHtml(summary.netP95Delta === 0 ? '0ms' : formatLatencyDelta(summary.netP95Delta))}</div>
-          <div class="subtext">Window #${escapeHtml(summary.firstWindow.windowNumber)} to #${escapeHtml(summary.lastWindow.windowNumber)}</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="trend">
-      <div class="section-header">
-        <div>
-          <div class="eyebrow">Latency Trend Over Time</div>
-          <h2>Trend evidence across completed windows</h2>
-          <p>Mean p95 and p50 are plotted against the first-window p95 baseline.</p>
-        </div>
-      </div>
-      <div class="legend">
-        <span><i style="background:${palette.accentPrimary};"></i>Mean P95</span>
-        <span><i style="background:${palette.success};"></i>Mean P50</span>
-        <span><i style="background:${palette.textMuted};"></i>Baseline</span>
-      </div>
-      <svg viewBox="0 0 ${chartWidth} ${chartHeight}" width="100%" height="320" role="img" aria-label="Latency trend chart">
-        ${gridValues
-          .map((value) => {
-            const y =
-              chartHeight - chartPadding - (value / chartMax) * (chartHeight - chartPadding * 2)
-            return `
-              <line x1="${chartPadding}" y1="${y.toFixed(1)}" x2="${chartWidth - chartPadding}" y2="${y.toFixed(1)}" stroke="${palette.border}" stroke-dasharray="4 6" />
-              <text x="10" y="${(y + 4).toFixed(1)}" font-size="11" fill="${palette.textMuted}">${escapeHtml(formatMs(value))}</text>
-            `
-          })
-          .join('')}
-        <line x1="${chartPadding}" y1="${baselineY.toFixed(1)}" x2="${chartWidth - chartPadding}" y2="${baselineY.toFixed(1)}" stroke="${palette.textMuted}" stroke-dasharray="8 8" />
-        <text x="${chartWidth - chartPadding - 8}" y="${(baselineY - 8).toFixed(1)}" text-anchor="end" font-size="12" fill="${palette.textMuted}">Baseline</text>
-        <polygon points="${p95AreaPoints}" fill="${palette.accentPrimary}" opacity="0.12"></polygon>
-        <polygon points="${p50AreaPoints}" fill="${palette.success}" opacity="0.11"></polygon>
-        <polyline points="${p95LinePoints}" fill="none" stroke="${palette.accentPrimary}" stroke-width="3"></polyline>
-        <polyline points="${p50LinePoints}" fill="none" stroke="${palette.success}" stroke-width="3"></polyline>
-        ${windows
-          .map((window, index) => {
-            const x = chartPadding + xStep * index
-            const p95Y =
-              chartHeight -
-              chartPadding -
-              (window.meanP95 / chartMax) * (chartHeight - chartPadding * 2)
-            const p50Y =
-              chartHeight -
-              chartPadding -
-              (window.meanP50 / chartMax) * (chartHeight - chartPadding * 2)
-            const shouldRenderLabel = index % xLabelModulo === 0 || index === windows.length - 1
-            return `
-              <circle cx="${x.toFixed(1)}" cy="${p95Y.toFixed(1)}" r="4.2" fill="${palette.accentPrimary}"></circle>
-              <circle cx="${x.toFixed(1)}" cy="${p50Y.toFixed(1)}" r="4.2" fill="${palette.success}"></circle>
-              ${
-                shouldRenderLabel
-                  ? `<text x="${x.toFixed(1)}" y="${chartHeight - 14}" text-anchor="middle" font-size="11" fill="${palette.textMuted}">#${escapeHtml(window.windowNumber)}</text>`
-                  : ''
-              }
-            `
-          })
-          .join('')}
-      </svg>
-    </section>
-
-    <section class="section" id="evidence">
-      <div class="section-header">
-        <div>
-          <div class="eyebrow">Window-by-Window Evidence</div>
-          <h2>Completed 30-second windows</h2>
-          <p>${escapeHtml(summary.improvedComparisons)} of ${escapeHtml(summary.comparisonCount)} windows improved vs their predecessor.</p>
-        </div>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Time</th>
-            <th>Avg p95</th>
-            <th>Avg p50</th>
-            <th>Peak p95</th>
-            <th>Error Rate</th>
-            <th>Traffic</th>
-            <th>Services</th>
-            <th>Delta</th>
-          </tr>
-        </thead>
-        <tbody>${evidenceRows}</tbody>
-      </table>
-    </section>
-
-    <section class="section" id="verdict">
-      <div class="section-header">
-        <div>
-          <div class="eyebrow">Improvement Verdict</div>
-          <h2>First window versus latest window</h2>
-          <p>The verdict is based on mean p95 movement from the first completed window to the latest completed window.</p>
-        </div>
-      </div>
-      <div class="metric-pair-grid">
-        ${[
-          {
-            label: 'P95',
-            first: formatMs(summary.firstWindow.meanP95),
-            last: formatMs(summary.lastWindow.meanP95),
-            delta:
-              summary.netP95Delta < 0
-                ? `Improved by ${formatMs(Math.abs(summary.netP95Delta))}`
-                : summary.netP95Delta > 0
-                  ? `Degraded by ${formatMs(summary.netP95Delta)}`
-                  : 'Unchanged',
-            tone:
-              summary.netP95Delta < 0 ? 'success' : summary.netP95Delta > 0 ? 'danger' : 'neutral',
-          },
-          {
-            label: 'P50',
-            first: formatMs(summary.firstWindow.meanP50),
-            last: formatMs(summary.lastWindow.meanP50),
-            delta: (() => {
-              const delta = getDelta(summary.lastWindow.meanP50, summary.firstWindow.meanP50)
-              return delta < 0
-                ? `Improved by ${formatMs(Math.abs(delta))}`
-                : delta > 0
-                  ? `Degraded by ${formatMs(delta)}`
-                  : 'Unchanged'
-            })(),
-            tone: (() => {
-              const delta = getDelta(summary.lastWindow.meanP50, summary.firstWindow.meanP50)
-              return delta < 0 ? 'success' : delta > 0 ? 'danger' : 'neutral'
-            })(),
-          },
-          {
-            label: 'Error Rate',
-            first: formatPercent(summary.firstWindow.avgErrorRate * 100),
-            last: formatPercent(summary.lastWindow.avgErrorRate * 100),
-            delta: (() => {
-              const delta = getDelta(
-                summary.lastWindow.avgErrorRate,
-                summary.firstWindow.avgErrorRate,
-                4
-              )
-              return delta < 0
-                ? `Improved by ${formatPercent(Math.abs(delta) * 100)}`
-                : delta > 0
-                  ? `Degraded by ${formatPercent(delta * 100)}`
-                  : 'Unchanged'
-            })(),
-            tone: (() => {
-              const delta = getDelta(
-                summary.lastWindow.avgErrorRate,
-                summary.firstWindow.avgErrorRate,
-                4
-              )
-              return delta < 0 ? 'success' : delta > 0 ? 'danger' : 'neutral'
-            })(),
-          },
-          {
-            label: 'Traffic',
-            first: `${formatRps(summary.firstWindow.totalRps)} RPS`,
-            last: `${formatRps(summary.lastWindow.totalRps)} RPS`,
-            delta: (() => {
-              const delta = getDelta(summary.lastWindow.totalRps, summary.firstWindow.totalRps)
-              return delta < 0
-                ? `Decreased by ${formatRps(Math.abs(delta))} RPS`
-                : delta > 0
-                  ? `Increased by ${formatRps(delta)} RPS`
-                  : 'Unchanged'
-            })(),
-            tone: 'neutral',
-          },
-        ]
-          .map(
-            (item) => `
-              <div class="metric-pair">
-                <div class="glass-card">
-                  <div class="eyebrow">First Window ${escapeHtml(item.label)}</div>
-                  <div class="metric-value">${escapeHtml(item.first)}</div>
-                </div>
-                <div class="delta-card ${escapeHtml(item.tone)}">
-                  <div class="eyebrow">${escapeHtml(item.label)} Delta</div>
-                  <div class="metric-value">${escapeHtml(item.delta)}</div>
-                </div>
-                <div class="glass-card">
-                  <div class="eyebrow">Latest Window ${escapeHtml(item.label)}</div>
-                  <div class="metric-value">${escapeHtml(item.last)}</div>
-                </div>
-              </div>
-            `
-          )
-          .join('')}
-      </div>
-      <div class="glass-card verdict-banner ${escapeHtml(summary.verdict === 'improved' ? 'success' : summary.verdict === 'degraded' ? 'danger' : 'neutral')}">
-        <div class="eyebrow">Verdict</div>
-        <div class="metric-value">${escapeHtml(summary.verdict === 'improved' ? 'Latency Improved' : summary.verdict === 'degraded' ? 'Latency Degraded' : 'Latency Unchanged')}</div>
-        <div class="subtext">
-          ${
-            summary.verdict === 'improved'
-              ? escapeHtml(
-                  summary.netP95ChangePercent !== null
-                    ? `Mean p95 improved by ${formatPercent(summary.netP95ChangePercent)} from window #${summary.firstWindow.windowNumber} to window #${summary.lastWindow.windowNumber}.`
-                    : `Mean p95 improved by ${formatMs(Math.abs(summary.netP95Delta))} from window #${summary.firstWindow.windowNumber} to window #${summary.lastWindow.windowNumber}.`
-                )
-              : summary.verdict === 'degraded'
-                ? escapeHtml(
-                    summary.netP95ChangePercent !== null
-                      ? `Mean p95 degraded by ${formatPercent(summary.netP95ChangePercent)} from window #${summary.firstWindow.windowNumber} to window #${summary.lastWindow.windowNumber}.`
-                      : `Mean p95 degraded by ${formatMs(Math.abs(summary.netP95Delta))} from window #${summary.firstWindow.windowNumber} to window #${summary.lastWindow.windowNumber}.`
-                  )
-                : escapeHtml(
-                    `Mean p95 remained unchanged between window #${summary.firstWindow.windowNumber} and window #${summary.lastWindow.windowNumber}.`
-                  )
-          }
-        </div>
-      </div>
-    </section>
-
-    <section class="section" id="memory">
-      <div class="section-header">
-        <div>
-          <div class="eyebrow">Stored Baseline Memory</div>
-          <h2>Persisted 30-second comparison</h2>
-          <p>The stored baseline is captured from local storage at page load, so it does not compare until a new window is created in this session.</p>
-        </div>
-      </div>
-      ${storedBaselineMarkup}
-    </section>
+    <div class="ba-row">
+      <div class="bc"><div class="ml">P95 Latency</div><div class="mv">${escapeHtml(formatMs(first.meanP95))}</div></div>
+      <div class="bc m"><span class="dv ${dClass(p95Delta)}">${dFmt(p95Delta, formatMs)}</span><span style="font-size:10px;color:#9ca3af">P95</span></div>
+      <div class="bc" style="text-align:right"><div class="ml">P95 Latency</div><div class="mv" style="color:${p95Delta < 0 ? '#16a34a' : p95Delta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatMs(last.meanP95))}</div></div>
+    </div>
+    <div class="ba-row">
+      <div class="bc"><div class="ml">P50 Latency</div><div class="mv">${escapeHtml(formatMs(first.meanP50))}</div></div>
+      <div class="bc m"><span class="dv ${dClass(p50Delta)}">${dFmt(p50Delta, formatMs)}</span><span style="font-size:10px;color:#9ca3af">P50</span></div>
+      <div class="bc" style="text-align:right"><div class="ml">P50 Latency</div><div class="mv">${escapeHtml(formatMs(last.meanP50))}</div></div>
+    </div>
+    <div class="ba-row">
+      <div class="bc"><div class="ml">Error Rate</div><div class="mv">${escapeHtml(formatPercent(first.avgErrorRate * 100))}</div></div>
+      <div class="bc m"><span class="dv ${dClass(errDelta)}">${dFmt(errDelta, (v) => formatPercent(v * 100))}</span><span style="font-size:10px;color:#9ca3af">Errors</span></div>
+      <div class="bc" style="text-align:right"><div class="ml">Error Rate</div><div class="mv">${escapeHtml(formatPercent(last.avgErrorRate * 100))}</div></div>
+    </div>
+    <div class="ba-row">
+      <div class="bc"><div class="ml">Traffic</div><div class="mv">${escapeHtml(formatRps(first.totalRps))} RPS</div></div>
+      <div class="bc m"><span class="dv neutral">${dFmt(rpsDelta, (v) => `${escapeHtml(formatRps(v))} RPS`)}</span><span style="font-size:10px;color:#9ca3af">RPS</span></div>
+      <div class="bc" style="text-align:right"><div class="ml">Traffic</div><div class="mv">${escapeHtml(formatRps(last.totalRps))} RPS</div></div>
+    </div>
   </div>
+</div>
 
-  <script>
-    document.getElementById('print-btn')?.addEventListener('click', () => window.print())
-    document.getElementById('close-btn')?.addEventListener('click', () => window.close())
-  </script>
+<div class="section">
+  <div class="eye">Graph 1 &mdash; Load (RPS)</div>
+  <div class="cbox">
+    <div class="ct">Traffic load across ${escapeHtml(summary.windowCount)} windows (requests per second)</div>
+    <svg viewBox="0 0 ${CW} ${CH}" width="100%" height="200" role="img" aria-label="Load chart">
+      ${svgGrid(rpsMax, (v) => formatRps(v))}
+      <polygon points="${rpsArea}" fill="#2563eb" opacity="0.09"/>
+      <polyline points="${rpsLine}" fill="none" stroke="#2563eb" stroke-width="2.5"/>
+      ${svgDots(rpsVals, rpsMax, '#2563eb')}
+      ${xLabels}
+    </svg>
+  </div>
+</div>
+
+<div class="section">
+  <div class="eye">P95 Latency</div>
+  <div class="three">
+    <div class="cbox">
+      <div class="ct">P95 trend across all windows</div>
+      <svg viewBox="0 0 ${CW} ${CH}" width="100%" height="180" role="img" aria-label="P95 trend chart">
+        ${svgGrid(p95Max, formatMs)}
+        <line x1="${CPAD}" y1="${baselineY.toFixed(1)}" x2="${CW - CPAD}" y2="${baselineY.toFixed(1)}" stroke="#d1d5db" stroke-dasharray="5 4" stroke-width="1.5"/>
+        <text x="${(CW - CPAD - 4).toFixed(1)}" y="${(baselineY - 5).toFixed(1)}" text-anchor="end" font-size="9" fill="#9ca3af">Baseline</text>
+        <polygon points="${p95Area}" fill="#2563eb" opacity="0.09"/>
+        <polyline points="${p95Line}" fill="none" stroke="#2563eb" stroke-width="2.5"/>
+        ${svgDots(p95Vals, p95Max, '#2563eb')}
+        ${xLabels}
+      </svg>
+    </div>
+    <div class="panel">
+      <div class="eye">P95 Before</div>
+      <div class="pv">${escapeHtml(formatMs(first.meanP95))}</div>
+      <div class="ps">Window #${escapeHtml(first.windowNumber)} &middot; ${escapeHtml(formatWindowTime(first.timestamp))}</div>
+      <div class="ps" style="margin-top:10px"><strong>Peak P95:</strong> ${escapeHtml(formatMs(first.peakP95))}</div>
+      <div class="ps"><strong>P50:</strong> ${escapeHtml(formatMs(first.meanP50))}</div>
+      <div class="ps"><strong>Snapshots:</strong> ${escapeHtml(first.snapshotCount)}</div>
+    </div>
+    <div class="panel ${p95Delta < 0 ? 'improved' : p95Delta > 0 ? 'degraded' : ''}">
+      <div class="eye">P95 After</div>
+      <div class="pv" style="color:${p95Delta < 0 ? '#16a34a' : p95Delta > 0 ? '#dc2626' : '#111827'}">${escapeHtml(formatMs(last.meanP95))}</div>
+      <div class="ps">Window #${escapeHtml(last.windowNumber)} &middot; ${escapeHtml(formatWindowTime(last.timestamp))}</div>
+      <div class="ps" style="margin-top:10px"><strong>Peak P95:</strong> ${escapeHtml(formatMs(last.peakP95))}</div>
+      <div class="ps"><strong>P50:</strong> ${escapeHtml(formatMs(last.meanP50))}</div>
+      <div class="ps"><strong>Snapshots:</strong> ${escapeHtml(last.snapshotCount)}</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="eye">Traffic &amp; Error Rate</div>
+  <div class="three">
+    <div class="cbox">
+      <div class="ct">Error rate across all windows</div>
+      <svg viewBox="0 0 ${CW} ${CH}" width="100%" height="180" role="img" aria-label="Error rate chart">
+        ${svgGrid(errMax, (v) => formatPercent(v * 100))}
+        <polyline points="${errLine}" fill="none" stroke="#dc2626" stroke-width="2.5"/>
+        ${svgDots(errVals, errMax, '#dc2626')}
+        ${xLabels}
+      </svg>
+    </div>
+    <div class="panel">
+      <div class="eye">Traffic Before</div>
+      <div class="pv">${escapeHtml(formatRps(first.totalRps))}</div>
+      <div class="ps">RPS &middot; Window #${escapeHtml(first.windowNumber)}</div>
+      <div class="ps" style="margin-top:10px"><strong>Services:</strong> ${escapeHtml(first.serviceCount)}</div>
+      <div class="ps"><strong>Edges:</strong> ${escapeHtml(first.edgeCount)}</div>
+      <div class="ps"><strong>Error:</strong> ${escapeHtml(formatPercent(first.avgErrorRate * 100))}</div>
+    </div>
+    <div class="panel ${errDelta < 0 ? 'improved' : errDelta > 0 ? 'degraded' : ''}">
+      <div class="eye">Traffic After</div>
+      <div class="pv">${escapeHtml(formatRps(last.totalRps))}</div>
+      <div class="ps">RPS &middot; Window #${escapeHtml(last.windowNumber)}</div>
+      <div class="ps" style="margin-top:10px"><strong>Services:</strong> ${escapeHtml(last.serviceCount)}</div>
+      <div class="ps"><strong>Edges:</strong> ${escapeHtml(last.edgeCount)}</div>
+      <div class="ps"><strong>Error:</strong> <span style="color:${errDelta < 0 ? '#16a34a' : errDelta > 0 ? '#dc2626' : 'inherit'}">${escapeHtml(formatPercent(last.avgErrorRate * 100))}</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="eye">Window Evidence</div>
+  <div class="ev">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Time</th><th>Avg P95</th><th>Avg P50</th><th>Peak P95</th><th>Error Rate</th><th>Traffic</th><th>Delta</th></tr>
+      </thead>
+      <tbody>${evidenceRows}</tbody>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  30-second window span &middot; ${escapeHtml(summary.windowCount)} windows &middot; ${escapeHtml(summary.observationSeconds)}s total observation &middot; Generated ${escapeHtml(formatDate(summary.generatedAt))}
+</div>
+
+</div>
 </body>
 </html>`
 
@@ -929,6 +485,7 @@ function openLatencyPdfPreview(
   popup.focus()
   toast.success('PDF preview opened in a new tab')
 }
+
 
 function aggregateSnapshot(data: GraphUpdateData): Snapshot {
   const services = data.metricsSnapshot.services
@@ -1198,12 +755,9 @@ export default function Latency() {
     windowCountRef.current += 1
     const result = computeWindow(snapshotsRef.current, windowCountRef.current)
     setCompletedWindows((previous) => [...previous, result])
-    startWindow()
-  }, [startWindow])
-
-  useEffect(() => {
-    startWindow()
-  }, [startWindow])
+    setMeasuring(false)
+    setSecondsRemaining(WINDOW_DURATION_S)
+  }, [])
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -1288,6 +842,21 @@ export default function Latency() {
     setReportOpen(false)
   }, [])
 
+  const handleMeasure = useCallback(() => {
+    startWindow()
+  }, [startWindow])
+
+  const handleReset = useCallback(() => {
+    setCompletedWindows([])
+    setCurrentSnapshots([])
+    snapshotsRef.current = []
+    windowCountRef.current = 0
+    setMeasuring(false)
+    setSecondsRemaining(WINDOW_DURATION_S)
+    setReportOpen(false)
+    setReportGeneratedAt(null)
+  }, [])
+
   const handleExportPdf = useCallback(() => {
     if (completedWindows.length < 2) {
       toast.error('Complete at least two windows to export the report')
@@ -1301,8 +870,8 @@ export default function Latency() {
         ? reportSummary
         : buildReportSummary(completedWindows, generatedAt)
 
-    openLatencyPdfPreview(summaryForPdf, completedWindows, storedWindowAtLoad)
-  }, [completedWindows, reportGeneratedAt, reportOpen, reportSummary, storedWindowAtLoad])
+    openLatencyPdfPreview(summaryForPdf, completedWindows)
+  }, [completedWindows, reportGeneratedAt, reportOpen, reportSummary])
 
   const renderReportExecutiveSummary = () => {
     if (!reportSummary) return null
@@ -1989,56 +1558,91 @@ export default function Latency() {
 
   const renderLiveView = () => (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <Section title="Live Measurement" icon={Activity}>
-        <div className="flex flex-col items-center gap-6">
-          <ArcGauge value={currentP95} max={gaugeMax} measuring={measuring} />
+      {measuring ? (
+        <Section title="Live Measurement" icon={Activity}>
+          <div className="flex flex-col items-center gap-6">
+            <ArcGauge value={currentP95} max={gaugeMax} measuring={measuring} />
 
-          <div className="text-center">
-            <p className="text-sm font-medium text-[var(--text-secondary)]">
-              {measuring ? (
-                <>
-                  Measuring&hellip;{' '}
-                  <span className="font-bold text-[var(--text-primary)]">{secondsRemaining}s</span>{' '}
-                  remaining
-                </>
-              ) : (
-                'Window complete'
-              )}
-            </p>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">
-              Window #{windowCountRef.current + 1} &middot; {currentSnapshots.length} snapshots
-              collected
+            <div className="text-center">
+              <p className="text-sm font-medium text-[var(--text-secondary)]">
+                Measuring&hellip;{' '}
+                <span className="font-bold text-[var(--text-primary)]">{secondsRemaining}s</span>{' '}
+                remaining
+              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                Window #{windowCountRef.current + 1} &middot; {currentSnapshots.length} snapshots
+                collected
+              </p>
+            </div>
+
+            <div className="grid w-full grid-cols-2 gap-4 md:grid-cols-4">
+              <KPIStatCard
+                label="Current P95"
+                value={formatMs(currentP95)}
+                variant={getLatencyVariant(currentP95)}
+                tooltip="95th percentile latency aggregated across all services"
+              />
+              <KPIStatCard
+                label="Current P50"
+                value={formatMs(currentP50)}
+                variant="default"
+                tooltip="Estimated median latency (50th percentile)"
+              />
+              <KPIStatCard
+                label="Avg Error Rate"
+                value={formatPercent(currentErrorRate * 100)}
+                variant={getErrorVariant(currentErrorRate)}
+                tooltip="Average error rate across all services"
+              />
+              <KPIStatCard
+                label="Active Services"
+                value={activeServices}
+                variant="default"
+                tooltip="Number of services currently reporting metrics"
+              />
+            </div>
+          </div>
+        </Section>
+      ) : completedWindows.length === 0 ? (
+        <div
+          className={cn(
+            glassPanelClass,
+            'flex flex-col items-center justify-center gap-6 py-20 text-center'
+          )}
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-soft)]">
+            <Gauge className="h-8 w-8 text-[var(--text-muted)]" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-[var(--text-primary)]">Ready to Measure</h2>
+            <p className="mt-2 max-w-sm text-sm text-[var(--text-secondary)]">
+              Click <strong>Measure</strong> to capture a 30-second latency snapshot. Optimize your
+              system between runs to track improvements.
             </p>
           </div>
-
-          <div className="grid w-full grid-cols-2 gap-4 md:grid-cols-4">
-            <KPIStatCard
-              label="Current P95"
-              value={formatMs(currentP95)}
-              variant={getLatencyVariant(currentP95)}
-              tooltip="95th percentile latency aggregated across all services"
-            />
-            <KPIStatCard
-              label="Current P50"
-              value={formatMs(currentP50)}
-              variant="default"
-              tooltip="Estimated median latency (50th percentile)"
-            />
-            <KPIStatCard
-              label="Avg Error Rate"
-              value={formatPercent(currentErrorRate * 100)}
-              variant={getErrorVariant(currentErrorRate)}
-              tooltip="Average error rate across all services"
-            />
-            <KPIStatCard
-              label="Active Services"
-              value={activeServices}
-              variant="default"
-              tooltip="Number of services currently reporting metrics"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={handleMeasure}
+            className={cn(secondaryButtonClass, 'inline-flex items-center gap-2 px-6 py-2.5')}
+          >
+            <Zap className="h-4 w-4" />
+            Measure
+          </button>
         </div>
-      </Section>
+      ) : (
+        <Section title="Window Complete" icon={CheckCircle}>
+          <div className="flex flex-col items-center gap-3 py-4 text-center">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Window #{lastWindow!.windowNumber} captured &middot;{' '}
+              {formatWindowTime(lastWindow!.timestamp)} &middot; mean p95{' '}
+              <strong>{formatMs(lastWindow!.meanP95)}</strong>
+            </p>
+            <p className="text-xs text-[var(--text-muted)]">
+              Make changes to your system, then click <strong>Measure</strong> again to compare.
+            </p>
+          </div>
+        </Section>
+      )}
 
       {completedWindows.length > 0 && (
         <>
@@ -2275,38 +1879,60 @@ export default function Latency() {
         }
         icon={Gauge}
         actions={
-          completedWindows.length >= 2 ? (
-            <>
-              {!reportOpen && (
-                <button
-                  type="button"
-                  onClick={handleOpenReport}
-                  className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
-                >
-                  <FileText className="h-4 w-4" />
-                  Generate Report
-                </button>
-              )}
+          <>
+            {completedWindows.length >= 2 && !reportOpen && (
+              <button
+                type="button"
+                onClick={handleOpenReport}
+                className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
+              >
+                <FileText className="h-4 w-4" />
+                Generate Report
+              </button>
+            )}
+            {completedWindows.length >= 2 && (
               <button
                 type="button"
                 onClick={handleExportPdf}
                 className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
               >
                 <Download className="h-4 w-4" />
-                Export Report
+                Export PDF
               </button>
-              {reportOpen && (
-                <button
-                  type="button"
-                  onClick={handleCloseReport}
-                  className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
-                >
-                  <Activity className="h-4 w-4" />
-                  Back to Live
-                </button>
+            )}
+            {reportOpen && (
+              <button
+                type="button"
+                onClick={handleCloseReport}
+                className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
+              >
+                <Activity className="h-4 w-4" />
+                Back to Live
+              </button>
+            )}
+            {completedWindows.length > 0 && !measuring && (
+              <button
+                type="button"
+                onClick={handleReset}
+                className={cn(secondaryButtonClass, 'inline-flex items-center gap-2')}
+              >
+                Reset
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleMeasure}
+              disabled={measuring}
+              className={cn(
+                secondaryButtonClass,
+                'inline-flex items-center gap-2',
+                measuring && 'cursor-not-allowed opacity-50'
               )}
-            </>
-          ) : undefined
+            >
+              <Zap className="h-4 w-4" />
+              {measuring ? `Measuring ${secondsRemaining}s\u2026` : 'Measure'}
+            </button>
+          </>
         }
       />
 

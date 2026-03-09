@@ -370,6 +370,54 @@ function getDeferredOrUnsupportedErrorReason(errorPayload: SimulationErrorRespon
   return 'No deferred/unsupported reason was provided by the backend.'
 }
 
+/**
+ * Converts technical backend recommendation text into high-level,
+ * non-technical language suitable for a general audience.
+ */
+function simplifyRecommendation(text: string): string {
+  let s = text
+
+  // Strip parenthetical evidence/mode/confidence metadata
+  s = s.replace(/\(evidence:.*?\)/gi, '')
+
+  // Remove technical directives
+  s = s.replace(/Verify resource quotas and HPA limits before applying\.\s*/gi, '')
+  s = s.replace(/Review snapshot-derived impacted paths[^.]*\.\s*/gi, '')
+  s = s.replace(/Confirm with live cluster state before applying changes\.\s*/gi, '')
+  s = s.replace(/Monitor latency and error rates after applying; revert if degradation exceeds thresholds\.\s*/gi, '')
+  s = s.replace(/Consider staged scale-down with live monitoring of error rates and latency\.\s*/gi, '')
+
+  // Replace technical terms with plain language
+  s = s.replace(/\bRPS\b/g, 'requests per second')
+  s = s.replace(/\bHPA\b/g, 'auto-scaling')
+  s = s.replace(/\bpods?\b/gi, (m) => m.toLowerCase().startsWith('P') ? 'Instance' + (m.length > 3 ? 's' : '') : 'instance' + (m.length > 3 ? 's' : ''))
+  s = s.replace(/\bcircuit breakers?\b/gi, 'automatic safeguards')
+  s = s.replace(/\bfailover\b/gi, 'backup routing')
+  s = s.replace(/\bretry policies\b/gi, 'automatic retries')
+  s = s.replace(/\bblast radius\b/gi, 'impact area')
+  s = s.replace(/\bcaller\(s\)/gi, 'dependent service(s)')
+  s = s.replace(/\bcallers?\b/gi, 'dependent services')
+  s = s.replace(/\bsnapshot[- ]derived\b/gi, 'identified')
+  s = s.replace(/\bimpacted paths\b/gi, 'affected connections')
+  s = s.replace(/\bdownstream service\(s\)/gi, 'service(s) it depends on')
+  s = s.replace(/\bdownstream services?\b/gi, 'services it depends on')
+  s = s.replace(/\bedge metrics\b/gi, 'connection data')
+  s = s.replace(/\bper-pod latency\b/gi, 'response time per instance')
+  s = s.replace(/\blatency\b/gi, 'response time')
+
+  // Simplify quoted service IDs like "onlineboutique:frontend" → "frontend"
+  s = s.replace(/service "([^"]*:)?([^"]+)"/gi, 'the "$2" service')
+  // Also handle service 'name' with single quotes or bare IDs
+  s = s.replace(/"([^"]*:)?([^"]+)"/g, '"$2"')
+
+  // Clean up extra whitespace left by removals
+  s = s.replace(/\s{2,}/g, ' ').trim()
+  // Remove trailing period duplication
+  s = s.replace(/\.\s*\./g, '.')
+
+  return s
+}
+
 function getSimulationErrorDegradedMode(errorPayload: SimulationErrorResponseDto): ResolvedDegradedMode | undefined {
   const degradedMode = errorPayload['degradedMode']
   if (degradedMode === 'INFLUX_EMPTY' || degradedMode === 'INFLUX_SPARSE' || degradedMode === 'INFLUX_ERROR') {
@@ -960,29 +1008,6 @@ export default function Simulations() {
           </div>
         </Section>
 
-        <Section title="What the Simulation Assumed" icon={ShieldCheck}>
-          {runResult.assumptions.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No assumptions were needed for this simulation.</p>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-[var(--text-secondary)]">
-                The simulation made these assumptions. If reality is different, results may not be perfectly accurate.
-              </p>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {runResult.assumptions.map((assumption) => (
-                  <div key={assumption.traceRef} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-                    <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">{assumption.description || assumption.key}</p>
-                    </div>
-                    <InfoHint text={`Technical detail: "${assumption.key}" was set to "${assumption.value}". Source: ${assumption.source || 'simulation engine'}.`} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </Section>
-
         <Section title="Services That Would Be Affected" icon={Network}>
           {runResult.impactedServices.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">No services would be affected in this scenario.</p>
@@ -1116,7 +1141,7 @@ export default function Simulations() {
                   <h3 className="text-base font-bold text-[var(--text-primary)]">Suggested Next Step</h3>
                   <InfoHint text="This is what we suggest you do based on the simulation results. Following this advice can help prevent or reduce the damage if this scenario actually happens." />
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{runResult.recommendation.explanation}</p>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{simplifyRecommendation(runResult.recommendation.explanation)}</p>
               </div>
             </div>
           </div>

@@ -336,11 +336,6 @@ export default function DrillDirector() {
                 <RunPanel run={activeRun} onUpdate={setActiveRun} onClear={() => setActiveRun(null)} />
               </div>
               <div className="space-y-6 xl:col-span-8">
-                <ValidationPanel
-                  runId={activeRun.id}
-                  runStatus={activeRun.status}
-                  sectionId={VALIDATION_SUMMARY_SECTION_ID}
-                />
                 <LiveMetricsStrip run={activeRun} />
                 <TimelineReplay run={activeRun} />
               </div>
@@ -538,19 +533,6 @@ export default function DrillDirector() {
                                 ) : (
                                   'Review Pack'
                                 )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(event) => event.stopPropagation()}
-                                onPress={() => void openRunReview(run.id, 'comparison-summary')}
-                                className={cn(
-                                  tableActionLinkClass,
-                                  'border-violet-500/25 bg-violet-500/8 text-[10px] font-bold uppercase tracking-widest text-violet-700 hover:bg-violet-500/16 hover:text-violet-800'
-                                )}
-                                isDisabled={isReviewing}
-                              >
-                                Expected vs Actual
                               </Button>
                               {!run.rollbackVerifiedAt && (
                                 <Button

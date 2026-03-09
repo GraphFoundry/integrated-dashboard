@@ -48,6 +48,24 @@ function getScenarioSummary(record: DecisionRecord): string {
     return `Scale: ${serviceId} (${currentPods ?? '?'}→${newPods ?? '?'} pods)`
   }
 
+  if (type === 'traffic_spike') {
+    const serviceId = scenario.serviceId as string | undefined
+    const multiplier = scenario.loadMultiplier as number | undefined
+    return `Traffic Spike: ${serviceId ?? 'unknown'}${multiplier != null ? ` (${multiplier}×)` : ''}`
+  }
+
+  if (type === 'chatty_colocation') {
+    const src = scenario.sourceServiceId as string | undefined
+    const tgt = scenario.serviceId as string | undefined
+    return `Chatty: ${src ?? 'unknown'} → ${tgt ?? 'unknown'}`
+  }
+
+  if (type === 'network_cut') {
+    const src = scenario.sourceServiceId as string | undefined
+    const tgt = scenario.serviceId as string | undefined
+    return `Network Cut: ${src ?? 'unknown'} → ${tgt ?? 'unknown'}`
+  }
+
   return `${type}: ${(scenario.serviceId as string) ?? 'unknown'}`
 }
 
@@ -88,6 +106,21 @@ function getTypeBadge(type: string) {
       label: 'Scale',
       icon: <TrendingUp className="h-3 w-3" />,
       cls: 'bg-blue-500/12 text-blue-400 border-blue-500/35',
+    },
+    traffic_spike: {
+      label: 'Traffic Spike',
+      icon: <TrendingUp className="h-3 w-3" />,
+      cls: 'bg-amber-500/12 text-amber-400 border-amber-500/35',
+    },
+    chatty_colocation: {
+      label: 'Chatty',
+      icon: <Layers className="h-3 w-3" />,
+      cls: 'bg-purple-500/12 text-purple-400 border-purple-500/35',
+    },
+    network_cut: {
+      label: 'Network Cut',
+      icon: <Zap className="h-3 w-3" />,
+      cls: 'bg-orange-500/12 text-orange-400 border-orange-500/35',
     },
   }
   const c = cfg[type] ?? { label: type, icon: <Database className="h-3 w-3" />, cls: 'bg-[var(--surface-soft)] text-[var(--text-secondary)] border-[var(--border)]' }
@@ -303,6 +336,9 @@ export default function History() {
               <option value="failure">Failure</option>
               <option value="scaling">Scaling</option>
               <option value="scale">Scale</option>
+              <option value="traffic_spike">Traffic Spike</option>
+              <option value="chatty_colocation">Chatty Colocation</option>
+              <option value="network_cut">Network Cut</option>
             </Select>
           </div>
 

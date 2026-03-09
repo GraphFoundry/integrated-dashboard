@@ -25,6 +25,7 @@ import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
 import InfoHint from '@/components/common/InfoHint'
 import {
+  cn,
   loadingCardClass,
   pageContainerClass,
   tableBodyRowClass,
@@ -99,7 +100,9 @@ function statusBadge(status?: string) {
   }
   const className = styles[status ?? 'normal'] ?? styles.normal
   const label = labels[status ?? 'normal'] ?? labels.normal
-  return <span className={`rounded border px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+  return (
+    <span className={`rounded border px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+  )
 }
 
 function isServiceAdditionResult(result: SimulationResult): result is ServiceAdditionResponse {
@@ -185,7 +188,8 @@ function deriveHealthScore(
   if (context.nodes.length === 0) return 100
 
   const availabilityPct =
-    context.nodes.reduce((acc, node) => acc + (node.availability ?? 1) * 100, 0) / context.nodes.length
+    context.nodes.reduce((acc, node) => acc + (node.availability ?? 1) * 100, 0) /
+    context.nodes.length
 
   // Consider worst metrics across ALL edges, not just the hottest
   let worstP95 = 0
@@ -204,10 +208,14 @@ function deriveHealthScore(
   // Dependency fan-out: more edges with higher aggregate traffic = more risk exposure
   const complexityPenalty = Math.min(10, aggregatedEdges.length * 0.5 + totalRate / 50)
 
-  return Math.round(clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty - complexityPenalty, 0, 100))
+  return Math.round(
+    clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty - complexityPenalty, 0, 100)
+  )
 }
 
-function formatPredictiveBottleneck(payload: PredictiveCurrentActionResponse | null): string | null {
+function formatPredictiveBottleneck(
+  payload: PredictiveCurrentActionResponse | null
+): string | null {
   const bottleneck = payload?.primaryBottleneck
   if (!bottleneck) return null
 
@@ -396,13 +404,23 @@ function simplifyRecommendation(text: string): string {
   s = s.replace(/Verify resource quotas and HPA limits before applying\.\s*/gi, '')
   s = s.replace(/Review snapshot-derived impacted paths[^.]*\.\s*/gi, '')
   s = s.replace(/Confirm with live cluster state before applying changes\.\s*/gi, '')
-  s = s.replace(/Monitor latency and error rates after applying; revert if degradation exceeds thresholds\.\s*/gi, '')
-  s = s.replace(/Consider staged scale-down with live monitoring of error rates and latency\.\s*/gi, '')
+  s = s.replace(
+    /Monitor latency and error rates after applying; revert if degradation exceeds thresholds\.\s*/gi,
+    ''
+  )
+  s = s.replace(
+    /Consider staged scale-down with live monitoring of error rates and latency\.\s*/gi,
+    ''
+  )
 
   // Replace technical terms with plain language
   s = s.replace(/\bRPS\b/g, 'requests per second')
   s = s.replace(/\bHPA\b/g, 'auto-scaling')
-  s = s.replace(/\bpods?\b/gi, (m) => m.toLowerCase().startsWith('P') ? 'Instance' + (m.length > 3 ? 's' : '') : 'instance' + (m.length > 3 ? 's' : ''))
+  s = s.replace(/\bpods?\b/gi, (m) =>
+    m.toLowerCase().startsWith('P')
+      ? 'Instance' + (m.length > 3 ? 's' : '')
+      : 'instance' + (m.length > 3 ? 's' : '')
+  )
   s = s.replace(/\bcircuit breakers?\b/gi, 'automatic safeguards')
   s = s.replace(/\bfailover\b/gi, 'backup routing')
   s = s.replace(/\bretry policies\b/gi, 'automatic retries')
@@ -430,15 +448,23 @@ function simplifyRecommendation(text: string): string {
   return s
 }
 
-function getSimulationErrorDegradedMode(errorPayload: SimulationErrorResponseDto): ResolvedDegradedMode | undefined {
+function getSimulationErrorDegradedMode(
+  errorPayload: SimulationErrorResponseDto
+): ResolvedDegradedMode | undefined {
   const degradedMode = errorPayload['degradedMode']
-  if (degradedMode === 'INFLUX_EMPTY' || degradedMode === 'INFLUX_SPARSE' || degradedMode === 'INFLUX_ERROR') {
+  if (
+    degradedMode === 'INFLUX_EMPTY' ||
+    degradedMode === 'INFLUX_SPARSE' ||
+    degradedMode === 'INFLUX_ERROR'
+  ) {
     return degradedMode
   }
   return undefined
 }
 
-function getSimulationErrorDegradedReason(errorPayload: SimulationErrorResponseDto): string | undefined {
+function getSimulationErrorDegradedReason(
+  errorPayload: SimulationErrorResponseDto
+): string | undefined {
   const degradedModeReason = errorPayload['degradedModeReason']
   if (typeof degradedModeReason === 'string' && degradedModeReason.trim()) {
     return degradedModeReason.trim()
@@ -462,42 +488,59 @@ function compareSimulationOutputs(
   if (original.scenarioType !== replay.scenarioType) differingFields.push('scenarioType')
   if (original.evidenceMode !== replay.evidenceMode) differingFields.push('evidenceMode')
   if (original.confidenceLevel !== replay.confidenceLevel) differingFields.push('confidenceLevel')
-  if ((original.degradedMode ?? '') !== (replay.degradedMode ?? '')) differingFields.push('degradedMode')
-  if (original.recommendation.action !== replay.recommendation.action) differingFields.push('recommendation.action')
-  if (original.recommendation.explanation !== replay.recommendation.explanation) differingFields.push('recommendation.explanation')
+  if ((original.degradedMode ?? '') !== (replay.degradedMode ?? ''))
+    differingFields.push('degradedMode')
+  if (original.recommendation.action !== replay.recommendation.action)
+    differingFields.push('recommendation.action')
+  if (original.recommendation.explanation !== replay.recommendation.explanation)
+    differingFields.push('recommendation.explanation')
 
-  const sortedOrigBAVs = [...original.beforeAfterValues].sort((a, b) => a.fieldRef.localeCompare(b.fieldRef))
-  const sortedReplayBAVs = [...replay.beforeAfterValues].sort((a, b) => a.fieldRef.localeCompare(b.fieldRef))
+  const sortedOrigBAVs = [...(original.beforeAfterValues ?? [])].sort((a, b) =>
+    a.fieldRef.localeCompare(b.fieldRef)
+  )
+  const sortedReplayBAVs = [...(replay.beforeAfterValues ?? [])].sort((a, b) =>
+    a.fieldRef.localeCompare(b.fieldRef)
+  )
   if (sortedOrigBAVs.length !== sortedReplayBAVs.length) {
     differingFields.push('beforeAfterValues.length')
   } else {
     sortedOrigBAVs.forEach((origBav, i) => {
       const replayBav = sortedReplayBAVs[i]
-      if (origBav.fieldRef !== replayBav.fieldRef) differingFields.push(`beforeAfterValues[${i}].fieldRef`)
-      if (origBav.beforeValue !== replayBav.beforeValue) differingFields.push(`beforeAfterValues[${i}].beforeValue`)
-      if (origBav.afterValue !== replayBav.afterValue) differingFields.push(`beforeAfterValues[${i}].afterValue`)
-      if (origBav.deltaValue !== replayBav.deltaValue) differingFields.push(`beforeAfterValues[${i}].deltaValue`)
+      if (origBav.fieldRef !== replayBav.fieldRef)
+        differingFields.push(`beforeAfterValues[${i}].fieldRef`)
+      if (origBav.beforeValue !== replayBav.beforeValue)
+        differingFields.push(`beforeAfterValues[${i}].beforeValue`)
+      if (origBav.afterValue !== replayBav.afterValue)
+        differingFields.push(`beforeAfterValues[${i}].afterValue`)
+      if (origBav.deltaValue !== replayBav.deltaValue)
+        differingFields.push(`beforeAfterValues[${i}].deltaValue`)
     })
   }
 
-  const sortedOrigSvcs = [...original.impactedServices].sort((a, b) => a.serviceId.localeCompare(b.serviceId))
-  const sortedReplaySvcs = [...replay.impactedServices].sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+  const sortedOrigSvcs = [...(original.impactedServices ?? [])].sort((a, b) =>
+    a.serviceId.localeCompare(b.serviceId)
+  )
+  const sortedReplaySvcs = [...(replay.impactedServices ?? [])].sort((a, b) =>
+    a.serviceId.localeCompare(b.serviceId)
+  )
   if (sortedOrigSvcs.length !== sortedReplaySvcs.length) {
     differingFields.push('impactedServices.length')
   } else {
     sortedOrigSvcs.forEach((origSvc, i) => {
       const replaySvc = sortedReplaySvcs[i]
-      if (origSvc.serviceId !== replaySvc.serviceId) differingFields.push(`impactedServices[${i}].serviceId`)
+      if (origSvc.serviceId !== replaySvc.serviceId)
+        differingFields.push(`impactedServices[${i}].serviceId`)
       if (origSvc.role !== replaySvc.role) differingFields.push(`impactedServices[${i}].role`)
     })
   }
 
-  const origPaths = [...original.impactedPaths].map((p) => p.path.join('->')).sort()
-  const replayPaths = [...replay.impactedPaths].map((p) => p.path.join('->')).sort()
-  if (JSON.stringify(origPaths) !== JSON.stringify(replayPaths)) differingFields.push('impactedPaths')
+  const origPaths = [...(original.impactedPaths ?? [])].map((p) => p.path.join('->')).sort()
+  const replayPaths = [...(replay.impactedPaths ?? [])].map((p) => p.path.join('->')).sort()
+  if (JSON.stringify(origPaths) !== JSON.stringify(replayPaths))
+    differingFields.push('impactedPaths')
 
-  const sortedOrigAssumptions = [...original.assumptions].sort((a, b) => a.key.localeCompare(b.key))
-  const sortedReplayAssumptions = [...replay.assumptions].sort((a, b) => a.key.localeCompare(b.key))
+  const sortedOrigAssumptions = [...(original.assumptions ?? [])].sort((a, b) => a.key.localeCompare(b.key))
+  const sortedReplayAssumptions = [...(replay.assumptions ?? [])].sort((a, b) => a.key.localeCompare(b.key))
   if (sortedOrigAssumptions.length !== sortedReplayAssumptions.length) {
     differingFields.push('assumptions.length')
   } else {
@@ -547,7 +590,8 @@ export default function Simulations() {
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [selectedDepth, setSelectedDepth] = useState(1)
   const [contextData, setContextData] = useState<SimulationContextResponse | null>(null)
-  const [contextPrediction, setContextPrediction] = useState<PredictiveCurrentActionResponse | null>(null)
+  const [contextPrediction, setContextPrediction] =
+    useState<PredictiveCurrentActionResponse | null>(null)
   const [contextLoading, setContextLoading] = useState(false)
   const [contextError, setContextError] = useState<string | null>(null)
 
@@ -645,6 +689,7 @@ export default function Simulations() {
       try {
         const addResult = await simulateServiceAddition({
           serviceName: scenario.serviceName,
+          targetNodeName: scenario.targetNodeName,
           minCpuCores: scenario.minCpuCores,
           minRamMB: scenario.minRamMB,
           replicas: scenario.replicas,
@@ -720,9 +765,12 @@ export default function Simulations() {
         <div className="flex items-start gap-3 rounded-xl border-2 border-emerald-500/70 bg-emerald-500/15 p-4">
           <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
           <div>
-            <p className="text-sm font-bold text-[var(--text-primary)]">Deterministic match confirmed</p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">
+              Deterministic match confirmed
+            </p>
             <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Replay with the same snapshot produced identical output fields. Simulation is deterministic.
+              Replay with the same snapshot produced identical output fields. Simulation is
+              deterministic.
             </p>
           </div>
         </div>
@@ -733,9 +781,12 @@ export default function Simulations() {
         <div className="flex items-start gap-3">
           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-[var(--text-primary)]">Deterministic mismatch detected</p>
+            <p className="text-sm font-bold text-[var(--text-primary)]">
+              Deterministic mismatch detected
+            </p>
             <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Replay returned different values for the following fields. Evidence details are preserved below.
+              Replay returned different values for the following fields. Evidence details are
+              preserved below.
             </p>
             <div className="mt-3 flex flex-wrap gap-1.5">
               {comparison.differingFields.map((field) => (
@@ -772,8 +823,9 @@ export default function Simulations() {
         <div className="text-xs text-[var(--text-muted)]">
           {normalized ? (
             <>
-              Interpreted request: <span className="font-mono">{normalized.serviceId}</span> (lookup key:{' '}
-              <span className="font-mono">{normalized.graphLookupKey}</span>, depth {normalized.depthUsed})
+              Interpreted request: <span className="font-mono">{normalized.serviceId}</span> (lookup
+              key: <span className="font-mono">{normalized.graphLookupKey}</span>, depth{' '}
+              {normalized.depthUsed})
             </>
           ) : (
             'Run metadata unavailable'
@@ -814,7 +866,12 @@ export default function Simulations() {
     const hottestEdge = aggregatedEdges[0] ?? null
     const derivedScore = deriveHealthScore(contextData, aggregatedEdges)
     const healthScore = Math.round(derivedScore)
-    const healthLabel = healthScore >= 85 ? 'Stable' : healthScore >= 70 ? 'Watch closely' : 'Immediate action required'
+    const healthLabel =
+      healthScore >= 85
+        ? 'Stable'
+        : healthScore >= 70
+          ? 'Watch closely'
+          : 'Immediate action required'
     const healthTone =
       healthScore >= 85
         ? 'border-emerald-400/45 bg-emerald-500/20 text-[var(--text-primary)]'
@@ -824,7 +881,9 @@ export default function Simulations() {
 
     const bottleneckLocation =
       formatPredictiveBottleneck(contextPrediction) ??
-      (hottestEdge ? `${shortServiceName(hottestEdge.source)} -> ${shortServiceName(hottestEdge.target)}` : 'No active hotspot')
+      (hottestEdge
+        ? `${shortServiceName(hottestEdge.source)} -> ${shortServiceName(hottestEdge.target)}`
+        : 'No active hotspot')
 
     const timeToImpactLabel = deriveTimeToImpact(contextPrediction, hottestEdge)
     const recommendationTitle =
@@ -863,7 +922,10 @@ export default function Simulations() {
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className={`rounded-xl border px-4 py-3 ${healthTone}`}>
-                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">Health Score <InfoHint text="A single number (0–100) showing how healthy the selected service and its neighbors are right now. 100 = everything is working perfectly. Below 70 = something needs attention soon." /></div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">
+                  Health Score{' '}
+                  <InfoHint text="A single number (0–100) showing how healthy the selected service and its neighbors are right now. 100 = everything is working perfectly. Below 70 = something needs attention soon." />
+                </div>
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-3xl font-black leading-none">{healthScore}</span>
                   <span className="pb-0.5 text-sm font-semibold">/100</span>
@@ -873,7 +935,8 @@ export default function Simulations() {
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
                 <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Primary Bottleneck <InfoHint text="The service or connection that is currently under the most stress. Think of it like the weakest link in a chain — if something breaks, it will likely break here first." />
+                  Primary Bottleneck{' '}
+                  <InfoHint text="The service or connection that is currently under the most stress. Think of it like the weakest link in a chain — if something breaks, it will likely break here first." />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -886,13 +949,16 @@ export default function Simulations() {
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
                 <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Time To Impact <InfoHint text="How long before real users might start noticing problems like slow loading or errors. 'Stable' means no problems expected soon. A short time (like < 2 min) means action may be needed right away." />
+                  Time To Impact{' '}
+                  <InfoHint text="How long before real users might start noticing problems like slow loading or errors. 'Stable' means no problems expected soon. A short time (like < 2 min) means action may be needed right away." />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-2xl font-black">
                   <Clock3 className="h-5 w-5 text-cyan-600" />
                   <span>{timeToImpactLabel}</span>
                 </div>
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">Estimated time before user-facing instability.</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Estimated time before user-facing instability.
+                </p>
               </div>
             </div>
           </div>
@@ -900,13 +966,24 @@ export default function Simulations() {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Services In Scope <InfoHint text="The total number of services (small programs) that are connected to your selected service. These are the services that could be affected if something goes wrong." /></div>
-            <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">{contextData.nodes.length}</div>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">Neighborhood around {contextData.target.name ?? shortServiceName(contextData.target.serviceId)}.</p>
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Services In Scope{' '}
+              <InfoHint text="The total number of services (small programs) that are connected to your selected service. These are the services that could be affected if something goes wrong." />
+            </div>
+            <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
+              {contextData.nodes.length}
+            </div>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              Neighborhood around{' '}
+              {contextData.target.name ?? shortServiceName(contextData.target.serviceId)}.
+            </p>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Busiest Link <InfoHint text="The connection between two services that is handling the most traffic right now. The number shows requests per second (how many times one service talks to another every second). Higher = busier." /></div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Busiest Link{' '}
+              <InfoHint text="The connection between two services that is handling the most traffic right now. The number shows requests per second (how many times one service talks to another every second). Higher = busier." />
+            </div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
               {hottestEdge ? formatRps(hottestEdge.peakRate) : formatRps(0)}
             </div>
@@ -919,7 +996,8 @@ export default function Simulations() {
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
             <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Worst Slow-End Latency <InfoHint text="The slowest response time seen among the connected services (measured in milliseconds). This shows how long the slowest 5% of requests are taking. If this number is high, some users are experiencing noticeable delays." />
+              Worst Slow-End Latency{' '}
+              <InfoHint text="The slowest response time seen among the connected services (measured in milliseconds). This shows how long the slowest 5% of requests are taking. If this number is high, some users are experiencing noticeable delays." />
             </div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
               {hottestEdge ? formatMs(hottestEdge.peakP95) : formatMs(0)}
@@ -933,8 +1011,13 @@ export default function Simulations() {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-secondary)]">Recommended Operator Action <InfoHint text="A suggested next step based on what the system is seeing right now. Following this advice can help prevent problems before users notice them." /></h3>
-              <p className="mt-1 text-base font-bold text-[var(--text-primary)]">{recommendationTitle}</p>
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-secondary)]">
+                Recommended Operator Action{' '}
+                <InfoHint text="A suggested next step based on what the system is seeing right now. Following this advice can help prevent problems before users notice them." />
+              </h3>
+              <p className="mt-1 text-base font-bold text-[var(--text-primary)]">
+                {recommendationTitle}
+              </p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{recommendationMessage}</p>
             </div>
             <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/50 bg-cyan-500/15 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-700">
@@ -980,15 +1063,22 @@ export default function Simulations() {
 
   const renderContractResults = (runResult: SimulationRunResponseDto) => {
     const hasDegradedMode = Boolean(runResult.degradedMode)
-    const degradedModeReason = getDegradedModeReason(runResult.degradedMode, runResult.degradedModeReason)
+    const degradedModeReason = getDegradedModeReason(
+      runResult.degradedMode,
+      runResult.degradedModeReason
+    )
 
     return (
       <div className="space-y-6">
-        <Section title="Simulation Evidence Summary" icon={Activity}
+        <Section
+          title="Simulation Evidence Summary"
+          icon={Activity}
           actions={
             <button
               type="button"
-              onClick={() => { void handleReplay() }}
+              onClick={() => {
+                void handleReplay()
+              }}
               disabled={replayLoading}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-panel)] disabled:opacity-50"
             >
@@ -1012,15 +1102,14 @@ export default function Simulations() {
           )}
 
           {replayComparison && (
-            <div className="mb-4">
-              {renderReplayComparison(replayComparison)}
-            </div>
+            <div className="mb-4">{renderReplayComparison(replayComparison)}</div>
           )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
               <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Simulation Run Time <InfoHint text="The exact date and time when this simulation was run. You can use this to compare different simulation runs." />
+                Simulation Run Time{' '}
+                <InfoHint text="The exact date and time when this simulation was run. You can use this to compare different simulation runs." />
               </h3>
               <p className="text-sm text-[var(--text-primary)]">
                 {new Date(runResult.snapshotTimestamp).toLocaleString()}
@@ -1029,30 +1118,39 @@ export default function Simulations() {
 
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
               <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Outcome <InfoHint text="Whether the simulation finished successfully and found meaningful results, or if it ran into issues. 'COMPLETED' means the results below are ready to review." />
+                Outcome{' '}
+                <InfoHint text="Whether the simulation finished successfully and found meaningful results, or if it ran into issues. 'COMPLETED' means the results below are ready to review." />
               </h3>
-              <p className="text-sm font-semibold text-[var(--text-primary)]">{runResult.resultStatus}</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                {runResult.resultStatus}
+              </p>
             </div>
 
             <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
               <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                Confidence <InfoHint text="How sure the system is about these results. 'HIGH' means the data strongly supports the conclusion. 'LOW' means treat the results as a rough estimate." />
+                Confidence{' '}
+                <InfoHint text="How sure the system is about these results. 'HIGH' means the data strongly supports the conclusion. 'LOW' means treat the results as a rough estimate." />
               </h3>
-              <p className="text-sm font-semibold text-[var(--text-primary)]">{runResult.confidenceLevel}</p>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                {runResult.confidenceLevel}
+              </p>
             </div>
           </div>
         </Section>
 
         <Section title="Services That Would Be Affected" icon={Network}>
-          {runResult.impactedServices.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No services would be affected in this scenario.</p>
+          {(runResult.impactedServices ?? []).length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              No services would be affected in this scenario.
+            </p>
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-[var(--text-secondary)]">
-                If this scenario happened, these services would be affected. Each card shows how the service is involved.
+                If this scenario happened, these services would be affected. Each card shows how the
+                service is involved.
               </p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {runResult.impactedServices.map((service) => {
+                {(runResult.impactedServices ?? []).map((service) => {
                   const role = service.role?.toLowerCase() ?? ''
                   const isTarget = role === 'target'
                   const isInbound = role === 'caller' || role.includes('source')
@@ -1069,12 +1167,21 @@ export default function Simulations() {
                       ? 'border-amber-500/35 bg-amber-500/15 text-amber-700'
                       : 'border-sky-500/35 bg-sky-500/15 text-sky-700'
                   return (
-                    <div key={`${service.serviceId}:${service.role}`} className="flex flex-col items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-3 text-center">
-                      <span className={`inline-flex h-12 w-12 items-center justify-center rounded-full border ${roleIconClass}`}>
+                    <div
+                      key={`${service.serviceId}:${service.role}`}
+                      className="flex flex-col items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-3 text-center"
+                    >
+                      <span
+                        className={`inline-flex h-12 w-12 items-center justify-center rounded-full border ${roleIconClass}`}
+                      >
                         <RoleIcon className="h-6 w-6" />
                       </span>
-                      <p className="text-sm font-semibold text-[var(--text-primary)]">{shortServiceName(service.name || service.serviceId)}</p>
-                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">
+                        {shortServiceName(service.name || service.serviceId)}
+                      </p>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}
+                      >
                         {roleLabel}
                       </span>
                     </div>
@@ -1103,15 +1210,17 @@ export default function Simulations() {
         </Section>
 
         <Section title="What Would Change" icon={TrendingUp}>
-          {runResult.beforeAfterValues.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No measurable changes detected for this scenario.</p>
+          {(runResult.beforeAfterValues ?? []).length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">
+              No measurable changes detected for this scenario.
+            </p>
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-[var(--text-secondary)]">
                 Here's what would get better or worse if this scenario actually happened.
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {runResult.beforeAfterValues.map((value) => {
+                {(runResult.beforeAfterValues ?? []).map((value) => {
                   const delta = value.deltaValue
                   const isWorse = delta != null && delta > 0
                   const isBetter = delta != null && delta < 0
@@ -1134,7 +1243,10 @@ export default function Simulations() {
                       : 'font-semibold text-[var(--text-primary)]'
                   const infoText = `Technical field: "${value.fieldRef}". Before: ${beforeFormatted}. After: ${afterFormatted}. Change: ${formatNumberWithUnit(value.deltaValue, value.unit)}.`
                   return (
-                    <div key={value.traceRef} className={`rounded-xl border ${borderClass} bg-[var(--surface-solid)] p-4`}>
+                    <div
+                      key={value.traceRef}
+                      className={`rounded-xl border ${borderClass} bg-[var(--surface-solid)] p-4`}
+                    >
                       <div className="mb-2 flex items-start justify-between gap-2">
                         <p className="text-sm font-semibold text-[var(--text-primary)]">
                           {value.description || value.fieldRef}
@@ -1160,7 +1272,9 @@ export default function Simulations() {
                       </div>
                       <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
                         {'Was '}
-                        <span className="font-semibold text-[var(--text-primary)]">{beforeFormatted}</span>
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {beforeFormatted}
+                        </span>
                         {', and would become '}
                         <span className={afterValueClass}>{afterFormatted}</span>
                         {'. '}
@@ -1182,10 +1296,14 @@ export default function Simulations() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-[var(--text-primary)]">Suggested Next Step</h3>
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">
+                    Suggested Next Step
+                  </h3>
                   <InfoHint text="This is what we suggest you do based on the simulation results. Following this advice can help prevent or reduce the damage if this scenario actually happens." />
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{simplifyRecommendation(runResult.recommendation.explanation)}</p>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">
+                  {simplifyRecommendation(runResult.recommendation.explanation)}
+                </p>
               </div>
             </div>
           </div>
@@ -1195,7 +1313,10 @@ export default function Simulations() {
   }
 
   const renderDeferredOutcome = (outcome: DeferredUnsupportedOutcome) => {
-    const degradedModeReason = getDegradedModeReason(outcome.degradedMode, outcome.degradedModeReason)
+    const degradedModeReason = getDegradedModeReason(
+      outcome.degradedMode,
+      outcome.degradedModeReason
+    )
     return (
       <div className="space-y-6">
         <Section title="Simulation Evidence Summary" icon={Activity}>
@@ -1215,7 +1336,9 @@ export default function Simulations() {
 
           <div className="rounded-lg border border-rose-500/50 bg-rose-500/12 p-4">
             <p className="text-sm font-semibold text-[var(--text-primary)]">
-              {outcome.resultStatus === 'DEFERRED' ? 'Simulation was postponed' : 'Scenario not supported'}
+              {outcome.resultStatus === 'DEFERRED'
+                ? 'Simulation was postponed'
+                : 'Scenario not supported'}
             </p>
             <p className="mt-1 text-sm text-[var(--text-secondary)]">{outcome.reason}</p>
           </div>
@@ -1244,7 +1367,10 @@ export default function Simulations() {
           <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
             <p className="text-sm text-[var(--text-secondary)]">{failureResult.explanation}</p>
             <div className="mt-2 text-xs text-[var(--text-muted)]">
-              Lost traffic estimate: <span className="font-semibold text-[var(--text-primary)]">{formatRps(failureResult.totalLostTrafficRps ?? 0)}</span>
+              Lost traffic estimate:{' '}
+              <span className="font-semibold text-[var(--text-primary)]">
+                {formatRps(failureResult.totalLostTrafficRps ?? 0)}
+              </span>
             </div>
           </div>
           {renderRunMeta(failureResult)}
@@ -1276,16 +1402,22 @@ export default function Simulations() {
           icon={Network}
         >
           <div className="mb-3 text-xs text-[var(--text-muted)]">
-            Status legend: {statusBadge('target_failed')} {statusBadge('broken')} {statusBadge('unreachable')} {statusBadge('normal')}
+            Status legend: {statusBadge('target_failed')} {statusBadge('broken')}{' '}
+            {statusBadge('unreachable')} {statusBadge('normal')}
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3">
               <h3 className="mb-2 text-sm font-semibold text-[var(--text-secondary)]">Services</h3>
               <div className="max-h-72 space-y-2 overflow-auto pr-1">
                 {impactNodes.map((node) => (
-                  <div key={node.serviceId} className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-2">
+                  <div
+                    key={node.serviceId}
+                    className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-2"
+                  >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-[var(--text-primary)]">{node.name}</span>
+                      <span className="text-sm font-medium text-[var(--text-primary)]">
+                        {node.name}
+                      </span>
                       {statusBadge(node.status)}
                     </div>
                     <div className="text-xs text-[var(--text-muted)]">{node.serviceId}</div>
@@ -1295,16 +1427,22 @@ export default function Simulations() {
             </div>
 
             <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-3">
-              <h3 className="mb-2 text-sm font-semibold text-[var(--text-secondary)]">Impacted Edges</h3>
+              <h3 className="mb-2 text-sm font-semibold text-[var(--text-secondary)]">
+                Impacted Edges
+              </h3>
               <div className="max-h-72 space-y-2 overflow-auto pr-1">
                 {impactEdges.map((edge, index) => (
-                  <div key={`${edge.source}-${edge.target}-${index}`} className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-2 text-xs">
+                  <div
+                    key={`${edge.source}-${edge.target}-${index}`}
+                    className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-2 text-xs"
+                  >
                     <div className="mb-1 font-mono text-[var(--text-primary)]">
                       {edge.source} → {edge.target}
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[var(--text-secondary)]">
-                        {formatRps(edge.rate ?? 0)} req/s | slow-end response time {formatMs(edge.p95 ?? 0)}
+                        {formatRps(edge.rate ?? 0)} req/s | slow-end response time{' '}
+                        {formatMs(edge.p95 ?? 0)}
                       </span>
                       {statusBadge(edge.status)}
                     </div>
@@ -1317,7 +1455,9 @@ export default function Simulations() {
 
         <Section title="Critical Paths At Risk" icon={Activity}>
           {criticalPaths.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No critical paths returned for this run.</p>
+            <p className="text-sm text-[var(--text-muted)]">
+              No critical paths returned for this run.
+            </p>
           ) : (
             <div className={tableShellClass}>
               <table className="w-full">
@@ -1385,7 +1525,10 @@ export default function Simulations() {
           {scaleResult.warnings && scaleResult.warnings.length > 0 && (
             <div className="mt-4 space-y-2">
               {scaleResult.warnings.map((warning, index) => (
-                <p key={`scale-warning-${index}`} className="rounded border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-[var(--text-primary)]">
+                <p
+                  key={`scale-warning-${index}`}
+                  className="rounded border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-[var(--text-primary)]"
+                >
                   {warning}
                 </p>
               ))}
@@ -1420,7 +1563,9 @@ export default function Simulations() {
                       <td className={tableCellClass}>{formatMs(path.beforeMs ?? 0)}</td>
                       <td className={tableCellClass}>{formatMs(path.afterMs ?? 0)}</td>
                       <td className={tableCellClass}>
-                        <span className={(path.deltaMs ?? 0) < 0 ? 'text-emerald-700' : 'text-rose-700'}>
+                        <span
+                          className={(path.deltaMs ?? 0) < 0 ? 'text-emerald-700' : 'text-rose-700'}
+                        >
                           {(path.deltaMs ?? 0) >= 0 ? '+' : ''}
                           {formatMs(path.deltaMs ?? 0)}
                         </span>
@@ -1458,8 +1603,13 @@ export default function Simulations() {
               </thead>
               <tbody>
                 {affectedCallers.map((caller, index) => (
-                  <tr key={`${caller.serviceId ?? 'caller'}-${index}`} className={tableBodyRowClass}>
-                    <td className={tableCellClass}>{caller.serviceId ?? caller.name ?? 'unknown'}</td>
+                  <tr
+                    key={`${caller.serviceId ?? 'caller'}-${index}`}
+                    className={tableBodyRowClass}
+                  >
+                    <td className={tableCellClass}>
+                      {caller.serviceId ?? caller.name ?? 'unknown'}
+                    </td>
                     <td className={tableCellClass}>{caller.hopDistance ?? 'n/a'}</td>
                     <td className={tableCellClass}>{formatMs(caller.deltaMs ?? 0)}</td>
                     <td className={tableCellClass}>{formatMs(caller.endToEndDeltaMs ?? 0)}</td>
@@ -1481,8 +1631,50 @@ export default function Simulations() {
   }
 
   const renderServiceAdditionResults = (additionResult: ServiceAdditionResponse) => {
-    const canAdd = additionResult.suitableNodes.some((n) => n.suitable)
     const risk = additionResult.riskAnalysis.dependencyRisk
+    const aggregate = additionResult.aggregateResources
+    const preferredNodeName = additionResult.selectedNodeName?.trim() || ''
+    const recommendedNodeName = additionResult.recommendedNodeName?.trim() || ''
+    const linkChecks = additionResult.dependencyAnalysis.linkChecks ?? []
+    const serviceChecks = additionResult.dependencyAnalysis.serviceChecks ?? []
+    const depChain = additionResult.dependencyAnalysis.chain ?? []
+    const recommendations = additionResult.recommendations ?? []
+    const suitableNodes = additionResult.suitableNodes ?? []
+    const observedLinkCount = linkChecks.filter(
+      (link) => link.observed
+    ).length
+    const aggregateLabel = aggregate.scope === 'machine' ? 'Machine Summary' : 'Cluster Summary'
+    const heroConfig = additionResult.success
+      ? additionResult.selectedNodeSuitable
+        ? {
+            icon: CheckCircle,
+            border: 'border-emerald-500/50',
+            bg: 'bg-emerald-500/10',
+            text: 'text-emerald-700',
+            title: 'Selected node can host this service',
+            sub: preferredNodeName
+              ? `Preferred node ${preferredNodeName} is viable for the requested service resources.`
+              : 'The cluster can host this service with the current request.',
+          }
+        : {
+            icon: AlertTriangle,
+            border: 'border-amber-500/50',
+            bg: 'bg-amber-500/10',
+            text: 'text-amber-700',
+            title: 'Cluster can host it, but not on the selected node',
+            sub:
+              preferredNodeName && recommendedNodeName
+                ? `Preferred node ${preferredNodeName} is tight. ${recommendedNodeName} is the safer fallback.`
+                : 'The cluster found a safer placement than the currently selected node.',
+          }
+      : {
+          icon: XCircle,
+          border: 'border-rose-500/50',
+          bg: 'bg-rose-500/10',
+          text: 'text-rose-700',
+          title: 'Current node-level capacity is not enough',
+          sub: `The cluster can place up to ${additionResult.totalCapacityPods} replica(s) with the current request.`,
+        }
     const riskConfig = {
       low: {
         label: 'Low risk',
@@ -1506,23 +1698,15 @@ export default function Simulations() {
         text: 'text-rose-700',
       },
     }[risk]
+    const HeroIcon = heroConfig.icon
 
     return (
       <div className="space-y-4">
-        {/* Hero card */}
-        <div
-          className={`rounded-xl border-2 p-5 ${canAdd ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-rose-500/50 bg-rose-500/10'}`}
-        >
+        <div className={`rounded-xl border-2 p-5 ${heroConfig.border} ${heroConfig.bg}`}>
           <div className="flex items-center gap-3">
-            {canAdd ? (
-              <CheckCircle className="h-8 w-8 shrink-0 text-emerald-600" />
-            ) : (
-              <XCircle className="h-8 w-8 shrink-0 text-rose-600" />
-            )}
+            <HeroIcon className={`h-8 w-8 shrink-0 ${heroConfig.text}`} />
             <div>
-              <p className={`text-lg font-bold ${canAdd ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {canAdd ? 'Yes — this service can be added' : 'No — not enough resources right now'}
-              </p>
+              <p className={`text-lg font-bold ${heroConfig.text}`}>{heroConfig.title}</p>
               <p className="text-sm text-[var(--text-secondary)]">
                 Adding{' '}
                 <span className="font-semibold text-[var(--text-primary)]">
@@ -1530,21 +1714,71 @@ export default function Simulations() {
                 </span>{' '}
                 to your cluster
               </p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">{heroConfig.sub}</p>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">{additionResult.explanation}</p>
             </div>
           </div>
         </div>
 
-        {/* Node grid */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{aggregateLabel}</p>
+              <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                informational only
+              </span>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[var(--text-secondary)]">Nodes</span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {aggregate.nodeCount}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[var(--text-secondary)]">CPU</span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {aggregate.availableCpu.toFixed(2)} free of {aggregate.totalCpu.toFixed(2)} cores
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-[var(--text-secondary)]">Memory</span>
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {(aggregate.availableRamMB / 1024).toFixed(1)} free of{' '}
+                  {(aggregate.totalRamMB / 1024).toFixed(1)} GB
+                </span>
+              </div>
+            </div>
+            {aggregate.sharedHostResourcesEnabled && (
+              <p className="mt-3 text-xs text-[var(--text-muted)]">
+                Shared-host resource mode is enabled. This summary is shown for context only and
+                does not affect node-level placement.
+              </p>
+            )}
+          </div>
+
+          <div className={`rounded-xl border ${riskConfig.border} ${riskConfig.bg} p-4`}>
+            <p className={`text-sm font-bold ${riskConfig.text}`}>{riskConfig.label}</p>
+            <p className="text-xs text-[var(--text-secondary)]">{riskConfig.sub}</p>
+            {additionResult.riskAnalysis.description && (
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                {additionResult.riskAnalysis.description}
+              </p>
+            )}
+          </div>
+        </div>
+
         <div>
           <p className="mb-2 text-sm font-semibold text-[var(--text-primary)]">Node Availability</p>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            {additionResult.suitableNodes.map((node) => {
+            {suitableNodes.map((node) => {
               const cpuFree = node.availableCpu
               const cpuUsed = node.cpuTotal - cpuFree
               const cpuPct = node.cpuTotal > 0 ? Math.round((cpuUsed / node.cpuTotal) * 100) : 0
               const ramFreeMB = node.availableRam
               const ramUsedMB = node.ramTotalMB - ramFreeMB
-              const ramPct = node.ramTotalMB > 0 ? Math.round((ramUsedMB / node.ramTotalMB) * 100) : 0
+              const ramPct =
+                node.ramTotalMB > 0 ? Math.round((ramUsedMB / node.ramTotalMB) * 100) : 0
               const ramFreeGB = (ramFreeMB / 1024).toFixed(1)
               const ramTotalGB = (node.ramTotalMB / 1024).toFixed(1)
               return (
@@ -1553,18 +1787,36 @@ export default function Simulations() {
                   className={`rounded-xl border p-4 ${node.suitable ? 'border-emerald-500/40 bg-[var(--surface-solid)]' : 'border-rose-500/30 bg-[var(--surface-solid)]'}`}
                 >
                   <div className="mb-3 flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-[var(--text-primary)]">{node.nodeName}</span>
-                    {node.suitable ? (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                        <CheckCircle className="h-3 w-3" /> Ready
+                    <div>
+                      <span className="text-sm font-bold text-[var(--text-primary)]">
+                        {node.nodeName}
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/50 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-                        <XCircle className="h-3 w-3" /> Not enough resources
-                      </span>
-                    )}
+                      <p className="mt-0.5 text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                        Rank #{node.rank}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {node.preferred && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-sky-500/50 bg-sky-500/10 px-2 py-0.5 text-[10px] font-semibold text-sky-700">
+                          Preferred
+                        </span>
+                      )}
+                      {recommendedNodeName && node.nodeName === recommendedNodeName && (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/50 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                          Recommended
+                        </span>
+                      )}
+                      {node.suitable ? (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          <CheckCircle className="h-3 w-3" /> Ready
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/50 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                          <XCircle className="h-3 w-3" /> Not enough resources
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  {/* CPU bar */}
                   <div className="mb-2">
                     <div className="mb-1 flex justify-between text-xs text-[var(--text-secondary)]">
                       <span>CPU</span>
@@ -1582,7 +1834,6 @@ export default function Simulations() {
                       Using {cpuUsed.toFixed(2)} of {node.cpuTotal} cores
                     </p>
                   </div>
-                  {/* RAM bar */}
                   <div>
                     <div className="mb-1 flex justify-between text-xs text-[var(--text-secondary)]">
                       <span>RAM</span>
@@ -1600,6 +1851,25 @@ export default function Simulations() {
                       Using {(ramUsedMB / 1024).toFixed(1)} of {ramTotalGB} GB
                     </p>
                   </div>
+                  <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] p-3">
+                    <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                      Projected After Placement
+                    </p>
+                    <div className="mt-1 space-y-1 text-xs text-[var(--text-secondary)]">
+                      <div className="flex items-start justify-between gap-2">
+                        <span>CPU headroom</span>
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {node.projectedCpuFree.toFixed(2)} cores
+                        </span>
+                      </div>
+                      <div className="flex items-start justify-between gap-2">
+                        <span>Memory headroom</span>
+                        <span className="font-semibold text-[var(--text-primary)]">
+                          {(node.projectedRamFreeMB / 1024).toFixed(1)} GB
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                   {!node.suitable && node.reason && (
                     <p className="mt-2 text-xs font-medium text-rose-700">{node.reason}</p>
                   )}
@@ -1609,14 +1879,136 @@ export default function Simulations() {
           </div>
         </div>
 
-        {/* Risk banner */}
-        <div className={`rounded-xl border ${riskConfig.border} ${riskConfig.bg} p-4`}>
-          <p className={`text-sm font-bold ${riskConfig.text}`}>{riskConfig.label}</p>
-          <p className="text-xs text-[var(--text-secondary)]">{riskConfig.sub}</p>
-          {additionResult.riskAnalysis.description && (
-            <p className="mt-1 text-xs text-[var(--text-muted)]">{additionResult.riskAnalysis.description}</p>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <Network className="h-4 w-4 text-[var(--color-emerald-300)]" />
+            <p className="text-sm font-semibold text-[var(--text-primary)]">Dependency Analysis</p>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)]">
+            {additionResult.dependencyAnalysis.summary}
+          </p>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {depChain.map((service, index) => (
+              <span
+                key={`${service}-${index}`}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1 text-xs text-[var(--text-primary)]"
+              >
+                {service}
+              </span>
+            ))}
+          </div>
+
+          {serviceChecks.length > 0 && (
+            <div className="mt-4 space-y-2">
+              {serviceChecks.map((service) => (
+                <div
+                  key={service.serviceId}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2 text-xs"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-semibold text-[var(--text-primary)]">
+                      {service.serviceId}
+                    </span>
+                    {service.exists ? (
+                      <span className="text-emerald-700">Present</span>
+                    ) : (
+                      <span className="text-rose-700">Missing</span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[var(--text-secondary)]">
+                    {service.availabilityPct !== undefined && (
+                      <span>Availability {service.availabilityPct.toFixed(0)}%</span>
+                    )}
+                    {service.podCount !== undefined && <span>{service.podCount} pods</span>}
+                    {service.onlyHighPressureNodes && (
+                      <span className="text-amber-700">Only high-pressure nodes</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
+
+          <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] p-3">
+            <p className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+              Inter-service telemetry
+            </p>
+            {linkChecks.length === 0 ? (
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                No existing inter-dependency links were required for this chain.
+              </p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {linkChecks.map((link) => (
+                  <div
+                    key={`${link.sourceServiceId}-${link.targetServiceId}`}
+                    className="flex items-start justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] px-3 py-2 text-xs"
+                  >
+                    <div>
+                      <p className="font-semibold text-[var(--text-primary)]">
+                        {link.sourceServiceId} → {link.targetServiceId}
+                      </p>
+                      {link.observed ? (
+                        <p className="mt-1 text-[var(--text-secondary)]">
+                          {link.rps?.toFixed(2) ?? '0.00'} req/s · p95{' '}
+                          {formatOptionalNumber(link.p95)} ms · error{' '}
+                          {link.errorRate !== undefined
+                            ? formatPercent(link.errorRate * 100, 2)
+                            : 'n/a'}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-[var(--text-secondary)]">
+                          No live telemetry observed for this hop.
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className={cn(
+                        'font-semibold',
+                        link.observed ? 'text-emerald-700' : 'text-amber-700'
+                      )}
+                    >
+                      {link.observed ? 'Observed' : 'Unobserved'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {linkChecks.length > 0 && (
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                Observed {observedLinkCount} of{' '}
+                {linkChecks.length} declared inter-service
+                link(s).
+              </p>
+            )}
+          </div>
         </div>
+
+        {recommendations.length > 0 && (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <p className="text-sm font-semibold text-[var(--text-primary)]">Recommendations</p>
+            <div className="mt-3 space-y-2">
+              {recommendations.map((recommendation, index) => (
+                <div
+                  key={`${recommendation.type ?? 'recommendation'}-${index}`}
+                  className="rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs text-[var(--text-primary)]">
+                      {recommendation.description ?? 'No description provided.'}
+                    </p>
+                    {recommendation.priority && (
+                      <span className="text-[10px] uppercase tracking-[0.08em] text-[var(--text-muted)]">
+                        {recommendation.priority}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     )
   }

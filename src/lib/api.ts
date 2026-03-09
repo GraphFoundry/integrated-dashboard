@@ -23,10 +23,7 @@ import type {
   DemoSnapshotsResponse,
   PredictiveCurrentActionResponse,
 } from '@/lib/types'
-import type {
-  SimulationRunRequestDto,
-  SimulationRunResponseDto,
-} from '@/lib/simulationContract'
+import type { SimulationRunRequestDto, SimulationRunResponseDto } from '@/lib/simulationContract'
 import { predictiveApi } from '@/lib/predictiveApiClient'
 import { simulationsApi } from '@/lib/simulationsApiClient'
 
@@ -82,7 +79,9 @@ export function getCachedServices(): DiscoveredService[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed
-      .filter((item): item is DiscoveredService => Boolean(item?.serviceId || (item?.name && item?.namespace)))
+      .filter((item): item is DiscoveredService =>
+        Boolean(item?.serviceId || (item?.name && item?.namespace))
+      )
       .map((service) => normalizeServiceRecord(service))
   } catch {
     return []
@@ -302,7 +301,9 @@ export async function healthCheck(signal?: AbortSignal): Promise<{ status: strin
 export async function getCurrentPredictiveAction(
   signal?: AbortSignal
 ): Promise<PredictiveCurrentActionResponse> {
-  const { data } = await predictiveApi.get<PredictiveCurrentActionResponse>('/actions/current', { signal })
+  const { data } = await predictiveApi.get<PredictiveCurrentActionResponse>('/actions/current', {
+    signal,
+  })
   return data
 }
 
@@ -332,12 +333,19 @@ export async function getDecisionHistory(
   return data
 }
 
-export async function getDecisionById(id: number): Promise<DecisionHistoryResponse['decisions'][number]> {
-  const { data } = await predictiveApi.get<DecisionHistoryResponse['decisions'][number]>(`/decisions/${id}`)
+export async function getDecisionById(
+  id: number
+): Promise<DecisionHistoryResponse['decisions'][number]> {
+  const { data } = await predictiveApi.get<DecisionHistoryResponse['decisions'][number]>(
+    `/decisions/${id}`
+  )
   return data
 }
 
-export async function compareDecisions(leftId: number, rightId: number): Promise<DecisionCompareResponse> {
+export async function compareDecisions(
+  leftId: number,
+  rightId: number
+): Promise<DecisionCompareResponse> {
   const { data } = await predictiveApi.post<DecisionCompareResponse>('/decisions/compare', {
     leftId,
     rightId,
@@ -363,7 +371,9 @@ export async function getSimulationOutcomesMetrics(
 }
 
 export async function getSimulationCapabilities(): Promise<SimulationCapabilitiesResponse> {
-  const { data } = await predictiveApi.get<SimulationCapabilitiesResponse>('/simulations/capabilities')
+  const { data } = await predictiveApi.get<SimulationCapabilitiesResponse>(
+    '/simulations/capabilities'
+  )
   return data
 }
 
@@ -448,6 +458,7 @@ export async function simulateServiceAddition(
     '/simulate/add',
     {
       serviceName: scenario.serviceName,
+      targetNodeName: scenario.targetNodeName,
       cpuRequest: scenario.minCpuCores,
       ramRequest: scenario.minRamMB,
       replicas: scenario.replicas,
@@ -464,8 +475,11 @@ export async function simulateServiceAddition(
  * @param signal - Optional AbortSignal for canceling in-flight requests
  */
 export async function getNodes(signal?: AbortSignal): Promise<{ nodes: NodeWithResources[] }> {
-  const { data } = await predictiveApi.get<{ nodes: NodeWithResources[] }>('/infrastructure/nodes', {
-    signal,
-  })
+  const { data } = await predictiveApi.get<{ nodes: NodeWithResources[] }>(
+    '/infrastructure/nodes',
+    {
+      signal,
+    }
+  )
   return data
 }

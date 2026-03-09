@@ -188,9 +188,47 @@ export type ServiceAdditionDependency = {
   relation: 'calls' | 'called_by'
 }
 
+export type ServiceAdditionAggregateResources = {
+  scope: 'cluster' | 'machine'
+  nodeCount: number
+  totalCpu: number
+  usedCpu: number
+  availableCpu: number
+  totalRamMB: number
+  usedRamMB: number
+  availableRamMB: number
+  sharedHostResourcesEnabled: boolean
+}
+
+export type ServiceAdditionDependencyServiceCheck = {
+  serviceId: string
+  exists: boolean
+  availabilityPct?: number
+  podCount?: number
+  onlyHighPressureNodes?: boolean
+}
+
+export type ServiceAdditionDependencyLinkCheck = {
+  sourceServiceId: string
+  targetServiceId: string
+  observed: boolean
+  rps?: number
+  errorRate?: number
+  p95?: number
+}
+
+export type ServiceAdditionDependencyAnalysis = {
+  chain: string[]
+  missingServices: string[]
+  serviceChecks: ServiceAdditionDependencyServiceCheck[]
+  linkChecks: ServiceAdditionDependencyLinkCheck[]
+  summary: string
+}
+
 export type ServiceAdditionScenario = {
   type: 'add-service'
   serviceName: string
+  targetNodeName: string
   minCpuCores: number
   minRamMB: number
   replicas: number
@@ -208,12 +246,24 @@ export type NodeSuitability = {
   cpuTotal: number
   ramTotalMB: number
   score: number // 0-100 suitability score
+  projectedCpuFree: number
+  projectedRamFreeMB: number
+  preferred: boolean
+  rank: number
 }
 
 export type ServiceAdditionResponse = {
   correlationId?: string
   targetServiceName: string
+  success: boolean
+  explanation: string
+  totalCapacityPods: number
+  selectedNodeName?: string
+  selectedNodeSuitable: boolean
+  recommendedNodeName?: string
   suitableNodes: NodeSuitability[]
+  aggregateResources: ServiceAdditionAggregateResources
+  dependencyAnalysis: ServiceAdditionDependencyAnalysis
   riskAnalysis: {
     dependencyRisk: 'low' | 'medium' | 'high'
     description: string

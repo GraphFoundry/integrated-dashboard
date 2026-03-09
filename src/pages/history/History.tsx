@@ -27,6 +27,7 @@ import {
 } from '@/components/common/uiClassTokens'
 import { Checkbox, Select } from '@/components/ui'
 import { compareDecisions, exportDecision, getDecisionHistory } from '@/lib/api'
+import { getDecisionScenarioServiceId, getFailureAffectedServiceCount } from '@/lib/decisionHistory'
 import { formatShortDate } from '@/lib/format'
 import type { DecisionCompareResponse, DecisionRecord } from '@/lib/types'
 
@@ -34,10 +35,8 @@ function getScenarioSummary(record: DecisionRecord): string {
   const { type, scenario, result } = record
 
   if (type === 'failure') {
-    const serviceId = scenario.serviceId as string | undefined
-    const callers = result.affectedCallers as unknown[] | undefined
-    const downstream = result.affectedDownstream as unknown[] | undefined
-    const affectedCount = (callers?.length ?? 0) + (downstream?.length ?? 0)
+    const serviceId = getDecisionScenarioServiceId(record)
+    const affectedCount = getFailureAffectedServiceCount(result)
     return `Failure: ${serviceId} — ${affectedCount} services impacted`
   }
 

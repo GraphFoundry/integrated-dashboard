@@ -6,6 +6,12 @@ import Section from '@/components/layout/Section'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
 import { pageContainerClass } from '@/components/common/uiClassTokens'
 import { getDecisionById } from '@/lib/api'
+import {
+  getDecisionScenarioServiceId,
+  getFailureAffectedCallers,
+  getFailureAffectedDownstream,
+  getFailureAffectedServiceCount,
+} from '@/lib/decisionHistory'
 import { formatDate, formatRps, formatMs } from '@/lib/format'
 import type { DecisionRecord, Recommendation, PipelineTrace } from '@/lib/types'
 
@@ -13,10 +19,8 @@ const getScenarioSummary = (item: DecisionRecord): string => {
   const { type, scenario, result } = item
 
   if (type === 'failure') {
-    const callers = result.affectedCallers as unknown[] | undefined
-    const downstream = result.affectedDownstream as unknown[] | undefined
-    const affectedCount = (callers?.length ?? 0) + (downstream?.length ?? 0)
-    const serviceId = scenario.serviceId as string | undefined
+    const affectedCount = getFailureAffectedServiceCount(result)
+    const serviceId = getDecisionScenarioServiceId(item)
     return `If ${serviceId} fails, ${affectedCount} service${affectedCount === 1 ? '' : 's'} would be affected`
   }
   const currentPods = scenario.currentPods as number | undefined
@@ -140,8 +144,8 @@ export default function DecisionDetail() {
   const summary = getScenarioSummary(decision)
   const confidence = decision.result.confidence as string | undefined
   const recommendations = (decision.result.recommendations as Recommendation[]) ?? []
-  const affectedCallers = (decision.result.affectedCallers as unknown[]) ?? []
-  const affectedDownstream = (decision.result.affectedDownstream as unknown[]) ?? []
+  const affectedCallers = getFailureAffectedCallers(decision.result)
+  const affectedDownstream = getFailureAffectedDownstream(decision.result)
   const latencyEstimate = decision.result.latencyEstimate as Record<string, unknown> | undefined
   const pipelineTrace = decision.result.pipelineTrace as PipelineTrace | undefined
 

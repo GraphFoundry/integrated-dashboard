@@ -41,6 +41,7 @@ import {
   getSimulationContext,
   replaySimulation,
   runSimulation,
+  simulateServiceAddition,
 } from '@/lib/api'
 import { formatMs, formatPercent, formatRps } from '@/lib/format'
 import { ApiError } from '@/lib/httpClient'
@@ -63,6 +64,7 @@ import {
 type SimulationResult = FailureResponse | ScaleResponse | ServiceAdditionResponse
 type LockedScenario = Exclude<Scenario, { type: 'add-service' }>
 type LockedScenarioType = LockedScenario['type']
+type AllScenarioType = LockedScenarioType | 'add-service'
 type DeferredUnsupportedStatus = 'DEFERRED' | 'UNSUPPORTED'
 type ResolvedDegradedMode = Exclude<SimulationDegradedMode, ''>
 
@@ -77,16 +79,10 @@ function isDeferredUnsupportedStatus(status: string): status is DeferredUnsuppor
   return status === 'DEFERRED' || status === 'UNSUPPORTED'
 }
 
-const LOCKED_SCENARIO_TYPES: LockedScenarioType[] = [
-  'failure',
-  'scale',
-  'traffic-spike',
-  'chatty-colocation',
-  'network-cut',
-]
+const VALID_SCENARIO_TYPES: AllScenarioType[] = ['failure', 'scale', 'add-service']
 
-function isLockedScenarioType(value: string): value is LockedScenarioType {
-  return LOCKED_SCENARIO_TYPES.includes(value as LockedScenarioType)
+function isValidScenarioType(value: string): value is AllScenarioType {
+  return VALID_SCENARIO_TYPES.includes(value as AllScenarioType)
 }
 
 function statusBadge(status?: string) {
@@ -539,7 +535,7 @@ function toDeferredOutcomeFromRunResult(
 
 export default function Simulations() {
   const [searchParams] = useSearchParams()
-  const [scenarioType, setScenarioType] = useState<LockedScenarioType>('failure')
+  const [scenarioType, setScenarioType] = useState<AllScenarioType>('failure')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SimulationResult | null>(null)
   const [contractResult, setContractResult] = useState<SimulationRunResponseDto | null>(null)
@@ -559,7 +555,7 @@ export default function Simulations() {
   const prefillType = searchParams.get('type')
 
   useEffect(() => {
-    if (prefillType && isLockedScenarioType(prefillType)) {
+    if (prefillType && isValidScenarioType(prefillType)) {
       setScenarioType(prefillType)
     }
   }, [prefillType])
@@ -636,15 +632,38 @@ export default function Simulations() {
     }
   }, [scenarioType, selectedDepth, selectedServiceId])
 
-  const handleRun = async (scenario: LockedScenario) => {
+  const handleRun = async (scenario: Scenario) => {
     setLoading(true)
     setResult(null)
     setContractResult(null)
     setDeferredOutcome(null)
-    setLastScenario(scenario)
     setReplayComparison(null)
     setLastRequest(null)
 
+    // ── Add-service path ────────────────────────────────────────────────────
+    if (scenario.type === 'add-service') {
+      setLastScenario(null)
+      try {
+        const addResult = await simulateServiceAddition({
+          serviceName: scenario.serviceName,
+          minCpuCores: scenario.minCpuCores,
+          minRamMB: scenario.minRamMB,
+          replicas: scenario.replicas,
+          dependencies: scenario.dependencies,
+          maxDepth: scenario.maxDepth,
+          timeWindow: scenario.timeWindow,
+        })
+        setResult(addResult)
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to simulate service addition')
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
+    // ── Locked scenario path (failure / scale) ──────────────────────────────
+    setLastScenario(scenario)
     try {
       const request = buildSimulationRunRequest(scenario)
       setLastRequest(request)

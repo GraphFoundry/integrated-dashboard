@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Activity, AlertTriangle, Clock3, Network, Settings, ShieldCheck, Sparkles, TrendingUp, Zap } from 'lucide-react'
+import { Activity, AlertTriangle, ArrowRight, CheckCircle, Clock3, Lightbulb, Network, RefreshCw, Settings, ShieldCheck, Sparkles, TrendingUp, XCircle, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '@/components/layout/PageHeader'
 import KPIStatCard from '@/components/layout/KPIStatCard'
 import Section from '@/components/layout/Section'
 import EmptyState from '@/components/layout/EmptyState'
 import LoadingSpinner from '@/components/common/LoadingSpinner'
+import InfoHint from '@/components/common/InfoHint'
 import {
   loadingCardClass,
   pageContainerClass,
@@ -20,25 +21,56 @@ import ScenarioForm from '@/pages/simulations/ScenarioForm'
 import ClusterTopologyMap from '@/pages/overview/ClusterTopologyMap'
 import {
   getCurrentPredictiveAction,
-  getSimulationCapabilities,
   getSimulationContext,
-  simulateFailure,
-  simulateScale,
-  simulateServiceAddition,
+  replaySimulation,
+  runSimulation,
 } from '@/lib/api'
 import { formatMs, formatPercent, formatRps } from '@/lib/format'
+import { ApiError } from '@/lib/httpClient'
 import type {
   FailureResponse,
   ScaleResponse,
   Scenario,
-  ScenarioType,
   ServiceAdditionResponse,
-  SimulationCapabilitiesResponse,
   SimulationContextResponse,
   PredictiveCurrentActionResponse,
 } from '@/lib/types'
+import {
+  SIMULATION_SCHEMA_VERSION,
+  type SimulationDegradedMode,
+  type SimulationErrorResponseDto,
+  type SimulationRunRequestDto,
+  type SimulationRunResponseDto,
+} from '@/lib/simulationContract'
 
 type SimulationResult = FailureResponse | ScaleResponse | ServiceAdditionResponse
+type LockedScenario = Exclude<Scenario, { type: 'add-service' }>
+type LockedScenarioType = LockedScenario['type']
+type DeferredUnsupportedStatus = 'DEFERRED' | 'UNSUPPORTED'
+type ResolvedDegradedMode = Exclude<SimulationDegradedMode, ''>
+
+type DeferredUnsupportedOutcome = {
+  resultStatus: DeferredUnsupportedStatus
+  reason: string
+  degradedMode?: ResolvedDegradedMode
+  degradedModeReason?: string
+}
+
+function isDeferredUnsupportedStatus(status: string): status is DeferredUnsupportedStatus {
+  return status === 'DEFERRED' || status === 'UNSUPPORTED'
+}
+
+const LOCKED_SCENARIO_TYPES: LockedScenarioType[] = [
+  'failure',
+  'scale',
+  'traffic-spike',
+  'chatty-colocation',
+  'network-cut',
+]
+
+function isLockedScenarioType(value: string): value is LockedScenarioType {
+  return LOCKED_SCENARIO_TYPES.includes(value as LockedScenarioType)
+}
 
 function statusBadge(status?: string) {
   const styles: Record<string, string> = {
@@ -136,20 +168,31 @@ function clamp(value: number, min: number, max: number): number {
 
 function deriveHealthScore(
   context: SimulationContextResponse,
-  hottestEdge: AggregatedContextEdge | null
+  aggregatedEdges: AggregatedContextEdge[]
 ): number {
   if (context.nodes.length === 0) return 100
 
   const availabilityPct =
     context.nodes.reduce((acc, node) => acc + (node.availability ?? 1) * 100, 0) / context.nodes.length
 
-  const maxEdgeErrorPct = hottestEdge ? hottestEdge.maxErrorRate * 100 : 0
-  const worstP95 = hottestEdge?.peakP95 ?? 0
-  const latencyPenalty = Math.min(28, worstP95 / 45)
+  // Consider worst metrics across ALL edges, not just the hottest
+  let worstP95 = 0
+  let maxErrorRate = 0
+  let totalRate = 0
+  for (const edge of aggregatedEdges) {
+    worstP95 = Math.max(worstP95, edge.peakP95)
+    maxErrorRate = Math.max(maxErrorRate, edge.maxErrorRate)
+    totalRate += edge.peakRate
+  }
+
+  const maxEdgeErrorPct = maxErrorRate * 100
+  const latencyPenalty = Math.min(28, worstP95 / 15)
   const errorPenalty = Math.min(26, maxEdgeErrorPct * 2.5)
   const availabilityPenalty = Math.max(0, 100 - availabilityPct) * 0.7
+  // Dependency fan-out: more edges with higher aggregate traffic = more risk exposure
+  const complexityPenalty = Math.min(10, aggregatedEdges.length * 0.5 + totalRate / 50)
 
-  return Math.round(clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty, 0, 100))
+  return Math.round(clamp(100 - latencyPenalty - errorPenalty - availabilityPenalty - complexityPenalty, 0, 100))
 }
 
 function formatPredictiveBottleneck(payload: PredictiveCurrentActionResponse | null): string | null {
@@ -192,17 +235,254 @@ function deriveTimeToImpact(
   return 'Stable'
 }
 
+function buildSimulationRunRequest(scenario: LockedScenario): SimulationRunRequestDto {
+  const snapshotTimestamp = new Date().toISOString()
+  switch (scenario.type) {
+    case 'failure':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'failure_shutdown',
+        snapshotTimestamp,
+        failureShutdownParams: {
+          targetServiceId: scenario.serviceId,
+          maxDepth: scenario.maxDepth,
+        },
+      }
+    case 'scale':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'scaling',
+        snapshotTimestamp,
+        scalingParams: {
+          targetServiceId: scenario.serviceId,
+          currentPods: scenario.currentPods,
+          newPods: scenario.newPods,
+          latencyMetric: scenario.latencyMetric,
+        },
+      }
+    case 'traffic-spike':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'traffic_spike',
+        snapshotTimestamp,
+        trafficSpikeParams: {
+          targetServiceId: scenario.serviceId,
+          loadMultiplier: scenario.loadMultiplier,
+        },
+      }
+    case 'chatty-colocation':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'chatty_colocation',
+        snapshotTimestamp,
+        chattyColocationParams: {
+          sourceServiceId: scenario.sourceServiceId,
+          targetServiceId: scenario.targetServiceId,
+        },
+      }
+    case 'network-cut':
+      return {
+        version: SIMULATION_SCHEMA_VERSION,
+        scenarioType: 'network_cut',
+        snapshotTimestamp,
+        networkCutParams: {
+          affectedLinks: [
+            {
+              sourceServiceId: scenario.sourceServiceId,
+              targetServiceId: scenario.targetServiceId,
+            },
+          ],
+          degradationPercent: scenario.degradationPercent,
+        },
+      }
+  }
+}
+
+function parseSimulationRunError(error: unknown): SimulationErrorResponseDto | null {
+  if (error instanceof ApiError && error.payload && typeof error.payload === 'object') {
+    return error.payload as SimulationErrorResponseDto
+  }
+  return null
+}
+
+function formatOptionalNumber(value?: number): string {
+  if (value === undefined) {
+    return 'n/a'
+  }
+  if (!Number.isFinite(value)) {
+    return 'n/a'
+  }
+  return Number.isInteger(value) ? value.toString() : value.toFixed(2)
+}
+
+function formatNumberWithUnit(value: number | undefined, unit: string | undefined): string {
+  const formatted = formatOptionalNumber(value)
+  if (formatted === 'n/a' || !unit) {
+    return formatted
+  }
+  return `${formatted} ${unit}`
+}
+
+function getDefaultDegradedModeReason(degradedMode: ResolvedDegradedMode): string {
+  if (degradedMode === 'INFLUX_EMPTY') {
+    return 'Historical InfluxDB data is unavailable for this snapshot; deterministic fallback evidence is being used.'
+  }
+  if (degradedMode === 'INFLUX_SPARSE') {
+    return 'Historical InfluxDB data is too sparse for high-confidence estimates; deterministic fallback evidence is being used.'
+  }
+  return 'InfluxDB history could not be queried; deterministic fallback evidence is being used.'
+}
+
+function getDegradedModeReason(
+  degradedMode: SimulationDegradedMode | undefined,
+  degradedModeReason?: string
+): string | null {
+  if (!degradedMode) {
+    return null
+  }
+  if (degradedModeReason?.trim()) {
+    return degradedModeReason.trim()
+  }
+  return getDefaultDegradedModeReason(degradedMode)
+}
+
+function getDeferredOrUnsupportedReason(runResult: SimulationRunResponseDto): string {
+  if (runResult.deferredReason?.trim()) {
+    return runResult.deferredReason.trim()
+  }
+  return 'No deferred/unsupported reason was provided by the backend.'
+}
+
+function getDeferredOrUnsupportedErrorReason(errorPayload: SimulationErrorResponseDto): string {
+  if (typeof errorPayload.deferredReason === 'string' && errorPayload.deferredReason.trim()) {
+    return errorPayload.deferredReason.trim()
+  }
+  if (typeof errorPayload.reason === 'string' && errorPayload.reason.trim()) {
+    return errorPayload.reason.trim()
+  }
+  if (typeof errorPayload.error === 'string' && errorPayload.error.trim()) {
+    return errorPayload.error.trim()
+  }
+  const validationMessage = errorPayload.errors?.[0]?.message
+  if (typeof validationMessage === 'string' && validationMessage.trim()) {
+    return validationMessage.trim()
+  }
+  return 'No deferred/unsupported reason was provided by the backend.'
+}
+
+function getSimulationErrorDegradedMode(errorPayload: SimulationErrorResponseDto): ResolvedDegradedMode | undefined {
+  const degradedMode = errorPayload['degradedMode']
+  if (degradedMode === 'INFLUX_EMPTY' || degradedMode === 'INFLUX_SPARSE' || degradedMode === 'INFLUX_ERROR') {
+    return degradedMode
+  }
+  return undefined
+}
+
+function getSimulationErrorDegradedReason(errorPayload: SimulationErrorResponseDto): string | undefined {
+  const degradedModeReason = errorPayload['degradedModeReason']
+  if (typeof degradedModeReason === 'string' && degradedModeReason.trim()) {
+    return degradedModeReason.trim()
+  }
+  return undefined
+}
+
+type ReplayComparison = {
+  isMatch: boolean
+  differingFields: string[]
+  replayResult: SimulationRunResponseDto
+}
+
+function compareSimulationOutputs(
+  original: SimulationRunResponseDto,
+  replay: SimulationRunResponseDto
+): ReplayComparison {
+  const differingFields: string[] = []
+
+  if (original.resultStatus !== replay.resultStatus) differingFields.push('resultStatus')
+  if (original.scenarioType !== replay.scenarioType) differingFields.push('scenarioType')
+  if (original.evidenceMode !== replay.evidenceMode) differingFields.push('evidenceMode')
+  if (original.confidenceLevel !== replay.confidenceLevel) differingFields.push('confidenceLevel')
+  if ((original.degradedMode ?? '') !== (replay.degradedMode ?? '')) differingFields.push('degradedMode')
+  if (original.recommendation.action !== replay.recommendation.action) differingFields.push('recommendation.action')
+  if (original.recommendation.explanation !== replay.recommendation.explanation) differingFields.push('recommendation.explanation')
+
+  const sortedOrigBAVs = [...original.beforeAfterValues].sort((a, b) => a.fieldRef.localeCompare(b.fieldRef))
+  const sortedReplayBAVs = [...replay.beforeAfterValues].sort((a, b) => a.fieldRef.localeCompare(b.fieldRef))
+  if (sortedOrigBAVs.length !== sortedReplayBAVs.length) {
+    differingFields.push('beforeAfterValues.length')
+  } else {
+    sortedOrigBAVs.forEach((origBav, i) => {
+      const replayBav = sortedReplayBAVs[i]
+      if (origBav.fieldRef !== replayBav.fieldRef) differingFields.push(`beforeAfterValues[${i}].fieldRef`)
+      if (origBav.beforeValue !== replayBav.beforeValue) differingFields.push(`beforeAfterValues[${i}].beforeValue`)
+      if (origBav.afterValue !== replayBav.afterValue) differingFields.push(`beforeAfterValues[${i}].afterValue`)
+      if (origBav.deltaValue !== replayBav.deltaValue) differingFields.push(`beforeAfterValues[${i}].deltaValue`)
+    })
+  }
+
+  const sortedOrigSvcs = [...original.impactedServices].sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+  const sortedReplaySvcs = [...replay.impactedServices].sort((a, b) => a.serviceId.localeCompare(b.serviceId))
+  if (sortedOrigSvcs.length !== sortedReplaySvcs.length) {
+    differingFields.push('impactedServices.length')
+  } else {
+    sortedOrigSvcs.forEach((origSvc, i) => {
+      const replaySvc = sortedReplaySvcs[i]
+      if (origSvc.serviceId !== replaySvc.serviceId) differingFields.push(`impactedServices[${i}].serviceId`)
+      if (origSvc.role !== replaySvc.role) differingFields.push(`impactedServices[${i}].role`)
+    })
+  }
+
+  const origPaths = [...original.impactedPaths].map((p) => p.path.join('->')).sort()
+  const replayPaths = [...replay.impactedPaths].map((p) => p.path.join('->')).sort()
+  if (JSON.stringify(origPaths) !== JSON.stringify(replayPaths)) differingFields.push('impactedPaths')
+
+  const sortedOrigAssumptions = [...original.assumptions].sort((a, b) => a.key.localeCompare(b.key))
+  const sortedReplayAssumptions = [...replay.assumptions].sort((a, b) => a.key.localeCompare(b.key))
+  if (sortedOrigAssumptions.length !== sortedReplayAssumptions.length) {
+    differingFields.push('assumptions.length')
+  } else {
+    sortedOrigAssumptions.forEach((origA, i) => {
+      const replayA = sortedReplayAssumptions[i]
+      if (origA.key !== replayA.key) differingFields.push(`assumptions[${i}].key`)
+      if (origA.value !== replayA.value) differingFields.push(`assumptions[${i}].value`)
+      if (origA.type !== replayA.type) differingFields.push(`assumptions[${i}].type`)
+    })
+  }
+
+  return { isMatch: differingFields.length === 0, differingFields, replayResult: replay }
+}
+
+function toDeferredOutcomeFromRunResult(
+  runResult: SimulationRunResponseDto,
+  resultStatus: DeferredUnsupportedStatus
+): DeferredUnsupportedOutcome {
+  return {
+    resultStatus,
+    reason: getDeferredOrUnsupportedReason(runResult),
+    degradedMode:
+      runResult.degradedMode === 'INFLUX_EMPTY' ||
+      runResult.degradedMode === 'INFLUX_SPARSE' ||
+      runResult.degradedMode === 'INFLUX_ERROR'
+        ? runResult.degradedMode
+        : undefined,
+    degradedModeReason:
+      typeof runResult.degradedModeReason === 'string' && runResult.degradedModeReason.trim()
+        ? runResult.degradedModeReason.trim()
+        : undefined,
+  }
+}
+
 export default function Simulations() {
   const [searchParams] = useSearchParams()
-  const [scenarioType, setScenarioType] = useState<ScenarioType>('failure')
+  const [scenarioType, setScenarioType] = useState<LockedScenarioType>('failure')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<SimulationResult | null>(null)
-  const [lastScenario, setLastScenario] = useState<Scenario | null>(null)
-
-  const [capabilities, setCapabilities] = useState<SimulationCapabilitiesResponse>({
-    enabled: ['failure', 'scale'],
-    experimental: [],
-  })
+  const [contractResult, setContractResult] = useState<SimulationRunResponseDto | null>(null)
+  const [deferredOutcome, setDeferredOutcome] = useState<DeferredUnsupportedOutcome | null>(null)
+  const [lastScenario, setLastScenario] = useState<LockedScenario | null>(null)
+  const [lastRequest, setLastRequest] = useState<SimulationRunRequestDto | null>(null)
+  const [replayLoading, setReplayLoading] = useState(false)
+  const [replayComparison, setReplayComparison] = useState<ReplayComparison | null>(null)
 
   const [selectedServiceId, setSelectedServiceId] = useState('')
   const [selectedDepth, setSelectedDepth] = useState(1)
@@ -211,28 +491,16 @@ export default function Simulations() {
   const [contextLoading, setContextLoading] = useState(false)
   const [contextError, setContextError] = useState<string | null>(null)
 
-  const prefillType = searchParams.get('type') as ScenarioType | null
+  const prefillType = searchParams.get('type')
 
   useEffect(() => {
-    if (prefillType && (prefillType === 'failure' || prefillType === 'scale')) {
+    if (prefillType && isLockedScenarioType(prefillType)) {
       setScenarioType(prefillType)
     }
   }, [prefillType])
 
   useEffect(() => {
-    const fetchBootstrap = async () => {
-      try {
-        const caps = await getSimulationCapabilities()
-        setCapabilities(caps)
-      } catch (error) {
-        console.error('Failed to load simulation bootstrap data', error)
-      }
-    }
-    fetchBootstrap()
-  }, [])
-
-  useEffect(() => {
-    if (!selectedServiceId || scenarioType === 'add-service') {
+    if (!selectedServiceId) {
       setContextData(null)
       setContextPrediction(null)
       setContextError(null)
@@ -296,54 +564,103 @@ export default function Simulations() {
     }
   }, [scenarioType, selectedDepth, selectedServiceId])
 
-  const runOptions = { mode: 'live' as const }
-
-  const handleRun = async (scenario: Scenario) => {
+  const handleRun = async (scenario: LockedScenario) => {
     setLoading(true)
     setResult(null)
+    setContractResult(null)
+    setDeferredOutcome(null)
     setLastScenario(scenario)
+    setReplayComparison(null)
+    setLastRequest(null)
 
     try {
-      let response: SimulationResult
-      if (scenario.type === 'failure') {
-        response = await simulateFailure(
-          {
-            serviceId: scenario.serviceId,
-            maxDepth: scenario.maxDepth,
-            timeWindow: scenario.timeWindow,
-          },
-          runOptions
-        )
-      } else if (scenario.type === 'scale') {
-        response = await simulateScale(
-          {
-            serviceId: scenario.serviceId,
-            currentPods: scenario.currentPods,
-            newPods: scenario.newPods,
-            latencyMetric: scenario.latencyMetric,
-            maxDepth: scenario.maxDepth,
-            topPaths: scenario.topPaths,
-            timeWindow: scenario.timeWindow,
-          },
-          runOptions
-        )
+      const request = buildSimulationRunRequest(scenario)
+      setLastRequest(request)
+      const response = await runSimulation(request)
+      if (isDeferredUnsupportedStatus(response.resultStatus)) {
+        setDeferredOutcome(toDeferredOutcomeFromRunResult(response, response.resultStatus))
       } else {
-        response = await simulateServiceAddition({
-          serviceName: scenario.serviceName,
-          minCpuCores: scenario.minCpuCores,
-          minRamMB: scenario.minRamMB,
-          replicas: scenario.replicas,
-          dependencies: scenario.dependencies,
-          maxDepth: scenario.maxDepth,
-          timeWindow: scenario.timeWindow,
+        setContractResult(response)
+      }
+    } catch (error) {
+      const contractError = parseSimulationRunError(error)
+      if (contractError?.resultStatus && isDeferredUnsupportedStatus(contractError.resultStatus)) {
+        setDeferredOutcome({
+          resultStatus: contractError.resultStatus,
+          reason: getDeferredOrUnsupportedErrorReason(contractError),
+          degradedMode: getSimulationErrorDegradedMode(contractError),
+          degradedModeReason: getSimulationErrorDegradedReason(contractError),
         })
       }
-      setResult(response)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to run simulation')
+      const validationMessage = contractError?.errors?.[0]?.message
+      const message =
+        validationMessage ??
+        contractError?.deferredReason ??
+        contractError?.reason ??
+        contractError?.error ??
+        (error instanceof Error ? error.message : 'Failed to run simulation')
+      toast.error(message)
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleReplay = async () => {
+    if (!contractResult || !lastRequest) return
+    setReplayLoading(true)
+    setReplayComparison(null)
+    try {
+      const replayRequest: SimulationRunRequestDto = {
+        ...lastRequest,
+        snapshotTimestamp: contractResult.snapshotTimestamp,
+        snapshotHash: contractResult.snapshotHash,
+      }
+      const replayResponse = await replaySimulation(replayRequest)
+      setReplayComparison(compareSimulationOutputs(contractResult, replayResponse))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Replay failed')
+    } finally {
+      setReplayLoading(false)
+    }
+  }
+
+  const renderReplayComparison = (comparison: ReplayComparison) => {
+    if (comparison.isMatch) {
+      return (
+        <div className="flex items-start gap-3 rounded-xl border-2 border-emerald-500/70 bg-emerald-500/15 p-4">
+          <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+          <div>
+            <p className="text-sm font-bold text-[var(--text-primary)]">Deterministic match confirmed</p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Replay with the same snapshot produced identical output fields. Simulation is deterministic.
+            </p>
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div className="rounded-xl border-2 border-rose-500/70 bg-rose-500/12 p-4">
+        <div className="flex items-start gap-3">
+          <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-[var(--text-primary)]">Deterministic mismatch detected</p>
+            <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+              Replay returned different values for the following fields. Evidence details are preserved below.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {comparison.differingFields.map((field) => (
+                <span
+                  key={field}
+                  className="rounded border border-rose-500/50 bg-rose-500/10 px-2 py-0.5 font-mono text-xs text-[var(--text-primary)]"
+                >
+                  {field}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const renderRunMeta = (runResult: FailureResponse | ScaleResponse) => {
@@ -377,15 +694,6 @@ export default function Simulations() {
   }
 
   const renderContextPreview = () => {
-    if (scenarioType === 'add-service') {
-      return (
-        <EmptyState
-          icon={<Network className="h-10 w-10 text-[var(--text-dim)]" />}
-          message="Context preview is available for failure and scaling simulations"
-        />
-      )
-    }
-
     if (!selectedServiceId) {
       return (
         <EmptyState
@@ -414,7 +722,8 @@ export default function Simulations() {
 
     const aggregatedEdges = aggregateContextEdges(contextData)
     const hottestEdge = aggregatedEdges[0] ?? null
-    const healthScore = Math.round(contextPrediction?.healthScore ?? deriveHealthScore(contextData, hottestEdge))
+    const derivedScore = deriveHealthScore(contextData, aggregatedEdges)
+    const healthScore = Math.round(derivedScore)
     const healthLabel = healthScore >= 85 ? 'Stable' : healthScore >= 70 ? 'Watch closely' : 'Immediate action required'
     const healthTone =
       healthScore >= 85
@@ -464,7 +773,7 @@ export default function Simulations() {
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
               <div className={`rounded-xl border px-4 py-3 ${healthTone}`}>
-                <div className="text-[11px] font-semibold uppercase tracking-wider">Health Score</div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider">Health Score <InfoHint text="A single number (0–100) showing how healthy the selected service and its neighbors are right now. 100 = everything is working perfectly. Below 70 = something needs attention soon." /></div>
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-3xl font-black leading-none">{healthScore}</span>
                   <span className="pb-0.5 text-sm font-semibold">/100</span>
@@ -473,8 +782,8 @@ export default function Simulations() {
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Primary Bottleneck
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Primary Bottleneck <InfoHint text="The service or connection that is currently under the most stress. Think of it like the weakest link in a chain — if something breaks, it will likely break here first." />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm font-semibold">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
@@ -486,8 +795,8 @@ export default function Simulations() {
               </div>
 
               <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-4 py-3 text-[var(--text-primary)]">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Time To Impact
+                <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Time To Impact <InfoHint text="How long before real users might start noticing problems like slow loading or errors. 'Stable' means no problems expected soon. A short time (like < 2 min) means action may be needed right away." />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-2xl font-black">
                   <Clock3 className="h-5 w-5 text-cyan-600" />
@@ -501,13 +810,13 @@ export default function Simulations() {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Services In Scope</div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Services In Scope <InfoHint text="The total number of services (small programs) that are connected to your selected service. These are the services that could be affected if something goes wrong." /></div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">{contextData.nodes.length}</div>
             <p className="mt-1 text-xs text-[var(--text-secondary)]">Neighborhood around {contextData.target.name ?? shortServiceName(contextData.target.serviceId)}.</p>
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Busiest Link</div>
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Busiest Link <InfoHint text="The connection between two services that is handling the most traffic right now. The number shows requests per second (how many times one service talks to another every second). Higher = busier." /></div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
               {hottestEdge ? formatRps(hottestEdge.peakRate) : formatRps(0)}
             </div>
@@ -519,8 +828,8 @@ export default function Simulations() {
           </div>
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              Worst Slow-End Latency
+            <div className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+              Worst Slow-End Latency <InfoHint text="The slowest response time seen among the connected services (measured in milliseconds). This shows how long the slowest 5% of requests are taking. If this number is high, some users are experiencing noticeable delays." />
             </div>
             <div className="mt-1 text-2xl font-black text-[var(--text-primary)]">
               {hottestEdge ? formatMs(hottestEdge.peakP95) : formatMs(0)}
@@ -534,7 +843,7 @@ export default function Simulations() {
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h3 className="text-sm font-semibold text-[var(--text-secondary)]">Recommended Operator Action</h3>
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-secondary)]">Recommended Operator Action <InfoHint text="A suggested next step based on what the system is seeing right now. Following this advice can help prevent problems before users notice them." /></h3>
               <p className="mt-1 text-base font-bold text-[var(--text-primary)]">{recommendationTitle}</p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{recommendationMessage}</p>
             </div>
@@ -549,14 +858,16 @@ export default function Simulations() {
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
               Target health:{' '}
               {formatPercent(
-                ((contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)?.availability ??
-                  1) as number) * 100
+                (contextData.nodes.find((node) => node.serviceId === contextData.target.serviceId)
+                  ?.availability ?? 1) * 100
               )}
+              <InfoHint text="What percentage of the time this service is working correctly. 100% = always available. Lower values mean the service is sometimes failing or unreachable." />
             </span>
             {hottestEdge && (
               <span className="inline-flex items-center gap-1">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                 Peak error exposure: {formatPercent(hottestEdge.maxErrorRate * 100)}
+                <InfoHint text="The highest error rate seen on any connection right now. A higher percentage means more requests are failing. Even a small percentage (like 2%) can affect many users if traffic is high." />
               </span>
             )}
             {contextLoading && (
@@ -573,6 +884,272 @@ export default function Simulations() {
             Context is condensed from a larger graph to keep the panel fast and readable.
           </p>
         )}
+      </div>
+    )
+  }
+
+  const renderContractResults = (runResult: SimulationRunResponseDto) => {
+    const hasDegradedMode = Boolean(runResult.degradedMode)
+    const degradedModeReason = getDegradedModeReason(runResult.degradedMode, runResult.degradedModeReason)
+
+    return (
+      <div className="space-y-6">
+        <Section title="Simulation Evidence Summary" icon={Activity}
+          actions={
+            <button
+              type="button"
+              onClick={() => { void handleReplay() }}
+              disabled={replayLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-panel)] disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${replayLoading ? 'animate-spin' : ''}`} />
+              {replayLoading ? 'Replaying...' : 'Replay same snapshot'}
+            </button>
+          }
+        >
+          {hasDegradedMode && degradedModeReason && (
+            <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
+                    Limited data available
+                  </p>
+                  <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {replayComparison && (
+            <div className="mb-4">
+              {renderReplayComparison(replayComparison)}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Simulation Run Time <InfoHint text="The exact date and time when this simulation was run. You can use this to compare different simulation runs." />
+              </h3>
+              <p className="text-sm text-[var(--text-primary)]">
+                {new Date(runResult.snapshotTimestamp).toLocaleString()}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Outcome <InfoHint text="Whether the simulation finished successfully and found meaningful results, or if it ran into issues. 'COMPLETED' means the results below are ready to review." />
+              </h3>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{runResult.resultStatus}</p>
+            </div>
+
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+              <h3 className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                Confidence <InfoHint text="How sure the system is about these results. 'HIGH' means the data strongly supports the conclusion. 'LOW' means treat the results as a rough estimate." />
+              </h3>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">{runResult.confidenceLevel}</p>
+            </div>
+          </div>
+        </Section>
+
+        <Section title="What the Simulation Assumed" icon={ShieldCheck}>
+          {runResult.assumptions.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No assumptions were needed for this simulation.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--text-secondary)]">
+                The simulation made these assumptions. If reality is different, results may not be perfectly accurate.
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                {runResult.assumptions.map((assumption) => (
+                  <div key={assumption.traceRef} className="flex items-start gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+                    <Lightbulb className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{assumption.description || assumption.key}</p>
+                    </div>
+                    <InfoHint text={`Technical detail: "${assumption.key}" was set to "${assumption.value}". Source: ${assumption.source || 'simulation engine'}.`} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Services That Would Be Affected" icon={Network}>
+          {runResult.impactedServices.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No services would be affected in this scenario.</p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--text-secondary)]">
+                If this scenario happened, these services would be affected. Each card shows how the service is involved.
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {runResult.impactedServices.map((service) => {
+                  const role = service.role?.toLowerCase() ?? ''
+                  const isTarget = role === 'target'
+                  const isCaller = role === 'caller'
+                  const roleLabel = isTarget ? 'Directly hit' : isCaller ? 'Sends requests here' : 'Depends on target'
+                  const roleBadgeClass = isTarget
+                    ? 'border-rose-500/50 bg-rose-500/12 text-rose-700'
+                    : isCaller
+                      ? 'border-amber-500/50 bg-amber-500/12 text-amber-700'
+                      : 'border-sky-500/50 bg-sky-500/12 text-sky-700'
+                  const roleIcon = isTarget ? '🎯' : isCaller ? '📤' : '📥'
+                  return (
+                    <div key={`${service.serviceId}:${service.role}`} className="flex flex-col items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-3 text-center">
+                      <span className="text-2xl">{roleIcon}</span>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">{shortServiceName(service.name || service.serviceId)}</p>
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}>
+                        {roleLabel}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className="flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
+                <span className="inline-flex items-center gap-1">🎯 Directly hit <InfoHint text="This is the service you chose to test. It's the one that would go down or change." /></span>
+                <span className="inline-flex items-center gap-1">📤 Sends requests <InfoHint text="This service sends traffic to the target. When the target fails, this service will get errors back." /></span>
+                <span className="inline-flex items-center gap-1">📥 Depends on target <InfoHint text="This service relies on the target to work. If the target goes down, this service loses functionality too." /></span>
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <Section title="Request Journeys That Would Break" icon={Network}>
+          {runResult.impactedPaths.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No request journeys would be disrupted in this scenario.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  When a user makes a request, it travels through a chain of services. These are the journeys that would break.
+                </p>
+                <InfoHint text="Think of each journey like a relay race — one runner passes the baton to the next. If one runner (service) drops out, everyone after them can't continue." />
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {runResult.impactedPaths.map((path, index) => (
+                  <div key={`${path.path.join('->')}-${index}`} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] px-3 py-2.5">
+                    {path.path.map((step, stepIndex) => (
+                      <span key={`${step}-${stepIndex}`} className="inline-flex items-center gap-1.5">
+                        <span className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--text-primary)]">
+                          {shortServiceName(step)}
+                        </span>
+                        {stepIndex < path.path.length - 1 && (
+                          <ArrowRight className="h-3.5 w-3.5 text-[var(--text-dim)]" />
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-[var(--text-muted)]">{runResult.impactedPaths.length} journey{runResult.impactedPaths.length !== 1 ? 's' : ''} would be disrupted</p>
+            </div>
+          )}
+        </Section>
+
+        <Section title="What Would Change" icon={TrendingUp}>
+          {runResult.beforeAfterValues.length === 0 ? (
+            <p className="text-sm text-[var(--text-muted)]">No measurable changes detected for this scenario.</p>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-start gap-2">
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Here’s how things would look before vs. after this scenario happens.
+                </p>
+                <InfoHint text="Each card shows one measurement. Green means things improved, red means things got worse, and gray means the value is unavailable after the change." />
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
+                {runResult.beforeAfterValues.map((value) => {
+                  const delta = value.deltaValue
+                  const isWorse = delta != null && delta > 0
+                  const isBetter = delta != null && delta < 0
+                  const borderClass = isBetter
+                    ? 'border-emerald-500/50'
+                    : isWorse
+                      ? 'border-rose-500/50'
+                      : 'border-[var(--border)]'
+                  const emoji = isBetter ? '\u2705' : isWorse ? '\u26a0\ufe0f' : '\u2139\ufe0f'
+                  return (
+                    <div key={value.traceRef} className={`rounded-xl border ${borderClass} bg-[var(--surface-solid)] p-4`}>
+                      <div className="mb-3 flex items-start justify-between gap-2">
+                        <span className="text-lg">{emoji}</span>
+                        <InfoHint text={`Technical: "${value.fieldRef}". Before: ${formatNumberWithUnit(value.beforeValue, value.unit)}. After: ${formatNumberWithUnit(value.afterValue, value.unit)}. Change: ${formatNumberWithUnit(value.deltaValue, value.unit)}.`} />
+                      </div>
+                      <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{value.description || value.fieldRef}</p>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-center">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Before</p>
+                          <p className="mt-0.5 text-sm font-bold text-[var(--text-primary)]">{formatNumberWithUnit(value.beforeValue, value.unit)}</p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-dim)]" />
+                        <div className="flex-1 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-center">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">After</p>
+                          <p className={`mt-0.5 text-sm font-bold ${isBetter ? 'text-emerald-600' : isWorse ? 'text-rose-600' : 'text-[var(--text-primary)]'}`}>
+                            {formatNumberWithUnit(value.afterValue, value.unit)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </Section>
+
+        <Section title="What We Recommend" icon={Sparkles}>
+          <div className="rounded-xl border-2 border-cyan-500/40 bg-gradient-to-br from-cyan-500/10 to-transparent p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-cyan-500/20">
+                <Sparkles className="h-5 w-5 text-cyan-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-[var(--text-primary)]">Suggested Next Step</h3>
+                  <InfoHint text="This is what we suggest you do based on the simulation results. Following this advice can help prevent or reduce the damage if this scenario actually happens." />
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-[var(--text-secondary)]">{runResult.recommendation.explanation}</p>
+              </div>
+            </div>
+          </div>
+        </Section>
+      </div>
+    )
+  }
+
+  const renderDeferredOutcome = (outcome: DeferredUnsupportedOutcome) => {
+    const degradedModeReason = getDegradedModeReason(outcome.degradedMode, outcome.degradedModeReason)
+    return (
+      <div className="space-y-6">
+        <Section title="Simulation Evidence Summary" icon={Activity}>
+          {outcome.degradedMode && degradedModeReason && (
+            <div className="mb-4 rounded-xl border-2 border-amber-500/70 bg-amber-500/20 p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-700" />
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-[var(--text-primary)]">
+                    Limited data available
+                  </p>
+                  <p className="text-sm text-[var(--text-secondary)]">{degradedModeReason}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-rose-500/50 bg-rose-500/12 p-4">
+            <p className="text-sm font-semibold text-[var(--text-primary)]">
+              {outcome.resultStatus === 'DEFERRED' ? 'Simulation was postponed' : 'Scenario not supported'}
+            </p>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{outcome.reason}</p>
+          </div>
+        </Section>
+
+        <Section title="Simulation Results" icon={TrendingUp}>
+          <p className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-4 text-sm text-[var(--text-secondary)]">
+            No results to show because the simulation could not run for this scenario.
+          </p>
+        </Section>
       </div>
     )
   }
@@ -877,11 +1454,14 @@ export default function Simulations() {
               onRun={handleRun}
               loading={loading}
               scenarioType={scenarioType}
-              allowExperimentalAdd={capabilities.experimental.includes('add-service')}
               onScenarioTypeChange={(type) => {
                 setScenarioType(type)
                 setResult(null)
+                setContractResult(null)
+                setDeferredOutcome(null)
                 setLastScenario(null)
+                setLastRequest(null)
+                setReplayComparison(null)
               }}
               onServiceSelectionChange={setSelectedServiceId}
               onDepthChange={setSelectedDepth}
@@ -908,6 +1488,9 @@ export default function Simulations() {
           </div>
         )}
 
+        {contractResult && !loading && renderContractResults(contractResult)}
+        {deferredOutcome && !contractResult && !loading && renderDeferredOutcome(deferredOutcome)}
+
         {result && !loading && (
           <>
             {isServiceAdditionResult(result)
@@ -918,14 +1501,14 @@ export default function Simulations() {
           </>
         )}
 
-        {!result && !loading && (
+        {!contractResult && !deferredOutcome && !result && !loading && (
           <EmptyState
             icon={<Sparkles className="h-12 w-12 text-[var(--text-dim)]" />}
             message="Configure a scenario and click Run to generate simulation evidence"
             description={
               lastScenario
                 ? 'Previous run cleared. Adjust your scenario and run again.'
-                : 'Start with failure or scaling to preview blast radius and latency deltas.'
+                : 'Choose one of the five locked simulation scenarios and run to generate evidence-backed output.'
             }
           />
         )}

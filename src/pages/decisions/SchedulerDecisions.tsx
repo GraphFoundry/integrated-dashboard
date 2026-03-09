@@ -18,8 +18,11 @@ import {
   successButtonClass,
 } from '@/components/common/uiClassTokens'
 import { Select } from '@/components/ui'
-import { getServicesWithPlacement } from '@/lib/api'
 import { schedulerApi } from '@/lib/schedulerApiClient'
+import { createApiClient } from '@/lib/httpClient'
+import { env } from '@/lib/env'
+
+const bffApi = createApiClient(env.BFF_URL)
 
 interface SchedulerDecision {
   namespace: string
@@ -34,12 +37,6 @@ interface SchedulerDecision {
   podName?: string
 }
 
-
-interface RestartResponse {
-  success: boolean
-  message: string
-  error?: string
-}
 
 interface ChangeNodeResponse {
   success: boolean
@@ -116,7 +113,7 @@ export default function SchedulerDecisions() {
   const [selectedPod, setSelectedPod] = useState('')
   const [availablePods, setAvailablePods] = useState<string[]>([])
   const [applying, setApplying] = useState(false)
-  const [applyResult, setApplyResult] = useState<RestartResponse | null>(null)
+  const [applyResult, setApplyResult] = useState<ChangeNodeResponse | null>(null)
 
   // Change Node modal state
   const [changeNodeModalOpen, setChangeNodeModalOpen] = useState(false)
@@ -134,27 +131,24 @@ export default function SchedulerDecisions() {
   const loadData = async () => {
     setLoading(true)
     try {
-      const [decisionsRes, servicesRes] = await Promise.all([
+      const [decisionsRes, podsRes] = await Promise.all([
         schedulerApi.get<SchedulerDecision[]>('/decisions'),
-        getServicesWithPlacement().catch(() => ({ services: [] }))
+        bffApi.get<{ podsByService: Record<string, Array<{ name: string; namespace: string; node: string; phase: string; ready: boolean }>> }>('/api/k8s/pods').catch(() => ({ data: { podsByService: {} } }))
       ])
 
       const decisionsData = decisionsRes.data
-      const servicesData = servicesRes.services || []
+      const podsByService = podsRes.data.podsByService || {}
 
+      // Map service name → pod names (only Running pods)
       const svcMap: Record<string, string[]> = {}
-      servicesData.forEach(s => {
-        if (s.placement?.nodes) {
-          s.placement.nodes.forEach(n => {
-            if (n.pods) {
-              n.pods.forEach(p => {
-                if (!svcMap[s.name]) svcMap[s.name] = []
-                svcMap[s.name].push(p.name)
-              })
-            }
-          })
+      for (const [svc, pods] of Object.entries(podsByService) as [string, Array<{ name: string; namespace: string; node: string; phase: string; ready: boolean }>][]) {
+        const activePods = pods
+          .filter((p: { phase: string }) => p.phase === 'Running')
+          .map((p: { name: string }) => p.name)
+        if (activePods.length > 0) {
+          svcMap[svc] = activePods
         }
-      })
+      }
       setServices(svcMap)
 
       if (Array.isArray(decisionsData)) {
@@ -255,17 +249,19 @@ export default function SchedulerDecisions() {
     setApplyResult(null)
 
     try {
-      const { data } = await schedulerApi.post<RestartResponse>('/restart', {
+      const { data } = await schedulerApi.post<ChangeNodeResponse>('/change-node', {
         namespace: selectedDecision.namespace,
         podName: selectedPod,
-        force: true,
+        targetNode: selectedDecision.bestNode,
       })
 
       setApplyResult({
         success: true,
-        message: data.message || 'Placement applied successfully (Pod restarted)',
+        message: data.message || `Pod migrated to ${selectedDecision.bestNode}`,
+        previousNode: data.previousNode,
+        targetNode: data.targetNode,
       })
-      toast.success(data.message || 'Placement applied successfully')
+      toast.success(data.message || `Pod migrated to ${selectedDecision.bestNode}`)
 
       setTimeout(() => loadData(), 2000)
     } catch (err) {
@@ -321,13 +317,13 @@ export default function SchedulerDecisions() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Scheduled':
-        return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 dark:bg-emerald-500/20 dark:border-emerald-500/30'
+        return 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border-emerald-500/40 dark:bg-emerald-500/20 dark:border-emerald-500/30'
       case 'NoPeers':
-        return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 dark:bg-amber-500/20 dark:border-amber-500/30'
+        return 'bg-amber-500/15 text-amber-800 dark:text-amber-400 border-amber-500/40 dark:bg-amber-500/20 dark:border-amber-500/30'
       case 'NoMetrics':
-        return 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20 dark:bg-orange-500/20 dark:border-orange-500/30'
+        return 'bg-orange-500/15 text-orange-800 dark:text-orange-400 border-orange-500/40 dark:bg-orange-500/20 dark:border-orange-500/30'
       case 'StaleMetrics':
-        return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 dark:bg-rose-500/20 dark:border-rose-500/30'
+        return 'bg-rose-500/15 text-rose-800 dark:text-rose-400 border-rose-500/40 dark:bg-rose-500/20 dark:border-rose-500/30'
       default:
         return 'bg-[var(--surface-subtle)] text-[var(--text-secondary)] border-[var(--border)]'
     }
@@ -445,7 +441,7 @@ export default function SchedulerDecisions() {
                   <button type="button"
                     onClick={() => handleResetPreference(decision)}
                     disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-200 hover:bg-amber-500/20"
+                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-500/50 bg-amber-600/15 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20"
                     title="Remove node preference and let the scheduler decide"
                   >
                     <StarOff className="w-3.5 h-3.5" />
@@ -454,7 +450,7 @@ export default function SchedulerDecisions() {
                 )}
                 <button type="button"
                   onClick={() => handleChangeNodeClick(decision)}
-                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-200 hover:bg-blue-500/20"
+                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-500/50 bg-blue-600/15 text-blue-800 dark:text-blue-200 hover:bg-blue-600/25"
                 >
                   <ArrowRightLeft className="w-3.5 h-3.5" />
                   Change Node
@@ -464,7 +460,7 @@ export default function SchedulerDecisions() {
                   disabled={isOptimized}
                   className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
                     ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-dim)]'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20'
+                    : 'border-emerald-500/50 bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-600/25'
                     }`}
                 >
                   {isOptimized ? <CheckCircle className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -486,7 +482,7 @@ export default function SchedulerDecisions() {
                       type="button"
                       onClick={() => handleResetPreference(decision)}
                       disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                      className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
+                      className="flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-amber-600/15 px-2.5 py-1 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
                     >
                       <StarOff className="w-3.5 h-3.5" />
                       Clear &amp; let scheduler decide
@@ -571,11 +567,10 @@ export default function SchedulerDecisions() {
                             type="button"
                             onClick={() => handleSetPreference(decision, node)}
                             disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                            className={`ml-1 p-0.5 rounded transition-colors ${
-                              decision.preferredNode === node
-                                ? 'text-amber-400'
-                                : 'text-[var(--text-dim)] hover:text-amber-400'
-                            }`}
+                            className={`ml-1 p-0.5 rounded transition-colors ${decision.preferredNode === node
+                              ? 'text-amber-400'
+                              : 'text-[var(--text-dim)] hover:text-amber-400'
+                              }`}
                             title={decision.preferredNode === node ? `${node} is preferred` : `Set ${node} as preferred`}
                           >
                             <Star className={`w-3.5 h-3.5 ${decision.preferredNode === node ? 'fill-amber-400' : ''}`} />
@@ -626,12 +621,12 @@ export default function SchedulerDecisions() {
                 {!applyResult ? (
                   <>
                     <div className="surface-glass rounded-lg border border-cyan-300/24 bg-cyan-400/10 p-3 text-sm text-[var(--text-secondary)]">
-                      <p>This action will restart the pod to allow it to be rescheduled onto the best node (<b>{selectedDecision?.bestNode}</b>).</p>
+                      <p>This action will migrate the pod to the best node (<b>{selectedDecision?.bestNode}</b>). A new pod will be started on the target node first, and the old pod will be removed only after the new one is healthy (zero-downtime).</p>
                     </div>
 
                     <div>
                       <label htmlFor="pod-select" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-                        Select Pod to Restart
+                        Select Pod to Migrate
                       </label>
                       {availablePods.length > 0 ? (
                         <Select
@@ -645,7 +640,7 @@ export default function SchedulerDecisions() {
                           ))}
                         </Select>
                       ) : (
-                        <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
+                        <div className="p-3 bg-amber-100/50 dark:bg-yellow-900/10 border border-amber-500/30 dark:border-yellow-700/30 rounded-lg text-sm text-amber-800 dark:text-yellow-300">
                           No active pods found for this service.
                         </div>
                       )}
@@ -672,7 +667,7 @@ export default function SchedulerDecisions() {
                         {applying ? (
                           <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            Applying...
+                            Migrating...
                           </>
                         ) : (
                           'Confirm Apply'
@@ -687,13 +682,18 @@ export default function SchedulerDecisions() {
                         <div className="p-2 bg-green-900/20 rounded-full border border-green-900/50 mb-2">
                           <CheckCircle className="w-6 h-6" />
                         </div>
-                        <h4 className="font-semibold text-lg">Applied Successfully</h4>
+                        <h4 className="font-semibold text-lg">Migration Complete</h4>
                         <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
+                        {applyResult.previousNode && (
+                          <p className="text-xs text-[var(--text-dim)]">
+                            {applyResult.previousNode} → {applyResult.targetNode}
+                          </p>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-center gap-2">
                         <AlertTriangle className="w-8 h-8 mb-2" />
-                        <h4 className="font-semibold text-lg">Apply Failed</h4>
+                        <h4 className="font-semibold text-lg">Migration Failed</h4>
                         <p className="text-sm text-[var(--text-muted)] px-4">{applyResult.message}</p>
                       </div>
                     )}
@@ -762,7 +762,7 @@ export default function SchedulerDecisions() {
                           ))}
                         </Select>
                       ) : (
-                        <div className="p-3 bg-yellow-900/10 border border-yellow-700/30 rounded-lg text-sm text-yellow-300">
+                        <div className="p-3 bg-amber-100/50 dark:bg-yellow-900/10 border border-amber-500/30 dark:border-yellow-700/30 rounded-lg text-sm text-amber-800 dark:text-yellow-300">
                           No active pods found for this service.
                         </div>
                       )}
@@ -804,7 +804,7 @@ export default function SchedulerDecisions() {
                             className="mt-0.5 h-4 w-4 rounded border-[var(--border)] bg-[var(--surface-subtle)] text-blue-500 focus:ring-blue-500/30"
                           />
                           <span className="text-sm text-[var(--text-secondary)]">
-                            I confirm that I want to move pod <b className="font-mono text-xs">{changeNodePod}</b> to node <b className="font-mono text-xs">{changeNodeTarget}</b>. This will delete the pod and the controller will recreate it.
+                            I confirm that I want to move pod <b className="font-mono text-xs">{changeNodePod}</b> to node <b className="font-mono text-xs">{changeNodeTarget}</b>. A new pod will be started on the target node first, and the old pod will be removed only after the new one is healthy (zero-downtime).
                           </span>
                         </label>
                       </div>
@@ -825,7 +825,7 @@ export default function SchedulerDecisions() {
                         {changingNode ? (
                           <>
                             <RefreshCw className="w-4 h-4 animate-spin" />
-                            Moving...
+                            Migrating...
                           </>
                         ) : (
                           'Confirm Change'
@@ -840,7 +840,7 @@ export default function SchedulerDecisions() {
                         <div className="p-2 bg-green-900/20 rounded-full border border-green-900/50 mb-2">
                           <CheckCircle className="w-6 h-6" />
                         </div>
-                        <h4 className="font-semibold text-lg">Node Changed</h4>
+                        <h4 className="font-semibold text-lg">Migration Complete</h4>
                         <p className="text-sm text-[var(--text-muted)] px-4">{changeNodeResult.message}</p>
                         {changeNodeResult.previousNode && (
                           <p className="text-xs text-[var(--text-dim)]">

@@ -223,7 +223,13 @@ export type ServiceAdditionResponse = {
 
 export type TimeWindow = '5d' | '1w' | '2w' | '1m'
 
-export type ScenarioType = 'failure' | 'scale' | 'add-service'
+export type ScenarioType =
+  | 'failure'
+  | 'scale'
+  | 'traffic-spike'
+  | 'chatty-colocation'
+  | 'network-cut'
+  | 'add-service'
 
 export type FailureScenario = {
   type: 'failure'
@@ -243,7 +249,38 @@ export type ScaleScenario = {
   timeWindow?: TimeWindow
 }
 
-export type Scenario = FailureScenario | ScaleScenario | ServiceAdditionScenario
+export type TrafficSpikeScenario = {
+  type: 'traffic-spike'
+  serviceId: string
+  loadMultiplier: number
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type ChattyColocationScenario = {
+  type: 'chatty-colocation'
+  sourceServiceId: string
+  targetServiceId: string
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type NetworkCutScenario = {
+  type: 'network-cut'
+  sourceServiceId: string
+  targetServiceId: string
+  degradationPercent?: number
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type Scenario =
+  | FailureScenario
+  | ScaleScenario
+  | TrafficSpikeScenario
+  | ChattyColocationScenario
+  | NetworkCutScenario
+  | ServiceAdditionScenario
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Proof Metadata — tracks run context for operator auditability

@@ -37,7 +37,9 @@ import WebSocket, { WebSocketServer } from 'ws'
 import { Storage } from './storage'
 import { AlertService } from './service'
 import { WSMessage, AlertEvent, GraphUpdateData } from './types'
+import { createSimulationReplayHandler, createSimulationRunHandler } from './simulations-run-route'
 import { SmsService } from './sms.service'
+import { fetchPodsByService } from './k8s'
 import { WebhookDedupeStore } from './webhookDedupeStore'
 import {
   getPayloadLogicalTimestampMs,
@@ -70,6 +72,8 @@ app.use(morgan('dev'))
 // Mounted BEFORE express.json() so request bodies stream through unmodified.
 const PREDICTIVE_API_BASE_URL = process.env.PREDICTIVE_API_BASE_URL || 'http://localhost:7000'
 const SCHEDULER_API_BASE_URL = process.env.SCHEDULER_API_BASE_URL || 'http://localhost:9020'
+const SIMULATION_API_BASE_URL = process.env.SIMULATION_API_BASE_URL || PREDICTIVE_API_BASE_URL
+const SIMULATION_RUN_PATH = process.env.SIMULATION_RUN_PATH || '/simulations/run'
 const PREDICTIVE_CURRENT_ACTION_ROUTES = [
   '/api/predictive/actions/current',
   '/api/predictive/predictive/actions/current',
@@ -168,6 +172,24 @@ app.use(
     verify: (req, _res, buf) => {
       ; (req as RawBodyRequest).rawBody = Buffer.from(buf)
     },
+  })
+)
+
+// Dedicated simulation passthrough preserves upstream status/body without adding synthetic fields.
+app.post(
+  '/api/simulations/run',
+  createSimulationRunHandler({
+    simulationApiBaseUrl: SIMULATION_API_BASE_URL,
+    simulationRunPath: SIMULATION_RUN_PATH,
+  })
+)
+
+// Replay endpoint preserves caller snapshot identifiers for deterministic re-runs.
+app.post(
+  '/api/simulations/replay',
+  createSimulationReplayHandler({
+    simulationApiBaseUrl: SIMULATION_API_BASE_URL,
+    simulationRunPath: SIMULATION_RUN_PATH,
   })
 )
 
@@ -629,6 +651,18 @@ app.post('/api/notifications/sms', async (req: Request, res: Response) => {
       error,
       { success: false, error: 'Internal server error' }
     )
+  }
+})
+
+// GET /api/k8s/pods - Pods grouped by service name (direct K8s API)
+app.get('/api/k8s/pods', async (req: Request, res: Response) => {
+  try {
+    const namespace = req.query.namespace as string | undefined
+    const podsByService = await fetchPodsByService(namespace)
+    res.json({ podsByService })
+  } catch (error) {
+    console.error('[BFF:k8s/pods] Failed to fetch pods:', error instanceof Error ? error.message : error)
+    res.status(502).json({ error: 'Failed to fetch pods from Kubernetes API', podsByService: {} })
   }
 })
 

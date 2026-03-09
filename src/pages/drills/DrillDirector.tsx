@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import toast from 'react-hot-toast'
 import DrillCatalog from './components/DrillCatalog'
@@ -83,8 +83,19 @@ export default function DrillDirector() {
   const [prefillDrill, setPrefillDrill] = useState<DrillPrefillRequest | null>(null)
   const [prefillBannerSeenAt, setPrefillBannerSeenAt] = useState<string | null>(null)
   const { status: k8sHealth, isLoading: isK8sProbing, recheck: recheckK8s } = useK8sHealth()
+  const [topologyRefreshTrigger, setTopologyRefreshTrigger] = useState(0)
+  const prevRunStatusRef = useRef<string | null>(null)
 
   const isClusterOffline = !isK8sProbing && k8sHealth !== null && !k8sHealth.reachable
+
+  /* Bump topology refresh trigger whenever drill run status changes */
+  useEffect(() => {
+    const currentStatus = activeRun?.status ?? null
+    if (currentStatus && currentStatus !== prevRunStatusRef.current) {
+      setTopologyRefreshTrigger((c) => c + 1)
+    }
+    prevRunStatusRef.current = currentStatus
+  }, [activeRun?.status])
 
   useEffect(() => {
     const state = location.state as DrillDirectorLocationState | null
@@ -280,7 +291,7 @@ export default function DrillDirector() {
 
       {/* Cluster Topology — Nodes / Services / Pods */}
       <div className="w-full mb-6">
-        <ClusterTopologyMap />
+        <ClusterTopologyMap refreshTrigger={topologyRefreshTrigger} />
       </div>
 
       <Tabs

@@ -561,13 +561,13 @@ function buildTopologyGraph(
       const isDown = effectivePodCount <= 0
       const metrics = serviceMetrics?.get(svcKey)
       const serviceTrafficRatio = normalizedTrafficRatio(metrics?.rps, maxServiceRps)
+      const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
       let fill = '#ef4444' // red = critical / down
       if (!isDown) {
-        if (avail >= 0.95) fill = '#10b981'
+        if (avail >= 0.95 && !highErrorRate) fill = '#10b981'
+        else if (avail >= 0.95 && highErrorRate) fill = '#f59e0b'
         else if (avail >= 0.8) fill = '#f59e0b'
       }
-
-      const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
       const alertData = alertRollups?.get(svcKey)
       const syntheticMode =
         visualIntent && visualIntent.direction === 'up'
@@ -2076,7 +2076,7 @@ function copyTopologyYaml(
 /*  Main Component                                                    */
 /* ------------------------------------------------------------------ */
 
-export default function ClusterTopologyMap() {
+export default function ClusterTopologyMap({ refreshTrigger = 0 }: { refreshTrigger?: number } = {}) {
   const { resolvedTheme, setTheme } = useTheme()
   const navigate = useNavigate()
   const {
@@ -2087,6 +2087,15 @@ export default function ClusterTopologyMap() {
     serviceMetrics,
     refetch,
   } = useServicesWithPlacement()
+
+  /* Re-fetch graph data when an external trigger (e.g. drill status change) fires */
+  const prevTriggerRef = useRef(refreshTrigger)
+  useEffect(() => {
+    if (refreshTrigger !== prevTriggerRef.current) {
+      prevTriggerRef.current = refreshTrigger
+      void refetch()
+    }
+  }, [refreshTrigger, refetch])
 
   /* Track active drill polling intervals so we can clean up */
   const drillPollRef = useRef<ReturnType<typeof setInterval> | null>(null)

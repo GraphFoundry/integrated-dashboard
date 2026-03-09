@@ -72,13 +72,24 @@ function normalizeServicesWithPlacement(services: ServiceWithPlacement[]): Servi
       if (!svc?.name || !svc?.namespace) return false
       return !isInfrastructureService({ name: svc.name, namespace: svc.namespace })
     })
-    .map((svc) => ({
-      name: svc.name,
-      namespace: svc.namespace,
-      podCount: typeof svc.podCount === 'number' ? svc.podCount : 0,
-      availability: typeof svc.availability === 'number' ? svc.availability : 0,
-      placement: svc.placement ?? { nodes: [] },
-    }))
+    .map((svc) => {
+      const podCount = typeof svc.podCount === 'number' ? svc.podCount : 0
+      // When the backend doesn't report availability, infer from pod count:
+      // services with running pods are assumed healthy (1.0) rather than critical (0).
+      const availability =
+        typeof svc.availability === 'number'
+          ? svc.availability
+          : podCount > 0
+            ? 1
+            : 0
+      return {
+        name: svc.name,
+        namespace: svc.namespace,
+        podCount,
+        availability,
+        placement: svc.placement ?? { nodes: [] },
+      }
+    })
 }
 
 /**

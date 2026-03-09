@@ -137,6 +137,9 @@ const DRILLS: DrillDefinition[] = [
   },
 ]
 
+const HIDDEN_DRILL_IDS = new Set(['service-brownout', 'migrate-service', 'network-cut-extended', 'traffic-spike'])
+const VISIBLE_DRILLS = DRILLS.filter((d) => !HIDDEN_DRILL_IDS.has(d.id))
+
 const DEFAULT_TARGETED_LOAD_RATE = 100
 const DEFAULT_TARGETED_LOAD_USERS = 10
 
@@ -349,7 +352,7 @@ export default function DrillCatalog({
 
   return (
     <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-6', disabled && 'pointer-events-none opacity-50')}>
-      {DRILLS.map((drill) => (
+      {VISIBLE_DRILLS.map((drill) => (
         <Card
           key={drill.id}
           data-testid="drill-catalog-card"

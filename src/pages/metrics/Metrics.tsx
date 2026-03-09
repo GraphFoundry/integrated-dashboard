@@ -867,94 +867,31 @@ export default function Metrics() {
               tooltip="How many scaling scenarios were tested in the selected period. This helps track performance tuning activity."
             />
             <MetricHighlightCard
-              label="Avg Affected"
-              description="Average impacted services"
+              label="Services Put at Risk"
+              description="How many services were in the blast zone on average"
               icon={Activity}
               value={simulationMetrics.avgAffectedServices.toFixed(2)}
               tone="blue"
-              tooltip="Average number of services affected per run. Higher values suggest broader impact across the system."
+              tooltip="Average number of services affected per simulation run. A higher number means a problem in one place could ripple out and hurt more of your system."
             />
             <MetricHighlightCard
-              label="Avg Latency Δ"
-              description="Average delta from scaling runs"
+              label="Speed Impact Per Test"
+              description="Whether services got faster or slower on average"
               icon={Clock}
               value={`${simulationMetrics.avgLatencyDeltaMs >= 0 ? '+' : ''}${simulationMetrics.avgLatencyDeltaMs.toFixed(2)} ms`}
               tone={simulationMetrics.avgLatencyDeltaMs <= 0 ? 'emerald' : 'amber'}
-              tooltip="Average response-time change after scaling actions. Negative means faster on average; positive means slower on average."
+              tooltip="Average change in response time after simulated scaling actions. A negative number means things got faster (good). A positive number means slower (watch out)."
             />
             <MetricHighlightCard
-              label="Low Confidence"
-              description="Runs with stale/uncertain inputs"
+              label="Results That Need Caution"
+              description="Simulations where data was incomplete — treat with care"
               icon={ShieldCheck}
               value={simulationMetrics.lowConfidenceRuns}
               tone={simulationMetrics.lowConfidenceRuns > 0 ? 'amber' : 'emerald'}
-              tooltip="Runs where source data was stale, incomplete, or uncertain. Treat these results as directional guidance, not exact truth."
+              tooltip="These are simulations where the input data was stale, missing, or uncertain. The results are still useful as a rough guide, but don't treat them as exact predictions."
             />
           </div>
 
-          <div className="mt-4">
-            <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">Run Trend</h3>
-            {simulationMetrics.trend.length === 0 ? (
-              <p className="text-sm text-[var(--text-muted)]">
-                No simulation runs in the selected window.
-              </p>
-            ) : (
-              <div className={tableShellClass}>
-                <div className="max-h-56 overflow-auto">
-                  <table className="w-full">
-                    <thead className={cn(tableHeadRowClass, tableHeadStickyClass)}>
-                      <tr>
-                        <th className={cn(tableHeaderCellClass, 'text-[var(--text-secondary)]')}>
-                          Date
-                        </th>
-                        <th className={cn(tableHeaderCellClass, 'text-right')}>Runs</th>
-                        <th className={cn(tableHeaderCellClass, 'text-right')}>Failure</th>
-                        <th className={cn(tableHeaderCellClass, 'text-right')}>Scale</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {simulationMetrics.trend.map((point) => (
-                        <tr key={point.date} className={tableBodyRowClass}>
-                          <td
-                            className={cn(
-                              tableCellClass,
-                              'font-semibold text-[var(--text-primary)]'
-                            )}
-                          >
-                            {point.date}
-                          </td>
-                          <td
-                            className={cn(
-                              tableCellClass,
-                              'text-right font-mono font-semibold text-[var(--text-primary)]'
-                            )}
-                          >
-                            {point.runs}
-                          </td>
-                          <td
-                            className={cn(
-                              tableCellClass,
-                              'text-right font-mono text-[var(--text-secondary)]'
-                            )}
-                          >
-                            {point.failureRuns}
-                          </td>
-                          <td
-                            className={cn(
-                              tableCellClass,
-                              'text-right font-mono text-[var(--text-secondary)]'
-                            )}
-                          >
-                            {point.scaleRuns}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
         </Section>
       )}
 

@@ -4,7 +4,6 @@ import {
   Activity,
   AlertTriangle,
   ArrowDownToLine,
-  ArrowRight,
   ArrowUpFromLine,
   CheckCircle,
   Clock3,
@@ -1103,49 +1102,14 @@ export default function Simulations() {
           )}
         </Section>
 
-        <Section title="Request Journeys That Would Break" icon={Network}>
-          {runResult.impactedPaths.length === 0 ? (
-            <p className="text-sm text-[var(--text-muted)]">No request journeys would be disrupted in this scenario.</p>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <p className="text-sm text-[var(--text-secondary)]">
-                  When a user makes a request, it travels through a chain of services. These are the journeys that would break.
-                </p>
-                <InfoHint text="Think of each journey like a relay race — one runner passes the baton to the next. If one runner (service) drops out, everyone after them can't continue." />
-              </div>
-              <div className="grid grid-cols-1 gap-2">
-                {runResult.impactedPaths.map((path, index) => (
-                  <div key={`${path.path.join('->')}-${index}`} className="flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] px-3 py-2.5">
-                    {path.path.map((step, stepIndex) => (
-                      <span key={`${step}-${stepIndex}`} className="inline-flex items-center gap-1.5">
-                        <span className="rounded-md border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--text-primary)]">
-                          {shortServiceName(step)}
-                        </span>
-                        {stepIndex < path.path.length - 1 && (
-                          <ArrowRight className="h-3.5 w-3.5 text-[var(--text-dim)]" />
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <p className="text-xs text-[var(--text-muted)]">{runResult.impactedPaths.length} journey{runResult.impactedPaths.length !== 1 ? 's' : ''} would be disrupted</p>
-            </div>
-          )}
-        </Section>
-
         <Section title="What Would Change" icon={TrendingUp}>
           {runResult.beforeAfterValues.length === 0 ? (
             <p className="text-sm text-[var(--text-muted)]">No measurable changes detected for this scenario.</p>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-start gap-2">
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Here’s how things would look before vs. after this scenario happens.
-                </p>
-                <InfoHint text="Each card shows one measurement. Green means things improved, red means things got worse, and gray means the value is unavailable after the change." />
-              </div>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Here's what would get better or worse if this scenario actually happened.
+              </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {runResult.beforeAfterValues.map((value) => {
                   const delta = value.deltaValue
@@ -1156,27 +1120,52 @@ export default function Simulations() {
                     : isWorse
                       ? 'border-rose-500/50'
                       : 'border-[var(--border)]'
-                  const emoji = isBetter ? '\u2705' : isWorse ? '\u26a0\ufe0f' : '\u2139\ufe0f'
+                  const beforeFormatted = formatNumberWithUnit(value.beforeValue, value.unit)
+                  const afterFormatted = formatNumberWithUnit(value.afterValue, value.unit)
+                  const contextSentence = isBetter
+                    ? 'This is an improvement.'
+                    : isWorse
+                      ? 'This could affect users.'
+                      : 'No change expected.'
+                  const afterValueClass = isBetter
+                    ? 'font-semibold text-emerald-600'
+                    : isWorse
+                      ? 'font-semibold text-rose-600'
+                      : 'font-semibold text-[var(--text-primary)]'
+                  const infoText = `Technical field: "${value.fieldRef}". Before: ${beforeFormatted}. After: ${afterFormatted}. Change: ${formatNumberWithUnit(value.deltaValue, value.unit)}.`
                   return (
                     <div key={value.traceRef} className={`rounded-xl border ${borderClass} bg-[var(--surface-solid)] p-4`}>
-                      <div className="mb-3 flex items-start justify-between gap-2">
-                        <span className="text-lg">{emoji}</span>
-                        <InfoHint text={`Technical: "${value.fieldRef}". Before: ${formatNumberWithUnit(value.beforeValue, value.unit)}. After: ${formatNumberWithUnit(value.afterValue, value.unit)}. Change: ${formatNumberWithUnit(value.deltaValue, value.unit)}.`} />
-                      </div>
-                      <p className="mb-3 text-sm font-semibold text-[var(--text-primary)]">{value.description || value.fieldRef}</p>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-center">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">Before</p>
-                          <p className="mt-0.5 text-sm font-bold text-[var(--text-primary)]">{formatNumberWithUnit(value.beforeValue, value.unit)}</p>
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-[var(--text-primary)]">
+                          {value.description || value.fieldRef}
+                        </p>
+                        <div className="flex shrink-0 items-center gap-1">
+                          {isBetter && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                              <TrendingUp className="h-3 w-3" /> Better
+                            </span>
+                          )}
+                          {isWorse && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/50 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                              <AlertTriangle className="h-3 w-3" /> Worse
+                            </span>
+                          )}
+                          {!isBetter && !isWorse && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-muted)]">
+                              No change
+                            </span>
+                          )}
+                          <InfoHint text={infoText} />
                         </div>
-                        <ArrowRight className="h-4 w-4 shrink-0 text-[var(--text-dim)]" />
-                        <div className="flex-1 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-center">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">After</p>
-                          <p className={`mt-0.5 text-sm font-bold ${isBetter ? 'text-emerald-600' : isWorse ? 'text-rose-600' : 'text-[var(--text-primary)]'}`}>
-                            {formatNumberWithUnit(value.afterValue, value.unit)}
-                          </p>
-                        </div>
                       </div>
+                      <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+                        {'Was '}
+                        <span className="font-semibold text-[var(--text-primary)]">{beforeFormatted}</span>
+                        {', and would become '}
+                        <span className={afterValueClass}>{afterFormatted}</span>
+                        {'. '}
+                        {contextSentence}
+                      </p>
                     </div>
                   )
                 })}
@@ -1492,32 +1481,143 @@ export default function Simulations() {
   }
 
   const renderServiceAdditionResults = (additionResult: ServiceAdditionResponse) => {
-    return (
-      <Section title="Add-Service Simulation (Experimental)" icon={Activity}>
-        <div className="rounded border border-[var(--border)] bg-[var(--surface-solid)] p-4">
-          <p className="mb-2 text-sm text-[var(--text-secondary)]">
-            Target service: <span className="font-semibold text-[var(--text-primary)]">{additionResult.targetServiceName}</span>
-          </p>
-          <p className="mb-4 text-xs text-[var(--text-muted)]">
-            This flow is marked experimental and is outside the core panel narrative.
-          </p>
+    const canAdd = additionResult.suitableNodes.some((n) => n.suitable)
+    const risk = additionResult.riskAnalysis.dependencyRisk
+    const riskConfig = {
+      low: {
+        label: 'Low risk',
+        sub: 'This service is unlikely to destabilise anything around it.',
+        border: 'border-emerald-500/40',
+        bg: 'bg-emerald-500/10',
+        text: 'text-emerald-700',
+      },
+      medium: {
+        label: 'Moderate risk',
+        sub: 'Review dependencies before deploying to production.',
+        border: 'border-amber-500/40',
+        bg: 'bg-amber-500/10',
+        text: 'text-amber-700',
+      },
+      high: {
+        label: 'High risk',
+        sub: 'This service will likely cause instability. Proceed with caution.',
+        border: 'border-rose-500/40',
+        bg: 'bg-rose-500/10',
+        text: 'text-rose-700',
+      },
+    }[risk]
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {additionResult.suitableNodes.map((node) => (
-              <div key={node.nodeName} className="rounded border border-[var(--border)] bg-[var(--surface-soft)] p-3">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-[var(--text-primary)]">{node.nodeName}</span>
-                  <span className={`text-xs ${node.suitable ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {node.suitable ? 'Suitable' : 'Unsuitable'}
-                  </span>
-                </div>
-                <div className="text-xs text-[var(--text-muted)]">Score: {node.score}/100</div>
-                {!node.suitable && node.reason && <div className="mt-1 text-xs text-[var(--text-primary)]">{node.reason}</div>}
-              </div>
-            ))}
+    return (
+      <div className="space-y-4">
+        {/* Hero card */}
+        <div
+          className={`rounded-xl border-2 p-5 ${canAdd ? 'border-emerald-500/50 bg-emerald-500/10' : 'border-rose-500/50 bg-rose-500/10'}`}
+        >
+          <div className="flex items-center gap-3">
+            {canAdd ? (
+              <CheckCircle className="h-8 w-8 shrink-0 text-emerald-600" />
+            ) : (
+              <XCircle className="h-8 w-8 shrink-0 text-rose-600" />
+            )}
+            <div>
+              <p className={`text-lg font-bold ${canAdd ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {canAdd ? 'Yes — this service can be added' : 'No — not enough resources right now'}
+              </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Adding{' '}
+                <span className="font-semibold text-[var(--text-primary)]">
+                  {additionResult.targetServiceName}
+                </span>{' '}
+                to your cluster
+              </p>
+            </div>
           </div>
         </div>
-      </Section>
+
+        {/* Node grid */}
+        <div>
+          <p className="mb-2 text-sm font-semibold text-[var(--text-primary)]">Node Availability</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {additionResult.suitableNodes.map((node) => {
+              const cpuFree = node.availableCpu
+              const cpuUsed = node.cpuTotal - cpuFree
+              const cpuPct = node.cpuTotal > 0 ? Math.round((cpuUsed / node.cpuTotal) * 100) : 0
+              const ramFreeMB = node.availableRam
+              const ramUsedMB = node.ramTotalMB - ramFreeMB
+              const ramPct = node.ramTotalMB > 0 ? Math.round((ramUsedMB / node.ramTotalMB) * 100) : 0
+              const ramFreeGB = (ramFreeMB / 1024).toFixed(1)
+              const ramTotalGB = (node.ramTotalMB / 1024).toFixed(1)
+              return (
+                <div
+                  key={node.nodeName}
+                  className={`rounded-xl border p-4 ${node.suitable ? 'border-emerald-500/40 bg-[var(--surface-solid)]' : 'border-rose-500/30 bg-[var(--surface-solid)]'}`}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-[var(--text-primary)]">{node.nodeName}</span>
+                    {node.suitable ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        <CheckCircle className="h-3 w-3" /> Ready
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/50 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
+                        <XCircle className="h-3 w-3" /> Not enough resources
+                      </span>
+                    )}
+                  </div>
+                  {/* CPU bar */}
+                  <div className="mb-2">
+                    <div className="mb-1 flex justify-between text-xs text-[var(--text-secondary)]">
+                      <span>CPU</span>
+                      <span className="font-semibold text-[var(--text-primary)]">
+                        {cpuFree.toFixed(2)} cores free
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-soft)]">
+                      <div
+                        className={`h-full rounded-full ${cpuPct > 85 ? 'bg-rose-500' : cpuPct > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(cpuPct, 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
+                      Using {cpuUsed.toFixed(2)} of {node.cpuTotal} cores
+                    </p>
+                  </div>
+                  {/* RAM bar */}
+                  <div>
+                    <div className="mb-1 flex justify-between text-xs text-[var(--text-secondary)]">
+                      <span>RAM</span>
+                      <span className="font-semibold text-[var(--text-primary)]">
+                        {ramFreeGB} GB free
+                      </span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--surface-soft)]">
+                      <div
+                        className={`h-full rounded-full ${ramPct > 85 ? 'bg-rose-500' : ramPct > 65 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                        style={{ width: `${Math.min(ramPct, 100)}%` }}
+                      />
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-[var(--text-muted)]">
+                      Using {(ramUsedMB / 1024).toFixed(1)} of {ramTotalGB} GB
+                    </p>
+                  </div>
+                  {!node.suitable && node.reason && (
+                    <p className="mt-2 text-xs font-medium text-rose-700">{node.reason}</p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Risk banner */}
+        <div className={`rounded-xl border ${riskConfig.border} ${riskConfig.bg} p-4`}>
+          <p className={`text-sm font-bold ${riskConfig.text}`}>{riskConfig.label}</p>
+          <p className="text-xs text-[var(--text-secondary)]">{riskConfig.sub}</p>
+          {additionResult.riskAnalysis.description && (
+            <p className="mt-1 text-xs text-[var(--text-muted)]">{additionResult.riskAnalysis.description}</p>
+          )}
+        </div>
+      </div>
     )
   }
 

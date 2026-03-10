@@ -34,6 +34,14 @@ export const SERVICE_CONFIG_REGISTRY: ServiceConfigSchema[] = [
     namespace: NAMESPACE,
     keys: [
       {
+        key: 'OVERVIEW_NAMESPACE',
+        label: 'Overview Namespace',
+        description: 'Kubernetes namespace to monitor for service discovery and graph building',
+        type: 'string',
+        defaultValue: 'default',
+        group: 'General',
+      },
+      {
         key: 'POLL_INTERVAL_Ms',
         label: 'Poll Interval',
         description: 'Telemetry polling interval in milliseconds',
@@ -61,6 +69,14 @@ export const SERVICE_CONFIG_REGISTRY: ServiceConfigSchema[] = [
     configMapName: 'analysis-engine-runtime',
     namespace: NAMESPACE,
     keys: [
+      {
+        key: 'OVERVIEW_NAMESPACE',
+        label: 'Overview Namespace',
+        description: 'Kubernetes namespace to monitor for service discovery and graph building',
+        type: 'string',
+        defaultValue: 'default',
+        group: 'General',
+      },
       {
         key: 'MAX_TRAVERSAL_DEPTH',
         label: 'Max Traversal Depth',

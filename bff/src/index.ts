@@ -5,6 +5,7 @@ import axios from 'axios'
 
 // Simple .env loader
 const envPath = path.resolve(__dirname, '../.env')
+const RUNTIME_ENV_FILE = '/etc/runtime-config/runtime.env'
 
 function loadEnvFile(): void {
   if (fs.existsSync(envPath)) {
@@ -27,7 +28,22 @@ function loadEnvFile(): void {
   }
 }
 
+function loadRuntimeEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return
+  const content = fs.readFileSync(filePath, 'utf8')
+  content.split('\n').forEach((line) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx < 0) return
+    const key = trimmed.substring(0, eqIdx).trim()
+    const value = trimmed.substring(eqIdx + 1).trim()
+    process.env[key] = value
+  })
+}
+
 loadEnvFile()
+loadRuntimeEnvFile(RUNTIME_ENV_FILE)
 
 import cors from 'cors'
 import morgan from 'morgan'
@@ -755,24 +771,9 @@ app.post('/api/configs/:serviceId/apply', async (req: Request, res: Response) =>
   }
 })
 
-// ── Runtime config reload endpoint ──────────────────────────────────────────
-function loadRuntimeEnvFile(filePath: string): void {
-  if (!fs.existsSync(filePath)) return
-  const content = fs.readFileSync(filePath, 'utf8')
-  content.split('\n').forEach((line) => {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('#')) return
-    const eqIdx = trimmed.indexOf('=')
-    if (eqIdx < 0) return
-    const key = trimmed.substring(0, eqIdx).trim()
-    const value = trimmed.substring(eqIdx + 1).trim()
-    process.env[key] = value
-  })
-}
-
 app.post('/admin/reload-config', (req: Request, res: Response) => {
   try {
-    loadRuntimeEnvFile('/etc/runtime-config/runtime.env')
+    loadRuntimeEnvFile(RUNTIME_ENV_FILE)
     // Apply env overrides from request body (takes precedence over file)
     const envOverrides = req.body?.env as Record<string, string> | undefined
     if (envOverrides && typeof envOverrides === 'object') {

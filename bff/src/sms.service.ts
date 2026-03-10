@@ -1,5 +1,7 @@
 import axios from 'axios'
 
+const DEFAULT_FITSMS_API_URL = 'https://app.fitsms.lk/api/v3/sms/send'
+
 interface FitSmsPayload {
   recipient: string
   sender_id: string
@@ -38,17 +40,37 @@ interface ErrorLike {
   }
 }
 
+function readEnv(name: string): string {
+  return (process.env[name] ?? '').trim()
+}
+
 export class SmsService {
-  private fitSmsUrl = 'https://app.fitsms.lk/api/v3/sms/send'
-  private fitSmsToken = process.env.FITSMS_API_KEY || ' ' // Fallback to user provided key
-  // ideally utilize process.env.OPENAI_API_KEY
-  private openaiApiKey = process.env.OPENAI_API_KEY || ' '
-  private defaultSenderId = process.env.FITSMS_SENDER_ID || ' '
-  private defaultRecipient = process.env.SMS_RECIPIENT || ' '
+  private get fitSmsUrl(): string {
+    return readEnv('FITSMS_API_URL') || DEFAULT_FITSMS_API_URL
+  }
+
+  private get fitSmsToken(): string {
+    return readEnv('FITSMS_API_KEY')
+  }
+
+  private get openaiApiKey(): string {
+    return readEnv('OPENAI_API_KEY')
+  }
+
+  private get defaultSenderId(): string {
+    return readEnv('FITSMS_SENDER_ID')
+  }
+
+  private get defaultRecipient(): string {
+    return readEnv('SMS_RECIPIENT')
+  }
 
   constructor() {
     if (!this.openaiApiKey) {
       console.warn('OPENAI_API_KEY is not set. Summarization will fail.')
+    }
+    if (!this.fitSmsToken) {
+      console.warn('FITSMS_API_KEY is not set. SMS delivery will fail.')
     }
     if (!this.defaultRecipient) {
       console.warn('SMS_RECIPIENT is not set. SMS notifications for webhooks might fail if no recipient provided.')
@@ -123,8 +145,12 @@ export class SmsService {
   public async sendSms(options: SmsSendOptions): Promise<SmsSendResult> {
     const { recipient, message, senderId, shouldSummarize = true } = options
 
-    // Use provided senderId, or env var, or fallback to 'FitSMS' (common default) or user's preference
-    const finalSenderId = senderId || this.defaultSenderId
+    if (!this.fitSmsToken) {
+      return { success: false, error: 'FITSMS_API_KEY is not configured' }
+    }
+
+    // Use provided senderId, env config, or the provider's common default sender label.
+    const finalSenderId = senderId?.trim() || this.defaultSenderId || 'FitSMS'
 
     try {
       // 1. Summarize if requested

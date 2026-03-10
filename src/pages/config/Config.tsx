@@ -301,6 +301,10 @@ function ConfigRow({
   const isDirty = editedValue !== undefined
   const displayValue = editedValue ?? keyInfo.currentValue
   const isDefault = keyInfo.currentValue === keyInfo.defaultValue && !isDirty
+  const inputClassName =
+    keyInfo.type === 'string'
+      ? 'w-80 !h-9 text-left font-mono text-sm'
+      : 'w-40 !h-9 text-right font-mono text-sm'
 
   return (
     <div className="flex items-center gap-4 px-6 py-4">
@@ -344,7 +348,7 @@ function ConfigRow({
             step={keyInfo.type === 'float' ? '0.1' : undefined}
             min={keyInfo.validation?.min}
             max={keyInfo.validation?.max}
-            className={cn(controlInputBaseClass, 'w-40 !h-9 text-right font-mono text-sm')}
+            className={cn(controlInputBaseClass, inputClassName)}
           />
         )}
 

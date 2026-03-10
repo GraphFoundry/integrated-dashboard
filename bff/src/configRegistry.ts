@@ -487,6 +487,23 @@ export const SERVICE_CONFIG_REGISTRY: ServiceConfigSchema[] = [
         defaultValue: 'https://app.fitsms.lk/api/v3/sms/send',
         group: 'Notifications',
       },
+      {
+        key: 'SMS_RECIPIENT',
+        label: 'SMS Recipient',
+        description:
+          'Default phone number that receives SMS alert notifications (e.g. +94771234567)',
+        type: 'string',
+        defaultValue: '',
+        group: 'Notifications',
+      },
+      {
+        key: 'FITSMS_SENDER_ID',
+        label: 'FitSMS Sender ID',
+        description: 'Sender ID displayed on outgoing SMS messages',
+        type: 'string',
+        defaultValue: 'FitSMS',
+        group: 'Notifications',
+      },
     ],
   },
 ]

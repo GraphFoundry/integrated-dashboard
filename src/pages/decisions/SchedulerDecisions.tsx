@@ -557,6 +557,7 @@ export default function SchedulerDecisions() {
                   <p className="text-xs uppercase tracking-wider text-[var(--text-dim)] font-semibold mb-3">Node Scores</p>
                   <div className="flex flex-wrap gap-3">
                     {Object.entries(decision.scores || {})
+                      .filter(([, score]) => score > 0)
                       .sort(([, a], [, b]) => b - a)
                       .map(([node, score]) => (
                         <div key={node} className="flex items-center gap-2 bg-[var(--surface-subtle)] rounded px-2.5 py-1.5 border border-[var(--border)]">
@@ -784,6 +785,7 @@ export default function SchedulerDecisions() {
                       >
                         <option value="">Select a node...</option>
                         {Object.entries(changeNodeDecision.scores || {})
+                          .filter(([, score]) => score > 0)
                           .sort(([, a], [, b]) => b - a)
                           .map(([node, score]) => (
                             <option key={node} value={node}>

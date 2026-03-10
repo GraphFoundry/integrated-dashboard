@@ -441,7 +441,7 @@ export default function SchedulerDecisions() {
                   <button type="button"
                     onClick={() => handleResetPreference(decision)}
                     disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-500/50 bg-amber-600/15 text-amber-800 dark:text-amber-200 hover:bg-amber-500/20"
+                    className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 hover:border-amber-500 dark:border-amber-500/50 dark:bg-amber-600/15 dark:text-amber-200 dark:hover:bg-amber-500/20"
                     title="Remove node preference and let the scheduler decide"
                   >
                     <StarOff className="w-3.5 h-3.5" />
@@ -450,7 +450,7 @@ export default function SchedulerDecisions() {
                 )}
                 <button type="button"
                   onClick={() => handleChangeNodeClick(decision)}
-                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-500/50 bg-blue-600/15 text-blue-800 dark:text-blue-200 hover:bg-blue-600/25"
+                  className="neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium border-blue-300 bg-blue-100 text-blue-700 hover:bg-blue-200 hover:border-blue-400 dark:border-blue-500/50 dark:bg-blue-600/15 dark:text-blue-200 dark:hover:bg-blue-600/25"
                 >
                   <ArrowRightLeft className="w-3.5 h-3.5" />
                   Change Node
@@ -459,8 +459,8 @@ export default function SchedulerDecisions() {
                   onClick={() => handleApplyClick(decision)}
                   disabled={isOptimized}
                   className={`neon-focus-ring interactive-soft flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium ${isOptimized
-                    ? 'cursor-not-allowed border-[var(--border)] bg-[var(--surface-subtle)] text-[var(--text-dim)]'
-                    : 'border-emerald-500/50 bg-emerald-600/15 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-600/25'
+                    ? 'cursor-not-allowed border-slate-300 bg-slate-100 text-slate-500 dark:border-[var(--border)] dark:bg-[var(--surface-subtle)] dark:text-[var(--text-dim)]'
+                    : 'border-emerald-400 bg-emerald-100 text-emerald-700 hover:bg-emerald-200 hover:border-emerald-500 dark:border-emerald-500/50 dark:bg-emerald-600/15 dark:text-emerald-300 dark:hover:bg-emerald-600/25'
                     }`}
                 >
                   {isOptimized ? <CheckCircle className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -482,7 +482,7 @@ export default function SchedulerDecisions() {
                       type="button"
                       onClick={() => handleResetPreference(decision)}
                       disabled={settingPreference === `${decision.namespace}/${decision.service}`}
-                      className="flex items-center gap-1.5 rounded-md border border-amber-500/50 bg-amber-600/15 px-2.5 py-1 text-xs font-medium text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
+                      className="flex items-center gap-1.5 rounded-md border border-amber-400 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 hover:border-amber-500 dark:border-amber-500/50 dark:bg-amber-600/15 dark:text-amber-300 dark:hover:bg-amber-500/20 transition-colors"
                     >
                       <StarOff className="w-3.5 h-3.5" />
                       Clear &amp; let scheduler decide

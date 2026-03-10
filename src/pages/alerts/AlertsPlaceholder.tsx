@@ -459,7 +459,7 @@ export default function AlertsPage() {
                         to={`/alerts/${encodeURIComponent(incident.dedupe_key)}?namespace=${incident.namespace}&service=${incident.service}`}
                         className="group flex flex-col"
                       >
-                        <span className="text-blue-400 hover:text-blue-300 font-medium transition-colors group-hover:underline">
+                        <span className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors group-hover:underline">
                           {incident.service}
                         </span>
                         <span className="text-xs text-[var(--text-dim)] mt-0.5">{incident.namespace}</span>
@@ -534,10 +534,10 @@ export default function AlertsPage() {
                     <td className={tableCellClass}>
                       <span
                         className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold ${incident.current_priority === 'P1'
-                          ? 'bg-red-500/20 text-red-400'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
                           : incident.current_priority === 'P2'
-                            ? 'bg-orange-500/20 text-orange-400'
-                            : 'bg-blue-500/20 text-blue-400'
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400'
+                            : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'
                           }`}
                       >
                         {incident.current_priority}
@@ -593,7 +593,7 @@ export default function AlertsPage() {
             </div>
             <button type="button"
               onClick={() => dismissToast(toast.id)}
-              className={cn(subtleIconButtonClass, 'h-8 w-8 bg-[var(--surface-subtle)] text-[var(--text-secondary)]')}
+              className={cn(subtleIconButtonClass, 'h-8 w-8 bg-slate-100 text-slate-600 dark:bg-[var(--surface-subtle)] dark:text-[var(--text-secondary)]')}
               aria-label="Dismiss notification"
             >
               <X className="w-4 h-4" />

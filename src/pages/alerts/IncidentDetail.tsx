@@ -194,13 +194,13 @@ export default function IncidentDetailPage() {
         <div className="relative z-10">
           <Link
             to="/alerts"
-            className="neon-focus-ring interactive-soft mb-4 inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-cyan-300 hover:text-cyan-200"
+            className="neon-focus-ring interactive-soft mb-4 inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm text-cyan-600 dark:text-cyan-300 hover:text-cyan-500 dark:hover:text-cyan-200"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Alerts
           </Link>
           <div className="flex items-center gap-3 mb-2">
-            <Shield className="h-8 w-8 text-cyan-300" />
+            <Shield className="h-8 w-8 text-cyan-600 dark:text-cyan-300" />
             <h1 className="text-4xl font-bold text-[var(--text-primary)]">Incident Details</h1>
           </div>
           <div className="flex items-center gap-3 mt-3">
@@ -254,13 +254,12 @@ export default function IncidentDetailPage() {
               </DetailField>
               <DetailField label="Priority">
                 <span
-                  className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-semibold ${
-                    incident.current_priority === 'P1'
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                      : incident.current_priority === 'P2'
-                        ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                        : 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                  }`}
+                  className={`inline-flex items-center px-3 py-1 rounded-md text-sm font-semibold ${incident.current_priority === 'P1'
+                    ? 'bg-red-500/20 text-red-700 dark:text-red-400 border border-red-500/30'
+                    : incident.current_priority === 'P2'
+                      ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-500/30'
+                      : 'bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-500/30'
+                    }`}
                 >
                   {incident.current_priority}
                 </span>
@@ -270,13 +269,12 @@ export default function IncidentDetailPage() {
               <div className="flex items-center gap-3">
                 <div className="flex-1 bg-[var(--surface-soft)] rounded-full h-2 overflow-hidden">
                   <div
-                    className={`h-full transition-all ${
-                      incident.risk_score >= 80
-                        ? 'bg-red-500'
-                        : incident.risk_score >= 50
-                          ? 'bg-orange-500'
-                          : 'bg-yellow-500'
-                    }`}
+                    className={`h-full transition-all ${incident.risk_score >= 80
+                      ? 'bg-red-500'
+                      : incident.risk_score >= 50
+                        ? 'bg-orange-500'
+                        : 'bg-yellow-500'
+                      }`}
                     style={{ width: `${incident.risk_score}%` }}
                   />
                 </div>
@@ -291,7 +289,7 @@ export default function IncidentDetailPage() {
                   {incident.reason_codes.map((code, idx) => (
                     <span
                       key={idx}
-                      className="px-2.5 py-1 bg-blue-500/20 text-blue-300 rounded-md text-xs font-medium border border-blue-500/30"
+                      className="px-2.5 py-1 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded-md text-xs font-medium border border-blue-500/30"
                     >
                       {code}
                     </span>
@@ -331,42 +329,38 @@ export default function IncidentDetailPage() {
               <div>
                 <div className="text-sm text-[var(--text-muted)] mb-2">Severity</div>
                 <span
-                  className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${
-                    incident.current_severity === 'critical'
-                      ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
-                      : incident.current_severity === 'high'
-                        ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
-                        : incident.current_severity === 'medium'
-                          ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
-                          : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
-                  }`}
+                  className={`relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide ${incident.current_severity === 'critical'
+                    ? 'bg-gradient-to-r from-red-500/30 to-red-600/30 text-red-700 dark:text-red-300 border border-red-500/50 shadow-lg shadow-red-500/20'
+                    : incident.current_severity === 'high'
+                      ? 'bg-gradient-to-r from-orange-500/30 to-orange-600/30 text-orange-700 dark:text-orange-300 border border-orange-500/50 shadow-lg shadow-orange-500/20'
+                      : incident.current_severity === 'medium'
+                        ? 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30 text-yellow-700 dark:text-yellow-300 border border-yellow-500/50 shadow-lg shadow-yellow-500/20'
+                        : 'bg-gradient-to-r from-blue-500/30 to-blue-600/30 text-blue-700 dark:text-blue-300 border border-blue-500/50 shadow-lg shadow-blue-500/20'
+                    }`}
                 >
                   <span
-                    className={`relative flex h-2 w-2 ${
-                      incident.current_severity === 'critical' ? 'animate-pulse' : ''
-                    }`}
+                    className={`relative flex h-2 w-2 ${incident.current_severity === 'critical' ? 'animate-pulse' : ''
+                      }`}
                   >
                     <span
-                      className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                        incident.current_severity === 'critical'
-                          ? 'bg-red-400 animate-ping'
-                          : incident.current_severity === 'high'
-                            ? 'bg-orange-400'
-                            : incident.current_severity === 'medium'
-                              ? 'bg-yellow-400'
-                              : 'bg-blue-400'
-                      }`}
+                      className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${incident.current_severity === 'critical'
+                        ? 'bg-red-400 animate-ping'
+                        : incident.current_severity === 'high'
+                          ? 'bg-orange-400'
+                          : incident.current_severity === 'medium'
+                            ? 'bg-yellow-400'
+                            : 'bg-blue-400'
+                        }`}
                     ></span>
                     <span
-                      className={`relative inline-flex rounded-full h-2 w-2 ${
-                        incident.current_severity === 'critical'
-                          ? 'bg-red-500'
-                          : incident.current_severity === 'high'
-                            ? 'bg-orange-500'
-                            : incident.current_severity === 'medium'
-                              ? 'bg-yellow-500'
-                              : 'bg-blue-500'
-                      }`}
+                      className={`relative inline-flex rounded-full h-2 w-2 ${incident.current_severity === 'critical'
+                        ? 'bg-red-500'
+                        : incident.current_severity === 'high'
+                          ? 'bg-orange-500'
+                          : incident.current_severity === 'medium'
+                            ? 'bg-yellow-500'
+                            : 'bg-blue-500'
+                        }`}
                     ></span>
                   </span>
                   {incident.current_severity}
@@ -462,7 +456,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
     const config = {
       critical: {
         gradient: 'bg-gradient-to-r from-red-500/30 to-red-600/30',
-        text: 'text-red-300',
+        text: 'text-red-700 dark:text-red-300',
         border: 'border-red-500/50',
         shadow: 'shadow-lg shadow-red-500/20',
         dotBg: 'bg-red-400',
@@ -472,7 +466,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       },
       high: {
         gradient: 'bg-gradient-to-r from-orange-500/30 to-orange-600/30',
-        text: 'text-orange-300',
+        text: 'text-orange-700 dark:text-orange-300',
         border: 'border-orange-500/50',
         shadow: 'shadow-lg shadow-orange-500/20',
         dotBg: 'bg-orange-400',
@@ -482,7 +476,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       },
       medium: {
         gradient: 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30',
-        text: 'text-yellow-300',
+        text: 'text-yellow-700 dark:text-yellow-300',
         border: 'border-yellow-500/50',
         shadow: 'shadow-lg shadow-yellow-500/20',
         dotBg: 'bg-yellow-400',
@@ -492,7 +486,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       },
       warning: {
         gradient: 'bg-gradient-to-r from-yellow-500/30 to-yellow-600/30',
-        text: 'text-yellow-300',
+        text: 'text-yellow-700 dark:text-yellow-300',
         border: 'border-yellow-500/50',
         shadow: 'shadow-lg shadow-yellow-500/20',
         dotBg: 'bg-yellow-400',
@@ -502,7 +496,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       },
       low: {
         gradient: 'bg-gradient-to-r from-blue-500/30 to-blue-600/30',
-        text: 'text-blue-300',
+        text: 'text-blue-700 dark:text-blue-300',
         border: 'border-blue-500/50',
         shadow: 'shadow-lg shadow-blue-500/20',
         dotBg: 'bg-blue-400',
@@ -512,7 +506,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
       },
       info: {
         gradient: 'bg-gradient-to-r from-blue-500/30 to-blue-600/30',
-        text: 'text-blue-300',
+        text: 'text-blue-700 dark:text-blue-300',
         border: 'border-blue-500/50',
         shadow: 'shadow-lg shadow-blue-500/20',
         dotBg: 'bg-blue-400',
@@ -538,15 +532,13 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
 
   return (
     <div
-      className={`surface-glass relative rounded-[var(--radius-md)] border p-5 transition-all duration-200 ${
-        expanded ? 'border-cyan-300/42' : 'border-[var(--border)]'
-      } ${
-        isLatest ? 'bg-cyan-400/6 border-cyan-300/32' : 'bg-[var(--surface-subtle)] hover:bg-[var(--surface-soft)]'
-      }`}
+      className={`surface-glass relative rounded-[var(--radius-md)] border p-5 transition-all duration-200 ${expanded ? 'border-cyan-300/42' : 'border-[var(--border)]'
+        } ${isLatest ? 'bg-cyan-400/6 border-cyan-300/32' : 'bg-[var(--surface-subtle)] hover:bg-[var(--surface-soft)]'
+        }`}
     >
       {isLatest && (
         <div className="absolute top-3 right-3">
-          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/35 bg-cyan-400/14 px-2 py-1 text-xs font-semibold text-cyan-200">
+          <span className="inline-flex items-center gap-1 rounded-full border border-cyan-300/35 bg-cyan-400/14 px-2 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-200">
             <TrendingUp className="w-3 h-3" />
             Latest
           </span>
@@ -561,20 +553,18 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
             >
               <span className={`relative flex h-2 w-2 ${badge.pulse ? 'animate-pulse' : ''}`}>
                 <span
-                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                    badge.pulse ? badge.dotPing : badge.dotBg
-                  }`}
+                  className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${badge.pulse ? badge.dotPing : badge.dotBg
+                    }`}
                 ></span>
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${badge.dot}`}></span>
               </span>
               {event.alert.severity}
             </span>
             <span
-              className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
-                event.alert.state === 'firing'
-                  ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                  : 'bg-green-500/20 text-green-400 border border-green-500/30'
-              }`}
+              className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${event.alert.state === 'firing'
+                ? 'bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-500/30'
+                : 'bg-green-500/20 text-green-700 dark:text-green-400 border border-green-500/30'
+                }`}
             >
               {event.alert.state}
             </span>
@@ -595,7 +585,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
         onClick={() => setExpanded(!expanded)}
         aria-expanded={expanded}
         aria-controls={detailsPanelId}
-        className="neon-focus-ring interactive-soft mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-cyan-300 hover:text-cyan-200"
+        className="neon-focus-ring interactive-soft mt-1 inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-cyan-600 dark:text-cyan-300 hover:text-cyan-500 dark:hover:text-cyan-200"
       >
         {expanded ? (
           <>
@@ -627,13 +617,12 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                 <div>
                   <span className="text-[var(--text-muted)]">Priority:</span>{' '}
                   <span
-                    className={`font-semibold ${
-                      event.decision.priority === 'P1'
-                        ? 'text-red-400'
-                        : event.decision.priority === 'P2'
-                          ? 'text-orange-400'
-                          : 'text-blue-400'
-                    }`}
+                    className={`font-semibold ${event.decision.priority === 'P1'
+                      ? 'text-red-700 dark:text-red-400'
+                      : event.decision.priority === 'P2'
+                        ? 'text-orange-700 dark:text-orange-400'
+                        : 'text-blue-700 dark:text-blue-400'
+                      }`}
                   >
                     {event.decision.priority}
                   </span>
@@ -654,13 +643,12 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                   <div>
                     <span className="text-[var(--text-muted)]">Risk Score:</span>{' '}
                     <span
-                      className={`font-semibold ${
-                        event.decision.risk_score >= 80
-                          ? 'text-red-400'
-                          : event.decision.risk_score >= 50
-                            ? 'text-orange-400'
-                            : 'text-yellow-400'
-                      }`}
+                      className={`font-semibold ${event.decision.risk_score >= 80
+                        ? 'text-red-400'
+                        : event.decision.risk_score >= 50
+                          ? 'text-orange-400'
+                          : 'text-yellow-400'
+                        }`}
                     >
                       {event.decision.risk_score}
                     </span>
@@ -674,7 +662,7 @@ function EventCard({ event, isLatest }: { event: AlertEvent; isLatest: boolean }
                     {event.decision.reason_codes.map((code, idx) => (
                       <span
                         key={idx}
-                        className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs"
+                        className="px-2 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-300 rounded text-xs"
                       >
                         {code}
                       </span>

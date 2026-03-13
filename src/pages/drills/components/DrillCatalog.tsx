@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { Card, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -12,10 +12,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { AlertTriangle, Activity, Network, Zap, ArrowRight, ShieldAlert, Check } from 'lucide-react'
-import { planDrill, type DrillRun } from '@/lib/api/drills'
-import { getServices } from '@/lib/api'
+import {
+  AlertTriangle,
+  Activity,
+  Network,
+  Zap,
+  ArrowRight,
+  ShieldAlert,
+  Check,
+  MoveRight,
+} from 'lucide-react'
+import { planDrill, type DrillPrefillRequest, type DrillRun } from '@/lib/api/drills'
+import { getNodes, getServices } from '@/lib/api'
 import { ApiError } from '@/lib/httpClient'
+import type { DiscoveredService } from '@/lib/types'
 import {
   glassInteractiveCardClass,
   cn,
@@ -26,7 +36,40 @@ import {
   controlInputBaseClass,
 } from '@/components/common/uiClassTokens'
 
-const DRILLS = [
+type DrillDefinition = {
+  id: string
+  type: string
+  title: string
+  description: string
+  icon: ReactNode
+  risk: 'High' | 'Medium' | 'Low'
+  baseConfig: Record<string, unknown> & { observeTokens: number }
+  tone: 'rose' | 'sky' | 'amber' | 'emerald'
+}
+
+const DRILLS: DrillDefinition[] = [
+  {
+    id: 'pod-scale-up',
+    type: 'PodScaleUp',
+    title: 'Pod Scale Up',
+    description:
+      'Increase deployment replicas on the recommended service to absorb projected load before saturation.',
+    icon: <Activity className="w-5 h-5 text-sky-400" />,
+    risk: 'Medium',
+    baseConfig: { replicas: 3, observeTokens: 30 },
+    tone: 'sky',
+  },
+  {
+    id: 'migrate-service',
+    type: 'MigrateService',
+    title: 'Migrate Service',
+    description:
+      'Move a service workload to a target node to co-locate chatty dependencies and reduce cross-node latency.',
+    icon: <MoveRight className="w-5 h-5 text-amber-400" />,
+    risk: 'Medium',
+    baseConfig: { observeTokens: 35 },
+    tone: 'amber',
+  },
   {
     id: 'service-shutdown',
     type: 'ServiceShutdown',
@@ -48,17 +91,6 @@ const DRILLS = [
     risk: 'Medium',
     baseConfig: { replicas: 1, observeTokens: 30 },
     tone: 'amber',
-  },
-  {
-    id: 'scale-stress',
-    type: 'ScaleStress',
-    title: 'Scale Stress',
-    description:
-      'Changes replica counts to simulate sudden traffic absorption or resource starvation.',
-    icon: <Activity className="w-5 h-5 text-sky-400" />,
-    risk: 'Medium',
-    baseConfig: { replicas: 3, observeTokens: 20 },
-    tone: 'sky',
   },
   {
     id: 'network-cut',
@@ -97,7 +129,7 @@ const DRILLS = [
     type: 'TrafficSpike',
     title: 'Traffic Spike',
     description:
-      'Applies a stronger burst profile to pressure autoscaling and downstream dependency protections.',
+      'Applies a stronger burst profile to pressure service capacity and downstream protections.',
     icon: <Zap className="w-5 h-5 text-emerald-400" />,
     risk: 'Medium',
     baseConfig: { rps: 300, users: 30, observeTokens: 30 },
@@ -105,66 +137,179 @@ const DRILLS = [
   },
 ]
 
+const HIDDEN_DRILL_IDS = new Set(['service-brownout', 'migrate-service', 'network-cut-extended', 'traffic-spike'])
+const VISIBLE_DRILLS = DRILLS.filter((d) => !HIDDEN_DRILL_IDS.has(d.id))
+
 const DEFAULT_TARGETED_LOAD_RATE = 100
 const DEFAULT_TARGETED_LOAD_USERS = 10
+
+function namespaceFromTarget(target: string): string {
+  const parts = target.split('/')
+  return parts.length === 2 ? parts[0] : 'default'
+}
 
 export default function DrillCatalog({
   onDrillSelect,
   disabled = false,
+  prefill = null,
+  prefillBannerSeenAt = null,
+  onPrefillConsumed,
 }: {
   onDrillSelect: (run: DrillRun) => void
   disabled?: boolean
+  prefill?: DrillPrefillRequest | null
+  prefillBannerSeenAt?: string | null
+  onPrefillConsumed?: () => void
 }) {
-  const [selectedDrill, setSelectedDrill] = useState<(typeof DRILLS)[number] | null>(null)
+  const [selectedDrill, setSelectedDrill] = useState<DrillDefinition | null>(null)
   const [targetService, setTargetService] = useState('')
+  const [targetNode, setTargetNode] = useState('')
+  const [replicaCount, setReplicaCount] = useState(3)
+  const [observeTokens, setObserveTokens] = useState(30)
   const [isPlanning, setIsPlanning] = useState(false)
-  const [services, setServices] = useState<any[]>([])
+  const [services, setServices] = useState<DiscoveredService[]>([])
+  const [nodes, setNodes] = useState<string[]>([])
   const [countdown, setCountdown] = useState(0)
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [planError, setPlanError] = useState<string | null>(null)
+  const [scenarioBannerSeenAt, setScenarioBannerSeenAt] = useState<string | null>(null)
   const [targetedLoadRate, setTargetedLoadRate] = useState(DEFAULT_TARGETED_LOAD_RATE)
   const [targetedLoadUsers, setTargetedLoadUsers] = useState(DEFAULT_TARGETED_LOAD_USERS)
+
   const isTargetedLoadScenario = selectedDrill?.type === 'TargetedLoad' || selectedDrill?.type === 'TrafficSpike'
+  const isMigrateScenario = selectedDrill?.type === 'MigrateService'
+  const isPodScaleUpScenario = selectedDrill?.type === 'PodScaleUp'
 
   useEffect(() => {
-    const fetchServices = async () => {
+    const bootstrap = async () => {
       try {
-        const response = await getServices()
-        setServices(response.services || [])
-        if (response.services?.length > 0) {
-          const first = response.services[0]
+        const [serviceResponse, nodeResponse] = await Promise.all([getServices(), getNodes()])
+        const serviceList = serviceResponse.services || []
+        const nodeList = (nodeResponse.nodes || []).map((node) => node.name)
+
+        setServices(serviceList)
+        setNodes(nodeList)
+
+        if (serviceList.length > 0) {
+          const first = serviceList[0]
           setTargetService(`${first.namespace}/${first.name}`)
         }
+        if (nodeList.length > 0) {
+          setTargetNode(nodeList[0])
+        }
       } catch (err) {
-        console.error('Failed to fetch services', err)
+        console.error('Failed to bootstrap drill catalog', err)
       }
     }
-    fetchServices()
+    void bootstrap()
   }, [])
 
+  const handleSelectDrill = (
+    drill: DrillDefinition,
+    options?: {
+      scenarioBannerSeenAt?: string | null
+    }
+  ) => {
+    setSelectedDrill(drill)
+    setPlanError(null)
+    setCountdown(0)
+    setIsConfirmed(false)
+    setScenarioBannerSeenAt(options?.scenarioBannerSeenAt ?? null)
+
+    setObserveTokens(Number(drill.baseConfig.observeTokens ?? 30))
+
+    if (drill.type === 'TargetedLoad' || drill.type === 'TrafficSpike') {
+      const presetRate = Number((drill.baseConfig as { rps?: number }).rps ?? DEFAULT_TARGETED_LOAD_RATE)
+      const presetUsers = Number((drill.baseConfig as { users?: number }).users ?? DEFAULT_TARGETED_LOAD_USERS)
+      setTargetedLoadRate(presetRate > 0 ? presetRate : DEFAULT_TARGETED_LOAD_RATE)
+      setTargetedLoadUsers(presetUsers > 0 ? presetUsers : DEFAULT_TARGETED_LOAD_USERS)
+    }
+
+    if (typeof drill.baseConfig.replicas === 'number') {
+      setReplicaCount(Math.max(1, Number(drill.baseConfig.replicas)))
+    }
+
+    if (drill.type === 'MigrateService' && !targetNode && nodes.length > 0) {
+      setTargetNode(nodes[0])
+    }
+  }
+
+  useEffect(() => {
+    if (!prefill) return
+
+    const matchedDrill = DRILLS.find((drill) => drill.type === prefill.type)
+    if (!matchedDrill) {
+      setPlanError(`Recommended drill type "${prefill.type}" is not available in this catalog.`)
+      onPrefillConsumed?.()
+      return
+    }
+
+    handleSelectDrill(matchedDrill, { scenarioBannerSeenAt: prefillBannerSeenAt })
+    setTargetService(prefill.target)
+
+    if (typeof prefill.config.observeTokens === 'number' && prefill.config.observeTokens > 0) {
+      setObserveTokens(prefill.config.observeTokens)
+    }
+
+    if (matchedDrill.type === 'PodScaleUp' && typeof prefill.config.replicas === 'number') {
+      setReplicaCount(Math.max(1, prefill.config.replicas))
+    }
+
+    if (matchedDrill.type === 'MigrateService' && prefill.config.targetNode) {
+      setTargetNode(prefill.config.targetNode)
+    }
+
+    onPrefillConsumed?.()
+  }, [prefill, prefillBannerSeenAt, onPrefillConsumed])
+
   const handlePlan = async () => {
-    if (!selectedDrill) return
+    if (!selectedDrill || !targetService) return
+
     setPlanError(null)
     setIsPlanning(true)
-    const plannedConfig =
-      (selectedDrill.type === 'TargetedLoad' || selectedDrill.type === 'TrafficSpike')
-        ? {
-            ...selectedDrill.baseConfig,
-            rps: targetedLoadRate,
-            rate: targetedLoadRate,
-            users: targetedLoadUsers,
-          }
-        : selectedDrill.baseConfig
+
+    const namespace = namespaceFromTarget(targetService)
+    let plannedConfig: Record<string, unknown> = {
+      ...selectedDrill.baseConfig,
+      namespace,
+      observeTokens,
+    }
+
+    if (isTargetedLoadScenario) {
+      plannedConfig = {
+        ...plannedConfig,
+        rps: targetedLoadRate,
+        rate: targetedLoadRate,
+        users: targetedLoadUsers,
+      }
+    }
+
+    if (isPodScaleUpScenario) {
+      plannedConfig = {
+        ...plannedConfig,
+        replicas: replicaCount,
+      }
+    }
+
+    if (isMigrateScenario) {
+      plannedConfig = {
+        ...plannedConfig,
+        targetNode,
+      }
+    }
+
     try {
       const plan = await planDrill({
         type: selectedDrill.type,
         target: targetService,
         config: plannedConfig,
+        bannerVerified: scenarioBannerSeenAt !== null,
       })
       onDrillSelect(plan)
       setSelectedDrill(null)
       setCountdown(0)
       setIsConfirmed(false)
+      setScenarioBannerSeenAt(null)
       setTargetedLoadRate(DEFAULT_TARGETED_LOAD_RATE)
       setTargetedLoadUsers(DEFAULT_TARGETED_LOAD_USERS)
     } catch (err) {
@@ -194,32 +339,24 @@ export default function DrillCatalog({
     }, 1000)
   }
 
-  const comboItems = services.map((s) => ({
-    label: `${s.namespace}/${s.name}`,
-    value: `${s.namespace}/${s.name}`,
+  const comboItems = services.map((service) => ({
+    label: `${service.namespace}/${service.name}`,
+    value: `${service.namespace}/${service.name}`,
   }))
+  const nodeItems = nodes.map((node) => ({ label: node, value: node }))
+
   const targetedLoadProfileInvalid =
     isTargetedLoadScenario && (targetedLoadRate < 1 || targetedLoadUsers < 1)
-
-  const handleSelectDrill = (drill: (typeof DRILLS)[number]) => {
-    setSelectedDrill(drill)
-    setPlanError(null)
-    setCountdown(0)
-    setIsConfirmed(false)
-
-    if (drill.type === 'TargetedLoad' || drill.type === 'TrafficSpike') {
-      const presetRate = Number((drill.baseConfig as { rps?: number }).rps ?? 100)
-      const presetUsers = Number((drill.baseConfig as { users?: number }).users ?? DEFAULT_TARGETED_LOAD_USERS)
-      setTargetedLoadRate(presetRate > 0 ? presetRate : DEFAULT_TARGETED_LOAD_RATE)
-      setTargetedLoadUsers(presetUsers > 0 ? presetUsers : DEFAULT_TARGETED_LOAD_USERS)
-    }
-  }
+  const migrateTargetInvalid = isMigrateScenario && !targetNode.trim()
+  const scaleReplicaInvalid = isPodScaleUpScenario && replicaCount < 1
 
   return (
     <div className={cn('grid grid-cols-1 md:grid-cols-2 gap-6', disabled && 'pointer-events-none opacity-50')}>
-      {DRILLS.map((drill) => (
+      {VISIBLE_DRILLS.map((drill) => (
         <Card
           key={drill.id}
+          data-testid="drill-catalog-card"
+          data-drill-type={drill.type}
           className={cn(
             glassInteractiveCardClass,
             'group relative flex flex-col justify-between cursor-pointer',
@@ -285,13 +422,15 @@ export default function DrillCatalog({
 
       {selectedDrill && (
         <DialogContent
-          isOpen={!!selectedDrill}
+          isOpen={Boolean(selectedDrill)}
+          data-testid="drill-safety-gate"
           onOpenChange={(open) => {
             if (!open) {
               setSelectedDrill(null)
               setCountdown(0)
               setIsConfirmed(false)
               setPlanError(null)
+              setScenarioBannerSeenAt(null)
               setTargetedLoadRate(DEFAULT_TARGETED_LOAD_RATE)
               setTargetedLoadUsers(DEFAULT_TARGETED_LOAD_USERS)
             }
@@ -308,7 +447,7 @@ export default function DrillCatalog({
                   Safety Gate
                 </DialogTitle>
                 <DialogDescription className="text-sm font-medium">
-                  Execution planning for chaos sequences
+                  Execution planning for manual drill actioning
                 </DialogDescription>
               </div>
             </div>
@@ -327,11 +466,12 @@ export default function DrillCatalog({
                   id="drill-target-component"
                   items={comboItems}
                   value={targetService}
-                  onSelectionChange={(val) => setTargetService(val as string)}
+                  onSelectionChange={(value) => setTargetService(value as string)}
                   placeholder="Select a service..."
                   aria-label="Target Component"
                 />
               </div>
+
               <div className="space-y-2">
                 <label
                   htmlFor="drill-observation-window"
@@ -341,15 +481,51 @@ export default function DrillCatalog({
                 </label>
                 <div
                   id="drill-observation-window"
-                  className={cn(
-                    controlInputBaseClass,
-                    'flex items-center bg-[var(--surface-soft)]'
-                  )}
+                  className={cn(controlInputBaseClass, 'flex items-center bg-[var(--surface-soft)]')}
                 >
-                  {selectedDrill?.baseConfig.observeTokens} Seconds
+                  {observeTokens} Seconds
                 </div>
               </div>
             </div>
+
+            {isPodScaleUpScenario && (
+              <div className="space-y-2">
+                <label
+                  htmlFor="drill-replicas"
+                  className={cn(controlLabelClass, 'text-[var(--text-secondary)]')}
+                >
+                  Desired Replicas
+                </label>
+                <Input
+                  id="drill-replicas"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={replicaCount}
+                  onChange={(e) => setReplicaCount(Math.max(0, Number(e.target.value) || 0))}
+                  aria-label="Pod scale up replicas"
+                />
+              </div>
+            )}
+
+            {isMigrateScenario && (
+              <div className="space-y-2">
+                <label
+                  htmlFor="drill-target-node"
+                  className={cn(controlLabelClass, 'text-[var(--text-secondary)]')}
+                >
+                  Target Node
+                </label>
+                <Combobox
+                  id="drill-target-node"
+                  items={nodeItems}
+                  value={targetNode}
+                  onSelectionChange={(value) => setTargetNode(value as string)}
+                  placeholder="Select a node..."
+                  aria-label="Migration target node"
+                />
+              </div>
+            )}
 
             {isTargetedLoadScenario && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -396,16 +572,26 @@ export default function DrillCatalog({
               </div>
             )}
 
-            {targetedLoadProfileInvalid && (
+            {(targetedLoadProfileInvalid || migrateTargetInvalid || scaleReplicaInvalid) && (
               <div className="flex gap-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-[var(--radius-md)] text-xs text-amber-700 shadow-sm">
                 <AlertTriangle className="shrink-0 w-5 h-5 text-amber-500" />
                 <div className="space-y-1">
-                  <p className="font-bold uppercase tracking-wider text-amber-600">
-                    Invalid Load Profile
-                  </p>
-                  <p className="leading-relaxed font-medium opacity-90">
-                    `RATE` and `USERS` must both be greater than 0 for Targeted Load drills.
-                  </p>
+                  <p className="font-bold uppercase tracking-wider text-amber-600">Invalid Drill Config</p>
+                  {targetedLoadProfileInvalid && (
+                    <p className="leading-relaxed font-medium opacity-90">
+                      `RATE` and `USERS` must both be greater than 0 for load drills.
+                    </p>
+                  )}
+                  {migrateTargetInvalid && (
+                    <p className="leading-relaxed font-medium opacity-90">
+                      `targetNode` is required for `MigrateService` drills.
+                    </p>
+                  )}
+                  {scaleReplicaInvalid && (
+                    <p className="leading-relaxed font-medium opacity-90">
+                      `replicas` must be greater than 0 for `PodScaleUp` drills.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -433,7 +619,7 @@ export default function DrillCatalog({
                       I acknowledge the blast radius
                     </p>
                     <p className="text-xs text-[var(--text-muted)] font-medium">
-                      This sequence will simulate a failure in the analysis engine.
+                      Recovery remains operator-controlled with failsafe support.
                     </p>
                   </div>
                 }
@@ -443,9 +629,7 @@ export default function DrillCatalog({
             <div className="flex gap-3 p-4 bg-rose-500/5 border border-rose-500/20 rounded-[var(--radius-md)] text-xs text-rose-600 shadow-sm">
               <AlertTriangle className="shrink-0 w-5 h-5 text-rose-500" />
               <div className="space-y-1">
-                <p className="font-bold uppercase tracking-wider text-rose-500">
-                  Simulation Guardrail
-                </p>
+                <p className="font-bold uppercase tracking-wider text-rose-500">Simulation Guardrail</p>
                 <p className="leading-relaxed font-medium opacity-90">
                   Recovery is operator-controlled after observation. A 5-minute failsafe rollback
                   will activate if no manual recovery is triggered.
@@ -460,6 +644,7 @@ export default function DrillCatalog({
               onPress={() => {
                 setSelectedDrill(null)
                 setPlanError(null)
+                setScenarioBannerSeenAt(null)
               }}
               className={secondaryButtonClass}
             >
@@ -467,8 +652,15 @@ export default function DrillCatalog({
             </Button>
             <Button
               onPress={handlePlan}
+              data-testid="drill-engage-sequence"
               isDisabled={
-                isPlanning || !isConfirmed || countdown > 0 || Boolean(targetedLoadProfileInvalid)
+                isPlanning ||
+                !isConfirmed ||
+                countdown > 0 ||
+                !targetService ||
+                Boolean(targetedLoadProfileInvalid) ||
+                Boolean(migrateTargetInvalid) ||
+                Boolean(scaleReplicaInvalid)
               }
               className={cn(successButtonClass, 'min-w-[180px]')}
             >

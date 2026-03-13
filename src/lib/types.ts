@@ -188,9 +188,47 @@ export type ServiceAdditionDependency = {
   relation: 'calls' | 'called_by'
 }
 
+export type ServiceAdditionAggregateResources = {
+  scope: 'cluster' | 'machine'
+  nodeCount: number
+  totalCpu: number
+  usedCpu: number
+  availableCpu: number
+  totalRamMB: number
+  usedRamMB: number
+  availableRamMB: number
+  sharedHostResourcesEnabled: boolean
+}
+
+export type ServiceAdditionDependencyServiceCheck = {
+  serviceId: string
+  exists: boolean
+  availabilityPct?: number
+  podCount?: number
+  onlyHighPressureNodes?: boolean
+}
+
+export type ServiceAdditionDependencyLinkCheck = {
+  sourceServiceId: string
+  targetServiceId: string
+  observed: boolean
+  rps?: number
+  errorRate?: number
+  p95?: number
+}
+
+export type ServiceAdditionDependencyAnalysis = {
+  chain: string[]
+  missingServices: string[]
+  serviceChecks: ServiceAdditionDependencyServiceCheck[]
+  linkChecks: ServiceAdditionDependencyLinkCheck[]
+  summary: string
+}
+
 export type ServiceAdditionScenario = {
   type: 'add-service'
   serviceName: string
+  targetNodeName: string
   minCpuCores: number
   minRamMB: number
   replicas: number
@@ -208,12 +246,24 @@ export type NodeSuitability = {
   cpuTotal: number
   ramTotalMB: number
   score: number // 0-100 suitability score
+  projectedCpuFree: number
+  projectedRamFreeMB: number
+  preferred: boolean
+  rank: number
 }
 
 export type ServiceAdditionResponse = {
   correlationId?: string
   targetServiceName: string
+  success: boolean
+  explanation: string
+  totalCapacityPods: number
+  selectedNodeName?: string
+  selectedNodeSuitable: boolean
+  recommendedNodeName?: string
   suitableNodes: NodeSuitability[]
+  aggregateResources: ServiceAdditionAggregateResources
+  dependencyAnalysis: ServiceAdditionDependencyAnalysis
   riskAnalysis: {
     dependencyRisk: 'low' | 'medium' | 'high'
     description: string
@@ -223,7 +273,13 @@ export type ServiceAdditionResponse = {
 
 export type TimeWindow = '5d' | '1w' | '2w' | '1m'
 
-export type ScenarioType = 'failure' | 'scale' | 'add-service'
+export type ScenarioType =
+  | 'failure'
+  | 'scale'
+  | 'traffic-spike'
+  | 'chatty-colocation'
+  | 'network-cut'
+  | 'add-service'
 
 export type FailureScenario = {
   type: 'failure'
@@ -243,7 +299,38 @@ export type ScaleScenario = {
   timeWindow?: TimeWindow
 }
 
-export type Scenario = FailureScenario | ScaleScenario | ServiceAdditionScenario
+export type TrafficSpikeScenario = {
+  type: 'traffic-spike'
+  serviceId: string
+  loadMultiplier: number
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type ChattyColocationScenario = {
+  type: 'chatty-colocation'
+  sourceServiceId: string
+  targetServiceId: string
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type NetworkCutScenario = {
+  type: 'network-cut'
+  sourceServiceId: string
+  targetServiceId: string
+  degradationPercent?: number
+  maxDepth: number
+  timeWindow?: TimeWindow
+}
+
+export type Scenario =
+  | FailureScenario
+  | ScaleScenario
+  | TrafficSpikeScenario
+  | ChattyColocationScenario
+  | NetworkCutScenario
+  | ServiceAdditionScenario
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Proof Metadata — tracks run context for operator auditability
@@ -560,4 +647,64 @@ export type ServiceWithPlacement = {
 export type NodeWithResources = {
   name: string
   resources: NodeResources
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Predictive Action Types
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type PredictiveBottleneckType = 'capacity' | 'network'
+export type PredictiveSeverity = 'critical' | 'high' | 'medium' | 'low'
+export type PredictiveActionType = 'ScaleService' | 'MigrateService'
+export type PredictiveDrillType = 'PodScaleUp' | 'MigrateService'
+
+export type PredictivePrimaryBottleneck = {
+  type: PredictiveBottleneckType
+  namespace?: string
+  service?: string
+  node?: string
+  sourceService?: string
+  targetService?: string
+  sourceNode?: string
+  targetNode?: string
+}
+
+export type PredictiveRecommendationConfig = {
+  namespace: string
+  observeTokens: number
+  replicas?: number
+  targetNode?: string
+}
+
+export type PredictiveRecommendation = {
+  title: string
+  message: string
+  severity: PredictiveSeverity
+  actionType: PredictiveActionType
+  drillType: PredictiveDrillType
+  target: string // namespace/service
+  config: PredictiveRecommendationConfig
+}
+
+export type PredictiveEvidence = {
+  timestamp: string
+  cpuPressurePercent?: number
+  ramPressurePercent?: number
+  serviceRps?: number
+  edgeRps?: number
+  edgeP95Ms?: number
+  trafficIncreasePct?: number
+  sourceNode?: string
+  targetNode?: string
+  sourceService?: string
+  targetService?: string
+}
+
+export type PredictiveCurrentActionResponse = {
+  anomalyActive: boolean
+  healthScore: number
+  primaryBottleneck: PredictivePrimaryBottleneck | null
+  timeToImpactSec: number | null
+  recommendation: PredictiveRecommendation | null
+  evidence: PredictiveEvidence
 }

@@ -2,6 +2,9 @@
 @import 'tailwindcss';
 @config "../../tailwind.config.ts";
 
+/* Bind Tailwind's dark: variant to the app's theme toggle (.dark class on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --font-body: 'Manrope', 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   --font-heading: 'Sora', 'Manrope', 'Inter', 'Segoe UI', sans-serif;

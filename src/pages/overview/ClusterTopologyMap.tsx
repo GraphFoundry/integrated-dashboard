@@ -49,6 +49,7 @@ import EmptyState from '@/components/layout/EmptyState'
 import SkeletonBlock from '@/components/common/SkeletonBlock'
 import { cn } from '@/components/common/uiClassTokens'
 import { useServicesWithPlacement } from '@/lib/useGraphStream'
+import { createTopologyStableLayoutOverrides } from '@/pages/overview/topologyStableLayout'
 import { bffApi } from '@/lib/bffApiClient'
 import type { ServiceRollup } from '@/lib/bffApiClient'
 import { useTheme } from '@/theme/useTheme'
@@ -64,6 +65,8 @@ type ServiceMetricsMap = Map<string, { rps: number; errorRate: number; p95: numb
 interface DependencyEdge {
   source: string
   target: string
+  sourceNamespace?: string
+  targetNamespace?: string
   rps?: number
   errorRate?: number
 }
@@ -127,7 +130,9 @@ function friendlyNodeHealth(cpuPct: number, ramPct: number): { label: string; co
 }
 
 function friendlyTrafficLabel(rps?: number): { label: string; color: string } {
-  if (rps == null || rps < 1) return { label: 'No traffic', color: 'text-gray-400' }
+  if (rps == null || rps <= 0) return { label: 'No traffic', color: 'text-gray-400' }
+  if (rps < 0.01) return { label: 'Trace traffic', color: 'text-blue-200' }
+  if (rps < 1) return { label: 'Very low', color: 'text-blue-300' }
   if (rps < 10) return { label: 'Very low', color: 'text-blue-300' }
   if (rps < 100) return { label: 'Low', color: 'text-blue-400' }
   if (rps < 500) return { label: 'Moderate', color: 'text-green-400' }
@@ -173,8 +178,224 @@ function friendlyMemory(mb?: number): string {
 
 /* Prefixes ensure globally unique ids */
 const nodeId = (n: string) => `node::${n}`
-const svcId = (s: string) => `svc::${s}`
-const podId = (p: string) => `pod::${p}`
+function graphNamespace(namespace?: string): string {
+  return namespace?.trim() || 'default'
+}
+function graphServiceKey(name: string, namespace?: string): string {
+  return `${graphNamespace(namespace)}:${name}`
+}
+const svcId = (name: string, namespace?: string) => `svc::${graphServiceKey(name, namespace)}`
+const podId = (serviceKey: string, podStableName: string) => `pod::${serviceKey}::${podStableName}`
+
+function formatEdgeRps(rps?: number): string {
+  if (rps == null || Number.isNaN(rps)) return ''
+  if (rps <= 0) return '0 rps'
+  if (rps < 0.0001) return '<0.0001 rps'
+  if (rps < 0.01) return `${rps.toFixed(4)} rps`
+  if (rps < 0.1) return `${rps.toFixed(3)} rps`
+  if (rps < 1) return `${rps.toFixed(2)} rps`
+  if (rps < 10) return `${rps.toFixed(1)} rps`
+  return `${rps.toFixed(0)} rps`
+}
+
+function formatRpsValue(rps?: number): string {
+  if (rps == null || Number.isNaN(rps)) return '0'
+  if (rps <= 0) return '0'
+  if (rps < 0.0001) return '<0.0001'
+  if (rps < 0.01) return rps.toFixed(4)
+  if (rps < 0.1) return rps.toFixed(3)
+  if (rps < 1) return rps.toFixed(2)
+  if (rps < 10) return rps.toFixed(1)
+  return rps.toFixed(0)
+}
+
+const TOPOLOGY_FLICKER_GUARD_MS = 2500
+const MASS_DOWN_RATIO_THRESHOLD = 0.7
+const MASS_DOWN_RATIO_SPIKE = 0.45
+const INFRA_COLLAPSE_RATIO = 0.5
+const TOPOLOGY_LAYOUT_CACHE_VERSION = '2026-03-06-v2'
+const SCALE_VISUAL_INTENT_TIMEOUT_MS = 90_000
+const TERMINAL_DRILL_STATUSES = new Set(['completed', 'aborted', 'failed', 'accepted'])
+
+interface TopologyFrameStats {
+  serviceCount: number
+  downServices: number
+  downRatio: number
+  k8sNodeCount: number
+}
+
+function computeTopologyFrameStats(nodes: ReagraphNode[]): TopologyFrameStats {
+  let serviceCount = 0
+  let downServices = 0
+  let k8sNodeCount = 0
+
+  nodes.forEach((node) => {
+    const kind: EntityKind | undefined = node.data?.kind
+    if (kind === 'node') {
+      k8sNodeCount += 1
+      return
+    }
+    if (kind !== 'service') return
+
+    serviceCount += 1
+    const podCount = typeof node.data?.podCount === 'number' ? node.data.podCount : 0
+    const availability = typeof node.data?.availability === 'number' ? node.data.availability : 0
+    const isDown = node.data?.isDown === true || podCount <= 0 || availability <= 0
+    if (isDown) downServices += 1
+  })
+
+  return {
+    serviceCount,
+    downServices,
+    downRatio: serviceCount > 0 ? downServices / serviceCount : 0,
+    k8sNodeCount,
+  }
+}
+
+type ScaleMode = 'relative' | 'absolute'
+
+interface ScaleIntentOptions {
+  mode?: ScaleMode
+  targetReplicas?: number
+}
+
+interface ScaleIntent {
+  mode: ScaleMode
+  direction: 'up' | 'down'
+  currentPods: number
+  targetReplicas: number
+}
+
+type ScaleVisualIntentSource = 'simulate' | 'drill'
+
+interface ScaleVisualIntent {
+  serviceName: string
+  namespace: string
+  direction: 'up' | 'down'
+  currentPods: number
+  targetReplicas: number
+  source: ScaleVisualIntentSource
+  createdAt: number
+  expiresAt: number
+  drillRunId?: string
+}
+
+type ScaleVisualIntentMap = Map<string, ScaleVisualIntent>
+
+function resolveNamespace(namespace?: string): string {
+  return namespace?.trim() || 'default'
+}
+
+function toNamespacedServiceId(serviceName: string, namespace?: string): string {
+  return `${resolveNamespace(namespace)}:${serviceName}`
+}
+
+function toNamespacedDrillTarget(serviceName: string, namespace?: string): string {
+  return `${resolveNamespace(namespace)}/${serviceName}`
+}
+
+function buildScaleIntent(
+  direction: 'up' | 'down',
+  currentPods: number,
+  options?: ScaleIntentOptions
+): ScaleIntent | null {
+  const mode = options?.mode ?? 'relative'
+  const safeCurrent = Number.isFinite(currentPods) ? Math.max(0, Math.floor(currentPods)) : 0
+
+  let targetReplicas: number
+  if (mode === 'absolute') {
+    if (!Number.isFinite(options?.targetReplicas)) return null
+    targetReplicas = Math.max(0, Math.floor(options?.targetReplicas ?? 0))
+  } else {
+    targetReplicas = direction === 'up' ? safeCurrent + 1 : Math.max(safeCurrent - 1, 0)
+  }
+
+  return {
+    mode,
+    direction,
+    currentPods: safeCurrent,
+    targetReplicas,
+  }
+}
+
+function normalizedTrafficRatio(value: number | undefined, maxValue: number): number {
+  if (!value || maxValue <= 0) return 0
+  return Math.min(Math.max(value / maxValue, 0), 1)
+}
+
+function serviceSizeWithTraffic(isDown: boolean, ratio: number): number {
+  if (isDown) return 36
+  return Math.round(40 + ratio * 16)
+}
+
+function podSizeWithTraffic(ratio: number): number {
+  return Math.round(18 + ratio * 8)
+}
+
+function nodeDataFingerprint(node: ReagraphNode): string {
+  const data = node.data ?? {}
+  const kind = data.kind as EntityKind | undefined
+  if (kind === 'service') {
+    return [
+      kind,
+      data.name,
+      data.namespace,
+      data.podCount,
+      data.availability,
+      data.rps,
+      data.errorRate,
+      data.p95,
+      data.highErrorRate,
+      data.isDown,
+      data.openIncidents,
+      data.criticalAlerts,
+      data.highAlerts,
+      data.syntheticMode,
+    ].join('|')
+  }
+  if (kind === 'pod') {
+    return [
+      kind,
+      data.name,
+      data.nodeName,
+      data.serviceName,
+      data.namespace,
+      data.podCount,
+      data.cpuUsagePercent,
+      data.ramUsedMB,
+      data.uptimeSeconds,
+      data.isSynthetic,
+      data.syntheticMode,
+      data.trafficRps,
+    ].join('|')
+  }
+  if (kind === 'node') {
+    return [
+      kind,
+      data.name,
+      data.serviceCount,
+      data.totalPodCount,
+      data.cpu?.usagePercent,
+      data.cpu?.cores,
+      data.ram?.usedMB,
+      data.ram?.totalMB,
+    ].join('|')
+  }
+  return JSON.stringify(data)
+}
+
+function edgeDataFingerprint(edge: ReagraphEdge): string {
+  return [
+    edge.id,
+    edge.label,
+    edge.size,
+    edge.fill,
+    edge.data?.rps,
+    edge.data?.errorRate,
+    typeof edge.source === 'string' ? edge.source : '',
+    typeof edge.target === 'string' ? edge.target : '',
+  ].join('|')
+}
 
 /* ------------------------------------------------------------------ */
 /*  Graph data builder                                                */
@@ -201,6 +422,7 @@ function buildTopologyGraph(
   filters: TopologyFilters = DEFAULT_FILTERS,
   serviceMetrics?: ServiceMetricsMap,
   alertRollups?: Map<string, ServiceRollup>,
+  scaleVisualIntents?: ScaleVisualIntentMap,
 ) {
   const nodes: ReagraphNode[] = []
   const edges: ReagraphEdge[] = []
@@ -256,6 +478,27 @@ function buildTopologyGraph(
 
   /* ---------- 3. Service & Pod graph-nodes + placement edges -------- */
   const addedServices = new Set<string>()
+  const serviceNodeIdByKey = new Map<string, string>()
+  const serviceKeysByName = new Map<string, string[]>()
+  const addedPods = new Set<string>()
+
+  const rememberServiceKey = (serviceName: string, serviceKey: string) => {
+    const list = serviceKeysByName.get(serviceName) ?? []
+    if (!list.includes(serviceKey)) {
+      list.push(serviceKey)
+      serviceKeysByName.set(serviceName, list)
+    }
+  }
+
+  const resolveServiceKeyFromEdge = (serviceName: string, namespace?: string): string | null => {
+    if (namespace) {
+      const key = graphServiceKey(serviceName, namespace)
+      return addedServices.has(key) ? key : null
+    }
+    const matching = serviceKeysByName.get(serviceName) ?? []
+    if (matching.length === 1) return matching[0]
+    return null
+  }
 
   /* Apply namespace & health filters */
   const filteredServices = services.filter((svc) => {
@@ -268,34 +511,81 @@ function buildTopologyGraph(
     return true
   })
 
+  const serviceRenderCounts = new Map<string, { declared: number; observed: number; effective: number }>()
+  let maxServiceRps = 0
+  let maxPodTrafficRps = 0
+
+  filteredServices.forEach((svc) => {
+    const svcKey = graphServiceKey(svc.name, svc.namespace)
+    const placementNodes = svc.placement?.nodes ?? []
+    const declaredPodCount = typeof svc.podCount === 'number' ? Math.max(0, svc.podCount) : 0
+    const observedPodCount = placementNodes.reduce((sum, np) => sum + (np.pods?.length ?? 0), 0)
+    const visualIntent = scaleVisualIntents?.get(svcKey)
+    const effectivePodCount =
+      visualIntent?.direction === 'up'
+        ? Math.max(declaredPodCount, observedPodCount, visualIntent.targetReplicas)
+        : Math.max(declaredPodCount, observedPodCount)
+
+    serviceRenderCounts.set(svcKey, {
+      declared: declaredPodCount,
+      observed: observedPodCount,
+      effective: effectivePodCount,
+    })
+
+    const serviceRps = serviceMetrics?.get(svcKey)?.rps ?? 0
+    maxServiceRps = Math.max(maxServiceRps, serviceRps)
+    if (effectivePodCount > 0) {
+      maxPodTrafficRps = Math.max(maxPodTrafficRps, serviceRps / effectivePodCount)
+    }
+  })
+
   filteredServices.forEach((svc) => {
     /* ---------- Add service node even if placement is empty (down service) ---------- */
-    const hasPlacement = svc.placement?.nodes && svc.placement.nodes.length > 0
+    const placementNodes = svc.placement?.nodes ?? []
+    const svcKey = graphServiceKey(svc.name, svc.namespace)
+    const serviceNodeId = svcId(svc.name, svc.namespace)
+    const countState = serviceRenderCounts.get(svcKey) ?? { declared: 0, observed: 0, effective: 0 }
+    const observedPodCount = countState.observed
+    const effectivePodCount = countState.effective
+    const visualIntent = scaleVisualIntents?.get(svcKey)
+    const syntheticPodCount =
+      visualIntent?.direction === 'up'
+        ? Math.max(0, visualIntent.targetReplicas - observedPodCount)
+        : 0
 
-    if (!addedServices.has(svc.name)) {
-      addedServices.add(svc.name)
-      const avail = typeof svc.availability === 'number' ? svc.availability : (hasPlacement ? 1 : 0)
-      const isDown = !hasPlacement || svc.podCount === 0
+    if (!addedServices.has(svcKey)) {
+      addedServices.add(svcKey)
+      serviceNodeIdByKey.set(svcKey, serviceNodeId)
+      rememberServiceKey(svc.name, svcKey)
+      const avail = typeof svc.availability === 'number' ? svc.availability : (effectivePodCount > 0 ? 1 : 0)
+      const isDown = effectivePodCount <= 0
+      const metrics = serviceMetrics?.get(svcKey)
+      const serviceTrafficRatio = normalizedTrafficRatio(metrics?.rps, maxServiceRps)
+      const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
       let fill = '#ef4444' // red = critical / down
       if (!isDown) {
-        if (avail >= 0.95) fill = '#10b981'
+        if (avail >= 0.95 && !highErrorRate) fill = '#10b981'
+        else if (avail >= 0.95 && highErrorRate) fill = '#f59e0b'
         else if (avail >= 0.8) fill = '#f59e0b'
       }
-
-      const metrics = serviceMetrics?.get(svc.name)
-      const highErrorRate = (metrics?.errorRate ?? 0) > 0.05
-      const alertData = alertRollups?.get(svc.name)
+      const alertData = alertRollups?.get(svcKey)
+      const syntheticMode =
+        visualIntent && visualIntent.direction === 'up'
+          ? visualIntent.source === 'simulate'
+            ? 'simulated'
+            : 'pending'
+          : undefined
 
       nodes.push({
-        id: svcId(svc.name),
+        id: serviceNodeId,
         label: isDown ? `${svc.name} ⛔` : svc.name,
         fill,
-        size: isDown ? 36 : 40,
+        size: serviceSizeWithTraffic(isDown, serviceTrafficRatio),
         data: {
           kind: 'service' as EntityKind,
           name: svc.name,
           namespace: svc.namespace,
-          podCount: svc.podCount ?? 0,
+          podCount: effectivePodCount,
           availability: avail,
           rps: metrics?.rps,
           errorRate: metrics?.errorRate,
@@ -305,61 +595,141 @@ function buildTopologyGraph(
           openIncidents: alertData?.open_incidents ?? 0,
           criticalAlerts: alertData?.critical_count ?? 0,
           highAlerts: alertData?.high_count ?? 0,
+          syntheticMode,
         },
       })
     }
 
-    if (!hasPlacement) return // no placement edges/pods to add
-
-    svc.placement!.nodes.forEach((np) => {
-      if (!visibleNodeSet.has(np.node)) return
-
-      /* Node → Service edge */
+    const addPodNodeAndEdge = ({
+      podStableName,
+      podDisplayName,
+      nodeName,
+      cpuUsagePercent,
+      ramUsedMB,
+      uptimeSeconds,
+      fallbackOrdinal,
+      synthetic = false,
+      syntheticMode,
+      trafficRps,
+    }: {
+      podStableName: string
+      podDisplayName: string
+      nodeName: string
+      cpuUsagePercent?: number
+      ramUsedMB?: number
+      uptimeSeconds?: number
+      fallbackOrdinal?: number
+      synthetic?: boolean
+      syntheticMode?: 'pending' | 'simulated'
+      trafficRps?: number
+    }) => {
+      const normalizedPodStableName =
+        podStableName.trim() || `anon-${svcKey}-${nodeName}-${fallbackOrdinal ?? 0}`
+      const pid = podId(svcKey, normalizedPodStableName)
+      if (!addedPods.has(pid)) {
+        addedPods.add(pid)
+        const podTrafficRatio = normalizedTrafficRatio(trafficRps, maxPodTrafficRps)
+        const podLabel = synthetic
+          ? `${syntheticMode === 'simulated' ? 'simulated' : 'pending'}-${podDisplayName.split('-').pop()}`
+          : (() => {
+              const parts = podDisplayName.split('-')
+              if (parts.length <= 2) return podDisplayName
+              // Keep the service-meaningful prefix, truncate the hash suffixes
+              const prefix = parts.slice(0, Math.max(parts.length - 2, 2)).join('-')
+              return prefix.length > 18 ? prefix.slice(0, 18) + '…' : prefix + '…'
+            })()
+        nodes.push({
+          id: pid,
+          label: podLabel,
+          fill: synthetic
+            ? syntheticMode === 'simulated'
+              ? '#60a5fa'
+              : '#94a3b8'
+            : podCpuFill(cpuUsagePercent),
+          size: synthetic ? 20 : podSizeWithTraffic(podTrafficRatio),
+          data: {
+            kind: 'pod' as EntityKind,
+            name: podDisplayName,
+            nodeName,
+            serviceName: svc.name,
+            namespace: svc.namespace,
+            podCount: effectivePodCount,
+            cpuUsagePercent,
+            ramUsedMB,
+            uptimeSeconds,
+            isSynthetic: synthetic,
+            syntheticMode,
+            trafficRps,
+          },
+        })
+      }
       edges.push({
-        id: `place::${np.node}->${svc.name}`,
-        source: nodeId(np.node),
-        target: svcId(svc.name),
+        id: `owns::${svcKey}->${pid}`,
+        source: serviceNodeId,
+        target: pid,
         label: '',
       })
+    }
+
+    placementNodes.forEach((np) => {
+      const nodeIsVisible = visibleNodeSet.has(np.node)
+
+      /* Node → Service edge */
+      if (nodeIsVisible) {
+        edges.push({
+          id: `place::${np.node}->${svcKey}`,
+          source: nodeId(np.node),
+          target: serviceNodeId,
+          label: '',
+        })
+      }
 
       /* Pod nodes + Service → Pod edges */
-      np.pods?.forEach((pod) => {
-        const pid = podId(pod.name)
-        if (!nodes.find((n) => n.id === pid)) {
-          /* Show prefix of pod name + "..." suffix for readability */
-          const podLabel = (() => {
-            const parts = pod.name.split('-')
-            if (parts.length <= 2) return pod.name
-            // Keep the service-meaningful prefix, truncate the hash suffixes
-            const prefix = parts.slice(0, Math.max(parts.length - 2, 2)).join('-')
-            return prefix.length > 18 ? prefix.slice(0, 18) + '…' : prefix + '…'
-          })()
-          nodes.push({
-            id: pid,
-            label: podLabel,
-            fill: podCpuFill(pod.cpuUsagePercent), // heatmap: lavender → red
-            size: 20,
-            data: {
-              kind: 'pod' as EntityKind,
-              name: pod.name,
-              nodeName: np.node,
-              serviceName: svc.name,
-              namespace: svc.namespace,
-              podCount: svc.podCount ?? 0,
-              cpuUsagePercent: pod.cpuUsagePercent,
-              ramUsedMB: pod.ramUsedMB,
-              uptimeSeconds: pod.uptimeSeconds,
-            },
-          })
-        }
-        edges.push({
-          id: `owns::${svc.name}->${pod.name}`,
-          source: svcId(svc.name),
-          target: pid,
-          label: '',
+      np.pods?.forEach((pod, podIndex) => {
+        const rawPodName = (pod.name || '').trim()
+        const fallbackPodName = `${svc.name}-pod-${podIndex + 1}`
+        const podDisplayName = rawPodName || fallbackPodName
+        const podStableName = rawPodName || `live-${np.node}-${podIndex + 1}`
+        const metrics = serviceMetrics?.get(svcKey)
+        const podTrafficRps = effectivePodCount > 0 ? (metrics?.rps ?? 0) / effectivePodCount : 0
+        addPodNodeAndEdge({
+          podStableName,
+          podDisplayName,
+          nodeName: np.node,
+          cpuUsagePercent: pod.cpuUsagePercent,
+          ramUsedMB: pod.ramUsedMB,
+          uptimeSeconds: pod.uptimeSeconds,
+          fallbackOrdinal: podIndex + 1,
+          trafficRps: podTrafficRps,
         })
       })
     })
+
+    // Only render synthetic placeholders for active scale-up intents.
+    if (syntheticPodCount > 0 && visualIntent?.direction === 'up') {
+      const syntheticNodeName =
+        placementNodes.find((np) => visibleNodeSet.has(np.node))?.node ??
+        placementNodes[0]?.node ??
+        'Pending placement'
+      const syntheticMode = visualIntent.source === 'simulate' ? 'simulated' : 'pending'
+      const metrics = serviceMetrics?.get(svcKey)
+      const podTrafficRps =
+        visualIntent.targetReplicas > 0 ? (metrics?.rps ?? 0) / visualIntent.targetReplicas : 0
+
+      for (let index = 1; index <= syntheticPodCount; index += 1) {
+        const syntheticDisplayName = `${svc.name}-${syntheticMode}-${index}`
+        const syntheticStableName = `__${syntheticMode}__${svcKey}::${index}`
+        addPodNodeAndEdge({
+          podStableName: syntheticStableName,
+          podDisplayName: syntheticDisplayName,
+          nodeName: syntheticNodeName,
+          fallbackOrdinal: index,
+          synthetic: true,
+          syntheticMode,
+          trafficRps: podTrafficRps,
+        })
+      }
+    }
   })
 
   /* ---------- 4. Service → Service dependency edges ----------------- */
@@ -367,12 +737,19 @@ function buildTopologyGraph(
   const maxRps = dependencyEdges.reduce((m, e) => Math.max(m, e.rps ?? 0), 0)
 
   dependencyEdges.forEach((de, idx) => {
-    if (!addedServices.has(de.source) || !addedServices.has(de.target)) return
+    const sourceServiceKey = resolveServiceKeyFromEdge(de.source, de.sourceNamespace)
+    const targetServiceKey = resolveServiceKeyFromEdge(de.target, de.targetNamespace)
+    if (!sourceServiceKey || !targetServiceKey) return
+
+    const sourceServiceNodeId = serviceNodeIdByKey.get(sourceServiceKey)
+    const targetServiceNodeId = serviceNodeIdByKey.get(targetServiceKey)
+    if (!sourceServiceNodeId || !targetServiceNodeId) return
+
     edges.push({
-      id: `dep::${idx}::${de.source}->${de.target}`,
-      source: svcId(de.source),
-      target: svcId(de.target),
-      label: de.rps != null ? `${de.rps.toFixed(0)} rps` : '',
+      id: `dep::${idx}::${sourceServiceKey}->${targetServiceKey}`,
+      source: sourceServiceNodeId,
+      target: targetServiceNodeId,
+      label: formatEdgeRps(de.rps),
       size: edgeSizeFromRps(de.rps, maxRps),
       data: { rps: de.rps, errorRate: de.errorRate },
     })
@@ -604,7 +981,7 @@ function TopologyTooltip({
                   <Cpu className="w-3.5 h-3.5 text-cyan-400" />
                   <span className="text-[var(--text-muted)]">CPU:</span>
                   <span className="font-mono font-semibold text-[var(--text-primary)]">
-                    {cpuPct.toFixed(0)}% used ({node.data.cpu?.cores ?? '?'} cores)
+                    {cpuPct.toFixed(0)}% used ({node.data.cpu?.cores ?? '?'} allocatable cores)
                   </span>
                 </div>
                 <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
@@ -618,7 +995,7 @@ function TopologyTooltip({
                     <HardDrive className="w-3.5 h-3.5 text-emerald-400" />
                     <span className="text-[var(--text-muted)]">Memory:</span>
                     <span className="font-mono font-semibold text-[var(--text-primary)]">
-                      {friendlyMemory(node.data.ram.usedMB)} / {friendlyMemory(node.data.ram.totalMB)}
+                      {friendlyMemory(node.data.ram.usedMB)}
                     </span>
                   </div>
                   <div className="ml-5.5 h-1.5 rounded-full bg-[var(--surface-soft)] overflow-hidden">
@@ -681,7 +1058,7 @@ function TopologyTooltip({
                 <span className="text-[var(--text-muted)]">Traffic:</span>
                 <span className={cn('font-semibold', traffic.color)}>
                   {traffic.label}
-                  {node.data.rps != null && <span className="text-[var(--text-dim)] text-[10px] ml-1">({node.data.rps.toFixed(0)} req/s)</span>}
+                  {node.data.rps != null && <span className="text-[var(--text-dim)] text-[10px] ml-1">({formatRpsValue(node.data.rps)} req/s)</span>}
                 </span>
               </div>
               {/* Speed */}
@@ -842,7 +1219,7 @@ function createTopologyTheme(isDark: boolean) {
     node: {
       fill: palette.nodeFill,
       activeFill: palette.nodeActiveFill,
-      opacity: 0.9,
+      opacity: 1,
       selectedOpacity: 1,
       inactiveOpacity: 0.35,
       label: {
@@ -867,14 +1244,14 @@ function createTopologyTheme(isDark: boolean) {
     edge: {
       fill: palette.edgeFill,
       activeFill: palette.edgeActiveFill,
-      opacity: 0.5,
+      opacity: 1,
       selectedOpacity: 1,
       inactiveOpacity: 0.08,
       label: {
         stroke: 'transparent',
         color: palette.subLabelColor,
         activeColor: palette.edgeLabelActiveColor,
-        fontSize: 6,
+        fontSize: 8,
       },
     },
     arrow: {
@@ -911,8 +1288,8 @@ function TopologyContextMenu({
   navigate: ReturnType<typeof useNavigate>
   onSimulateFailure: (serviceName: string, namespace: string) => void
   onRunDrill: (serviceName: string, namespace: string) => void
-  onScaleService: (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => void
-  onScaleDrill: (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => void
+  onScaleService: (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string, options?: ScaleIntentOptions) => void
+  onScaleDrill: (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string, options?: ScaleIntentOptions) => void
   onMigrateService: (serviceName: string, namespace: string) => void
 }) {
   const kind: EntityKind = state.node.data?.kind ?? 'service'
@@ -948,13 +1325,19 @@ function TopologyContextMenu({
             icon: ArrowUp,
             label: 'Drill: Bring service up',
             destructive: true,
-            action: () => { onScaleDrill(name, 'up', 0, namespace); onClose() },
+            action: () => {
+              onScaleDrill(name, 'up', state.node.data?.podCount ?? 0, namespace, { mode: 'absolute', targetReplicas: 1 })
+              onClose()
+            },
           }
         : {
             icon: ArrowDown,
             label: 'Drill: Bring service down',
             destructive: true,
-            action: () => { onScaleDrill(name, 'down', state.node.data?.podCount ?? 1, namespace); onClose() },
+            action: () => {
+              onScaleDrill(name, 'down', state.node.data?.podCount ?? 1, namespace, { mode: 'absolute', targetReplicas: 0 })
+              onClose()
+            },
           },
       {
         icon: Zap,
@@ -1151,8 +1534,8 @@ function TopologyDetailsDrawer({
           {kind === 'node' && (
             <>
               <DrawerRow label="Name" value={node.data?.name} />
-              <DrawerRow label="CPU" value={node.data?.cpu ? `${node.data.cpu.usagePercent?.toFixed(1)}% · ${node.data.cpu.cores} cores` : 'N/A'} />
-              <DrawerRow label="RAM" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} / ${(node.data.ram.totalMB / 1024).toFixed(1)} GB` : 'N/A'} />
+              <DrawerRow label="CPU (allocatable)" value={node.data?.cpu ? `${node.data.cpu.usagePercent?.toFixed(1)}% · ${node.data.cpu.cores} cores` : 'N/A'} />
+              <DrawerRow label="RAM used" value={node.data?.ram ? `${(node.data.ram.usedMB / 1024).toFixed(1)} GB` : 'N/A'} />
             </>
           )}
           {kind === 'service' && (
@@ -1161,7 +1544,7 @@ function TopologyDetailsDrawer({
               <DrawerRow label="Namespace" value={node.data?.namespace} />
               <DrawerRow label="Pods" value={node.data?.podCount} />
               <DrawerRow label="Availability" value={node.data?.availability != null ? `${(node.data.availability * 100).toFixed(1)}%` : 'N/A'} />
-              {node.data?.rps != null && <DrawerRow label="RPS" value={node.data.rps.toFixed(1)} />}
+              {node.data?.rps != null && <DrawerRow label="RPS" value={formatRpsValue(node.data.rps)} />}
               {node.data?.errorRate != null && <DrawerRow label="Error rate" value={`${(node.data.errorRate * 100).toFixed(2)}%`} highlight={node.data.errorRate > 0.05} />}
               {node.data?.p95 != null && <DrawerRow label="p95 latency" value={`${node.data.p95.toFixed(0)} ms`} />}
               {node.data?.openIncidents > 0 && (
@@ -1253,6 +1636,7 @@ function DrawerRow({
 /* ------------------------------------------------------------------ */
 
 interface SimulationResultState {
+  createdAt: number
   type: 'failure' | 'scale' | 'migration'
   serviceName: string
   namespace: string
@@ -1283,11 +1667,31 @@ function SimulationResultsDrawer({
   onRecover?: () => void
   onSkipRecover?: () => void
 }) {
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    setExpanded(false)
+  }, [state.createdAt])
+
+  useEffect(() => {
+    if (state.error || state.awaitingRecovery) {
+      setExpanded(true)
+    }
+  }, [state.awaitingRecovery, state.error])
+
+  const statusLabel = state.error
+    ? 'Failed'
+    : state.loading
+      ? 'Running'
+      : state.awaitingRecovery
+        ? 'Awaiting recovery decision'
+        : state.drillStatus ?? 'Ready'
+
   return (
-    <div className="absolute top-4 left-4 z-30 w-96 bg-[var(--surface-contrast)] backdrop-blur-md border border-[var(--border-strong)] rounded-lg shadow-2xl max-h-[calc(100%-2rem)] overflow-hidden flex flex-col animate-in fade-in slide-in-from-left duration-200">
+    <div className="absolute left-4 top-4 z-30 w-[min(32rem,calc(100%-2rem))] rounded-lg border border-[var(--border-strong)] bg-[var(--surface-solid)] shadow-2xl animate-in fade-in slide-in-from-left duration-200">
       {/* Header */}
-      <div className="p-3 border-b border-[var(--border)] flex justify-between items-start gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-start justify-between gap-2 border-b border-[var(--border)] px-3 py-2.5">
+        <div className="min-w-0 flex items-center gap-2">
           {state.type === 'failure' && <Zap className="w-4 h-4 text-red-400 shrink-0" />}
           {state.type === 'scale' && (state.scaleDirection === 'up' ? <ArrowUp className="w-4 h-4 text-green-400 shrink-0" /> : <ArrowDown className="w-4 h-4 text-amber-400 shrink-0" />)}
           {state.type === 'migration' && <Move className="w-4 h-4 text-cyan-400 shrink-0" />}
@@ -1297,16 +1701,36 @@ function SimulationResultsDrawer({
               {state.type === 'scale' && `Scale ${state.scaleDirection === 'up' ? 'Up' : 'Down'} Simulation`}
               {state.type === 'migration' && 'Migration Simulation'}
             </div>
-            <div className="text-[10px] text-[var(--text-muted)]">{state.serviceName}</div>
+            <div className="text-[10px] text-[var(--text-muted)]">
+              {state.serviceName} · {statusLabel}
+            </div>
           </div>
         </div>
-        <button type="button" onClick={onClose} className="shrink-0 p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]" aria-label="Close">
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className="rounded p-1 text-[var(--text-muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
+            aria-label={expanded ? 'Collapse simulation banner' : 'Expand simulation banner'}
+            title={expanded ? 'Collapse' : 'Expand'}
+          >
+            <ChevronDown className={cn('h-4 w-4 transition-transform', expanded ? 'rotate-180' : 'rotate-0')} />
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded p-1 text-[var(--text-muted)] hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
+            aria-label="Close simulation banner"
+            title="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Body */}
-      <div className="overflow-y-auto flex-1 p-3 space-y-3 text-xs">
+      {expanded && (
+      <div className="max-h-[calc(100vh-11rem)] overflow-y-auto p-3 space-y-3 text-xs">
         {/* Loading */}
         {state.loading && (
           <div className="flex items-center gap-2 py-8 justify-center text-[var(--text-muted)]">
@@ -1571,6 +1995,7 @@ function SimulationResultsDrawer({
           </div>
         )}
       </div>
+      )}
     </div>
   )
 }
@@ -1620,7 +2045,7 @@ function copyTopologyYaml(
       if (n.data?.namespace) lines.push(`    namespace: ${n.data.namespace}`)
       if (n.data?.availability != null) lines.push(`    availability: ${(n.data.availability * 100).toFixed(1)}%`)
       if (n.data?.podCount != null) lines.push(`    podCount: ${n.data.podCount}`)
-      if (n.data?.rps != null) lines.push(`    rps: ${n.data.rps.toFixed(1)}`)
+      if (n.data?.rps != null) lines.push(`    rps: ${formatRpsValue(n.data.rps)}`)
       if (n.data?.errorRate != null) lines.push(`    errorRate: ${(n.data.errorRate * 100).toFixed(2)}%`)
       if (n.data?.openIncidents > 0) lines.push(`    openIncidents: ${n.data.openIncidents}`)
     })
@@ -1634,7 +2059,8 @@ function copyTopologyYaml(
     depEdges.forEach((e) => {
       const src = typeof e.source === 'string' ? e.source.replace('svc::', '') : ''
       const tgt = typeof e.target === 'string' ? e.target.replace('svc::', '') : ''
-      const rps = e.data?.rps != null ? ` # ${e.data.rps.toFixed(0)} rps` : ''
+      const edgeRpsLabel = formatEdgeRps(e.data?.rps)
+      const rps = edgeRpsLabel ? ` # ${edgeRpsLabel}` : ''
       lines.push(`  - ${src} -> ${tgt}${rps}`)
     })
     lines.push('')
@@ -1650,7 +2076,7 @@ function copyTopologyYaml(
 /*  Main Component                                                    */
 /* ------------------------------------------------------------------ */
 
-export default function ClusterTopologyMap() {
+export default function ClusterTopologyMap({ refreshTrigger = 0 }: { refreshTrigger?: number } = {}) {
   const { resolvedTheme, setTheme } = useTheme()
   const navigate = useNavigate()
   const {
@@ -1662,64 +2088,105 @@ export default function ClusterTopologyMap() {
     refetch,
   } = useServicesWithPlacement()
 
+  /* Re-fetch graph data when an external trigger (e.g. drill status change) fires */
+  const prevTriggerRef = useRef(refreshTrigger)
+  useEffect(() => {
+    if (refreshTrigger !== prevTriggerRef.current) {
+      prevTriggerRef.current = refreshTrigger
+      void refetch()
+    }
+  }, [refreshTrigger, refetch])
+
   /* Track active drill polling intervals so we can clean up */
   const drillPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const drillPollTickInFlightRef = useRef(false)
   useEffect(() => {
     return () => {
       if (drillPollRef.current) clearInterval(drillPollRef.current)
+      drillPollTickInFlightRef.current = false
     }
   }, [])
 
   /**
    * Start polling the graph data to pick up cluster changes from a drill.
-   * Polls every 3 s for up to `durationMs` (default 90 s), then stops.
-   * Also polls drill status and updates simulationState accordingly.
+   * Polls every 2 s for up to `durationMs` (default 90 s).
+   * Even after drill completion, keep polling briefly so scale-up/down pod
+   * placement changes are visible without requiring a manual page refresh.
    */
   const startDrillRefreshPolling = useCallback((drillRunId?: string, durationMs = 90_000) => {
     // Clear any prior polling
     if (drillPollRef.current) clearInterval(drillPollRef.current)
+    drillPollTickInFlightRef.current = false
 
     const started = Date.now()
-    drillPollRef.current = setInterval(async () => {
-      // Stop after duration
-      if (Date.now() - started > durationMs) {
-        if (drillPollRef.current) clearInterval(drillPollRef.current)
-        drillPollRef.current = null
-        return
-      }
+    const completionGraceMs = 45_000
+    let terminalStatusObservedAt: number | null = null
+    drillPollRef.current = setInterval(() => {
+      if (drillPollTickInFlightRef.current) return
+      drillPollTickInFlightRef.current = true
 
-      // Refetch graph data so topology map updates
-      await refetch()
-
-      // If we have a drill ID, poll its status too
-      if (drillRunId) {
+      void (async () => {
         try {
-          const run = await getDrillRun(drillRunId)
-          setSimulationState((prev) => {
-            if (!prev || prev.drillRunId !== drillRunId) return prev
-            return { ...prev, drillStatus: run.status }
-          })
-          // When the drill reaches AwaitingRecovery, surface a prompt in the
-          // drawer so the operator can decide whether to roll back or keep the
-          // current cluster state.  Never auto-recover.
-          if (run.status.toLowerCase() === 'awaitingrecovery') {
-            setSimulationState((prev) => {
-              if (!prev || prev.drillRunId !== drillRunId) return prev
-              return { ...prev, awaitingRecovery: true }
-            })
-          }
-          // Stop polling once drill is completed, aborted, or accepted
-          if (['completed', 'aborted', 'failed', 'accepted'].includes(run.status.toLowerCase())) {
-            // One final refetch after a short delay to capture post-rollback state
-            setTimeout(() => refetch(), 3000)
+          // Stop after duration
+          if (Date.now() - started > durationMs) {
             if (drillPollRef.current) clearInterval(drillPollRef.current)
             drillPollRef.current = null
+            return
           }
-        } catch {
-          // Drill status fetch failed — continue polling graph data
+
+          // Refetch graph data so topology map updates
+          await refetch()
+
+          // If we have a drill ID, poll its status too
+          if (drillRunId) {
+            try {
+              const run = await getDrillRun(drillRunId)
+              setSimulationState((prev) => {
+                if (!prev || prev.drillRunId !== drillRunId) return prev
+                return { ...prev, drillStatus: run.status }
+              })
+              // When the drill reaches AwaitingRecovery, surface a prompt in the
+              // drawer so the operator can decide whether to roll back or keep the
+              // current cluster state. Never auto-recover.
+              if (run.status.toLowerCase() === 'awaitingrecovery') {
+                setSimulationState((prev) => {
+                  if (!prev || prev.drillRunId !== drillRunId) return prev
+                  return { ...prev, awaitingRecovery: true }
+                })
+              }
+              // Keep polling for a short grace period after terminal states so
+              // delayed Kubernetes pod/node updates still render in the graph.
+              const normalizedStatus = run.status.toLowerCase()
+              if (TERMINAL_DRILL_STATUSES.has(normalizedStatus)) {
+                setScaleVisualIntents((prev) => {
+                  let changed = false
+                  const next: Record<string, ScaleVisualIntent> = {}
+                  Object.entries(prev).forEach(([serviceKey, intent]) => {
+                    if (intent.drillRunId === drillRunId) {
+                      changed = true
+                      return
+                    }
+                    next[serviceKey] = intent
+                  })
+                  return changed ? next : prev
+                })
+                if (terminalStatusObservedAt == null) {
+                  terminalStatusObservedAt = Date.now()
+                  setTimeout(() => void refetch(), 3000)
+                } else if (Date.now() - terminalStatusObservedAt >= completionGraceMs) {
+                  if (drillPollRef.current) clearInterval(drillPollRef.current)
+                  drillPollRef.current = null
+                }
+              }
+            } catch {
+              // Drill status fetch failed — continue polling graph data
+            }
+          }
+        } finally {
+          drillPollTickInFlightRef.current = false
         }
-      }
-    }, 3000)
+      })()
+    }, 2000)
   }, [refetch])
 
   /* Fetch open alerts grouped by service (lightweight polling every 30 s) */
@@ -1731,7 +2198,7 @@ export default function ClusterTopologyMap() {
         .then(({ services: svcRollups }) => {
           if (!active) return
           const map = new Map<string, ServiceRollup>()
-          svcRollups.forEach((r) => map.set(r.service, r))
+          svcRollups.forEach((r) => map.set(graphServiceKey(r.service, r.namespace), r))
           setAlertRollups(map)
         })
         .catch(() => { /* ignore — alerts are non-critical */ })
@@ -1754,7 +2221,99 @@ export default function ClusterTopologyMap() {
 
   /* ---- Simulation / drill / migration state ---- */
   const [simulationState, setSimulationState] = useState<SimulationResultState | null>(null)
+  const [scaleVisualIntents, setScaleVisualIntents] = useState<Record<string, ScaleVisualIntent>>({})
   const [migrationMode, setMigrationMode] = useState<{ serviceName: string; namespace: string } | null>(null)
+  const scaleVisualIntentMap = useMemo(
+    () => new Map<string, ScaleVisualIntent>(Object.entries(scaleVisualIntents)),
+    [scaleVisualIntents]
+  )
+
+  const clearScaleVisualIntents = useCallback(() => {
+    setScaleVisualIntents({})
+  }, [])
+
+  const clearScaleVisualIntent = useCallback((serviceName: string, namespace: string) => {
+    const serviceKey = graphServiceKey(serviceName, namespace)
+    setScaleVisualIntents((prev) => {
+      if (!(serviceKey in prev)) return prev
+      const next = { ...prev }
+      delete next[serviceKey]
+      return next
+    })
+  }, [])
+
+  const upsertScaleVisualIntent = useCallback((intent: Omit<ScaleVisualIntent, 'createdAt' | 'expiresAt'>) => {
+    const serviceKey = graphServiceKey(intent.serviceName, intent.namespace)
+    const now = Date.now()
+    setScaleVisualIntents((prev) => ({
+      ...prev,
+      [serviceKey]: {
+        ...intent,
+        createdAt: now,
+        expiresAt: now + SCALE_VISUAL_INTENT_TIMEOUT_MS,
+      },
+    }))
+  }, [])
+
+  const getLiveServicePodCount = useCallback((serviceName: string, namespace: string, fallback = 0): number => {
+    const resolvedNamespace = graphNamespace(namespace)
+    const service = services.find(
+      (svc) => svc.name === serviceName && graphNamespace(svc.namespace) === resolvedNamespace
+    )
+    if (!service) {
+      return Number.isFinite(fallback) ? Math.max(0, Math.floor(fallback)) : 0
+    }
+
+    const declaredPodCount = typeof service.podCount === 'number' ? Math.max(0, service.podCount) : 0
+    const observedPodCount = (service.placement?.nodes ?? []).reduce((sum, np) => sum + (np.pods?.length ?? 0), 0)
+    return Math.max(declaredPodCount, observedPodCount)
+  }, [services])
+
+  useEffect(() => {
+    if (Object.keys(scaleVisualIntents).length === 0) return
+
+    const observedPodsByServiceKey = new Map<string, number>()
+    services.forEach((svc) => {
+      const serviceKey = graphServiceKey(svc.name, svc.namespace)
+      const observed = (svc.placement?.nodes ?? []).reduce((sum, np) => sum + (np.pods?.length ?? 0), 0)
+      observedPodsByServiceKey.set(serviceKey, observed)
+    })
+
+    const now = Date.now()
+    const activeDrillRunId = simulationState?.drillRunId
+    const activeDrillStatus = simulationState?.drillStatus?.toLowerCase()
+
+    setScaleVisualIntents((prev) => {
+      let changed = false
+      const next: Record<string, ScaleVisualIntent> = {}
+
+      Object.entries(prev).forEach(([serviceKey, intent]) => {
+        const observedPods = observedPodsByServiceKey.get(serviceKey)
+        const targetReached =
+          observedPods != null
+            ? intent.direction === 'up'
+              ? observedPods >= intent.targetReplicas
+              : observedPods <= intent.targetReplicas
+            : false
+        const expired = now >= intent.expiresAt
+        const terminalDrillStatus =
+          Boolean(
+            activeDrillRunId &&
+            activeDrillStatus &&
+            intent.drillRunId === activeDrillRunId &&
+            TERMINAL_DRILL_STATUSES.has(activeDrillStatus)
+          )
+
+        if (targetReached || expired || terminalDrillStatus) {
+          changed = true
+          return
+        }
+        next[serviceKey] = intent
+      })
+
+      return changed ? next : prev
+    })
+  }, [services, simulationState?.drillRunId, simulationState?.drillStatus, scaleVisualIntents])
 
   /* ---- Shareable URL: sync filters ↔ search params ---- */
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1793,42 +2352,93 @@ export default function ClusterTopologyMap() {
     return Array.from(ns).sort()
   }, [services])
 
-  /* Auto-zoom to fit all nodes on initial load and after structural changes */
+  /* One-time initial fit; subsequent camera control is manual via toolbar */
   const hasAutoZoomed = useRef(false)
-  const lastStructureKeyRef = useRef<string>('')
-  useEffect(() => {
-    if (!graphRef.current || gNodes.length === 0) return
-    // Initial zoom
-    if (!hasAutoZoomed.current) {
-      const timer = setTimeout(() => {
-        graphRef.current?.fitNodesInView?.()
-        hasAutoZoomed.current = true
-        lastStructureKeyRef.current = graphStructureKey
-      }, 600)
-      return () => clearTimeout(timer)
-    }
-    // On structure change (new pods added/removed), do a gentle fit after a delay
-    if (lastStructureKeyRef.current && lastStructureKeyRef.current !== graphStructureKey) {
-      lastStructureKeyRef.current = graphStructureKey
-      const timer = setTimeout(() => {
-        graphRef.current?.fitNodesInView?.()
-      }, 800)
-      return () => clearTimeout(timer)
-    }
-  })
+  const stableLayoutPositionCacheRef = useRef<Map<string, { x: number; y: number; z: number }>>(new Map())
+  const appliedLayoutCacheVersionRef = useRef<string>('')
+  const stableFrameRef = useRef<{
+    nodes: ReagraphNode[]
+    edges: ReagraphEdge[]
+    stats: TopologyFrameStats
+  } | null>(null)
+  const anomalyWindowStartedAtRef = useRef<number | null>(null)
+  const lastFilterSignatureRef = useRef<string>('')
 
   const graphTheme = useMemo(() => createTopologyTheme(resolvedTheme === 'dark'), [resolvedTheme])
-
-  const { nodes: rawNodes, edges: rawEdges } = useMemo(
-    () => buildTopologyGraph(services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups),
-    [services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups]
+  useEffect(() => {
+    if (appliedLayoutCacheVersionRef.current === TOPOLOGY_LAYOUT_CACHE_VERSION) return
+    stableLayoutPositionCacheRef.current.clear()
+    appliedLayoutCacheVersionRef.current = TOPOLOGY_LAYOUT_CACHE_VERSION
+  }, [])
+  const filterSignature = useMemo(
+    () => `${filters.namespace}|${filters.health}|${filters.depthOrigin ?? ''}|${filters.depthHops}`,
+    [filters.depthHops, filters.depthOrigin, filters.health, filters.namespace]
   )
+
+  const { nodes: candidateNodes, edges: candidateEdges } = useMemo(
+    () => buildTopologyGraph(
+      services,
+      allNodes,
+      dependencyEdges,
+      filters,
+      serviceMetrics,
+      alertRollups,
+      scaleVisualIntentMap
+    ),
+    [services, allNodes, dependencyEdges, filters, serviceMetrics, alertRollups, scaleVisualIntentMap]
+  )
+
+  const { nodes: rawNodes, edges: rawEdges } = useMemo(() => {
+    const currentStats = computeTopologyFrameStats(candidateNodes)
+    const currentFrame = { nodes: candidateNodes, edges: candidateEdges, stats: currentStats }
+
+    if (lastFilterSignatureRef.current !== filterSignature) {
+      lastFilterSignatureRef.current = filterSignature
+      anomalyWindowStartedAtRef.current = null
+      stableFrameRef.current = currentFrame
+      return { nodes: candidateNodes, edges: candidateEdges }
+    }
+
+    const previousStableFrame = stableFrameRef.current
+    if (!previousStableFrame) {
+      stableFrameRef.current = currentFrame
+      anomalyWindowStartedAtRef.current = null
+      return { nodes: candidateNodes, edges: candidateEdges }
+    }
+
+    const massDownSpike =
+      previousStableFrame.stats.serviceCount >= 4 &&
+      currentStats.serviceCount >= 4 &&
+      currentStats.downRatio >= MASS_DOWN_RATIO_THRESHOLD &&
+      currentStats.downRatio - previousStableFrame.stats.downRatio >= MASS_DOWN_RATIO_SPIKE
+
+    const infrastructureCollapsed =
+      previousStableFrame.stats.k8sNodeCount >= 2 &&
+      currentStats.k8sNodeCount <= Math.floor(previousStableFrame.stats.k8sNodeCount * INFRA_COLLAPSE_RATIO)
+
+    const isAnomalousFrame = massDownSpike || infrastructureCollapsed
+
+    if (isAnomalousFrame) {
+      const now = Date.now()
+      if (anomalyWindowStartedAtRef.current == null) {
+        anomalyWindowStartedAtRef.current = now
+      }
+
+      const elapsed = now - anomalyWindowStartedAtRef.current
+      if (elapsed < TOPOLOGY_FLICKER_GUARD_MS) {
+        return { nodes: previousStableFrame.nodes, edges: previousStableFrame.edges }
+      }
+    }
+
+    anomalyWindowStartedAtRef.current = null
+    stableFrameRef.current = currentFrame
+    return { nodes: candidateNodes, edges: candidateEdges }
+  }, [candidateEdges, candidateNodes, filterSignature])
 
   /**
    * Stable node / edge references: only create new JS objects for nodes whose
    * visual properties actually changed.  Unchanged nodes keep the previous
-   * object identity so reagraph’s internal diff sees “no change” and the
-   * force-directed layout keeps its positions instead of “dancing.”
+   * object identity so reagraph’s internal diff sees “no change”.
    */
   const prevNodesRef = useRef<Map<string, ReagraphNode>>(new Map())
   const prevEdgesRef = useRef<Map<string, ReagraphEdge>>(new Map())
@@ -1838,15 +2448,14 @@ export default function ClusterTopologyMap() {
     const next = new Map<string, ReagraphNode>()
     const stable: ReagraphNode[] = rawNodes.map((n) => {
       const old = prev.get(n.id)
-      // Compare visual-only fields; skip deep data comparison for perf
       if (
         old &&
         old.fill === n.fill &&
         old.label === n.label &&
         old.subLabel === n.subLabel &&
-        old.size === n.size
+        old.size === n.size &&
+        nodeDataFingerprint(old) === nodeDataFingerprint(n)
       ) {
-        // Preserve the old object reference – reagraph won’t re-layout
         next.set(n.id, old)
         return old
       }
@@ -1866,7 +2475,8 @@ export default function ClusterTopologyMap() {
         old &&
         old.label === e.label &&
         old.size === e.size &&
-        old.fill === e.fill
+        old.fill === e.fill &&
+        edgeDataFingerprint(old) === edgeDataFingerprint(e)
       ) {
         next.set(e.id, old)
         return old
@@ -1878,16 +2488,16 @@ export default function ClusterTopologyMap() {
     return stable
   }, [rawEdges])
 
-  /**
-   * Compute a stable "structural key" from node/edge IDs so auto-zoom
-   * fires only when the actual topology structure changes (nodes added/removed),
-   * NOT when properties (cpu%, labels, colours) update from polling.
-   */
-  const graphStructureKey = useMemo(() => {
-    const nodeIds = gNodes.map((n) => n.id).sort().join('|')
-    const edgeIds = gEdges.map((e) => e.id).sort().join('|')
-    return `${nodeIds}::${edgeIds}`
-  }, [gNodes, gEdges])
+  useEffect(() => {
+    if (!graphRef.current || gNodes.length === 0 || hasAutoZoomed.current) return
+
+    const timer = setTimeout(() => {
+      graphRef.current?.fitNodesInView?.()
+      hasAutoZoomed.current = true
+    }, 600)
+
+    return () => clearTimeout(timer)
+  }, [gNodes.length])
 
   /** BFS shortest path between two node IDs across all edges */
   const tracedPath = useMemo(() => {
@@ -2005,6 +2615,11 @@ export default function ClusterTopologyMap() {
     )
   }, [gEdges, tracedEdgeIds])
 
+  const stableLayoutOverrides = useMemo(
+    () => createTopologyStableLayoutOverrides(displayNodes, displayEdges, stableLayoutPositionCacheRef.current),
+    [displayEdges, displayNodes]
+  )
+
   const activeSelections = useMemo(() => {
     // Hover neighborhood takes priority; else path trace; else search matches
     if (isNodeHovered) return selections
@@ -2046,9 +2661,12 @@ export default function ClusterTopologyMap() {
 
   /* ---- Simulate Failure handler ---- */
   const handleSimulateFailure = useCallback(async (serviceName: string, namespace: string) => {
-    setSimulationState({ type: 'failure', serviceName, namespace, loading: true })
+    setSimulationState({ createdAt: Date.now(), type: 'failure', serviceName, namespace, loading: true })
     try {
-      const result = await simulateFailure({ serviceId: namespace ? `${namespace}:${serviceName}` : serviceName, maxDepth: 3 })
+      const result = await simulateFailure({
+        serviceId: toNamespacedServiceId(serviceName, namespace),
+        maxDepth: 3,
+      })
       setSimulationState((prev) => prev ? { ...prev, loading: false, failureResult: result } : null)
       toast.success(`Failure simulation complete for ${serviceName}`)
       // Refresh topology to reflect any real cluster state changes
@@ -2067,13 +2685,21 @@ export default function ClusterTopologyMap() {
       // Plan the drill
       const drillPlan = await planDrill({
         type: 'ServiceShutdown',
-        target: serviceName,
-        config: { replicas: 0, gracePeriod: 30, namespace: namespace || 'onlineboutique' },
+        target: toNamespacedDrillTarget(serviceName, namespace),
+        config: { replicas: 0, gracePeriod: 30 },
       })
       toast.loading(`Running drill ${drillPlan.id}…`, { id: toastId })
       setSimulationState((prev) => prev
         ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
-        : { type: 'failure', serviceName, namespace, loading: false, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : {
+            createdAt: Date.now(),
+            type: 'failure',
+            serviceName,
+            namespace,
+            loading: false,
+            drillRunId: drillPlan.id,
+            drillStatus: 'planned',
+          }
       )
 
       // Execute the drill
@@ -2091,52 +2717,136 @@ export default function ClusterTopologyMap() {
   }, [startDrillRefreshPolling])
 
   /* ---- Scale Service handler ---- */
-  const handleScaleService = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => {
-    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 0)
-    if (direction === 'down' && currentPods <= 0) {
+  const handleScaleService = useCallback(async (
+    serviceName: string,
+    direction: 'up' | 'down',
+    currentPods: number,
+    namespace: string,
+    options?: ScaleIntentOptions
+  ) => {
+    const liveCurrentPods = getLiveServicePodCount(serviceName, namespace, currentPods)
+    const intent = buildScaleIntent(direction, liveCurrentPods, options)
+    if (!intent) {
+      toast.error('Invalid scaling request')
+      return
+    }
+    if (intent.direction === 'down' && intent.mode === 'relative' && intent.currentPods <= 0) {
       toast.error('Already at 0 pods')
       return
     }
-    setSimulationState({ type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction })
+    if (intent.targetReplicas < 1) {
+      toast.error('Scale simulation requires at least 1 pod. Use a drill to scale to zero.')
+      return
+    }
+    if (intent.targetReplicas === intent.currentPods) {
+      toast('No scaling change required')
+      return
+    }
+    upsertScaleVisualIntent({
+      serviceName,
+      namespace,
+      direction: intent.direction,
+      currentPods: intent.currentPods,
+      targetReplicas: intent.targetReplicas,
+      source: 'simulate',
+    })
+    setSimulationState({
+      createdAt: Date.now(),
+      type: 'scale',
+      serviceName,
+      namespace,
+      loading: true,
+      scaleDirection: direction,
+    })
     try {
       const result = await simulateScale({
-        serviceId: serviceName,
-        currentPods,
-        newPods,
+        serviceId: toNamespacedServiceId(serviceName, namespace),
+        currentPods: intent.currentPods,
+        newPods: intent.targetReplicas,
         latencyMetric: 'p95',
         maxDepth: 3,
       })
       setSimulationState((prev) => prev ? { ...prev, loading: false, scaleResult: result } : null)
-      toast.success(`Scale ${direction} simulation complete: ${currentPods} → ${newPods} pods`)
+      toast.success(`Scale ${direction} simulation complete: ${intent.currentPods} → ${intent.targetReplicas} pods`)
       // Refresh topology to pick up any concurrent cluster changes
       await refetch()
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Scale simulation failed'
+      clearScaleVisualIntent(serviceName, namespace)
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg } : null)
       toast.error(`Scale simulation failed: ${msg}`)
     }
-  }, [refetch])
+  }, [clearScaleVisualIntent, getLiveServicePodCount, refetch, upsertScaleVisualIntent])
 
   /* ---- Scale Drill handler (actually scales via K8s) ---- */
-  const handleScaleDrill = useCallback(async (serviceName: string, direction: 'up' | 'down', currentPods: number, namespace: string) => {
-    const newPods = direction === 'up' ? currentPods + 1 : Math.max(currentPods - 1, 0)
-    if (direction === 'down' && currentPods <= 0) {
+  const handleScaleDrill = useCallback(async (
+    serviceName: string,
+    direction: 'up' | 'down',
+    currentPods: number,
+    namespace: string,
+    options?: ScaleIntentOptions
+  ) => {
+    const liveCurrentPods = getLiveServicePodCount(serviceName, namespace, currentPods)
+    const intent = buildScaleIntent(direction, liveCurrentPods, options)
+    if (!intent) {
+      toast.error('Invalid scaling request')
+      return
+    }
+    if (intent.direction === 'down' && intent.mode === 'relative' && intent.currentPods <= 0) {
       toast.error('Already at 0 pods')
       return
     }
-    const drillType = direction === 'up' ? 'PodScaleUp' : 'PodScaleDown'
+    if (intent.targetReplicas === intent.currentPods) {
+      toast('No scaling change required')
+      return
+    }
+    const effectiveDirection: 'up' | 'down' = intent.targetReplicas > intent.currentPods ? 'up' : 'down'
+    const drillType = effectiveDirection === 'up' ? 'PodScaleUp' : 'PodScaleDown'
     const toastId = toast.loading(`Planning ${direction} drill for ${serviceName}…`)
-    setSimulationState({ type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction })
+    upsertScaleVisualIntent({
+      serviceName,
+      namespace,
+      direction: intent.direction,
+      currentPods: intent.currentPods,
+      targetReplicas: intent.targetReplicas,
+      source: 'drill',
+    })
+    setSimulationState({
+      createdAt: Date.now(),
+      type: 'scale',
+      serviceName,
+      namespace,
+      loading: true,
+      scaleDirection: direction,
+    })
     try {
       const drillPlan = await planDrill({
         type: drillType,
-        target: serviceName,
-        config: { replicas: newPods, gracePeriod: 30, namespace: namespace || 'onlineboutique' },
+        target: toNamespacedDrillTarget(serviceName, namespace),
+        config: { replicas: intent.targetReplicas, gracePeriod: 30 },
+      })
+      upsertScaleVisualIntent({
+        serviceName,
+        namespace,
+        direction: intent.direction,
+        currentPods: intent.currentPods,
+        targetReplicas: intent.targetReplicas,
+        source: 'drill',
+        drillRunId: drillPlan.id,
       })
       toast.loading(`Executing scale ${direction} drill ${drillPlan.id}…`, { id: toastId })
       setSimulationState((prev) => prev
         ? { ...prev, drillRunId: drillPlan.id, drillStatus: 'planned' }
-        : { type: 'scale', serviceName, namespace, loading: true, scaleDirection: direction, drillRunId: drillPlan.id, drillStatus: 'planned' }
+        : {
+            createdAt: Date.now(),
+            type: 'scale',
+            serviceName,
+            namespace,
+            loading: true,
+            scaleDirection: direction,
+            drillRunId: drillPlan.id,
+            drillStatus: 'planned',
+          }
       )
 
       const runResult = await runDrill(drillPlan.id)
@@ -2144,16 +2854,20 @@ export default function ClusterTopologyMap() {
         ? { ...prev, loading: false, drillStatus: runResult.status }
         : null
       )
-      toast.success(`Scale ${direction} drill started: ${currentPods} → ${newPods} pods`, { id: toastId })
+      toast.success(`Scale ${direction} drill started: ${intent.currentPods} → ${intent.targetReplicas} pods`, { id: toastId })
+
+      // Immediate refresh so newly created pods appear without waiting for the first poll tick.
+      await refetch()
 
       // Start polling to reflect the scale drill's effect on the topology map.
       startDrillRefreshPolling(drillPlan.id)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Scale drill failed'
+      clearScaleVisualIntent(serviceName, namespace)
       setSimulationState((prev) => prev ? { ...prev, loading: false, error: msg, drillStatus: `Error: ${msg}` } : null)
       toast.error(`Scale drill failed: ${msg}`, { id: toastId })
     }
-  }, [startDrillRefreshPolling])
+  }, [clearScaleVisualIntent, getLiveServicePodCount, refetch, startDrillRefreshPolling, upsertScaleVisualIntent])
 
   /* ---- Migrate Service handler (enter migration mode) ---- */
   const handleMigrateService = useCallback((serviceName: string, namespace: string) => {
@@ -2192,16 +2906,17 @@ export default function ClusterTopologyMap() {
 
     let reason = ''
     if (feasible) {
-      reason = `Target node "${targetNodeName}" has ${cpuAvail.toFixed(0)}% CPU available and ${friendlyMemory(ramAvail)} free memory — enough to host this service. Source node: "${sourceNodeName}".`
+      reason = `Target node "${targetNodeName}" has ${cpuAvail.toFixed(0)}% allocatable CPU headroom and ${friendlyMemory(ramAvail)} allocatable memory free — enough to host this service. Source node: "${sourceNodeName}".`
     } else {
       const issues: string[] = []
-      if (!cpuFeasible) issues.push(`not enough CPU (only ${cpuAvail.toFixed(0)}% free)`)
-      if (!ramFeasible) issues.push(`not enough memory (only ${friendlyMemory(ramAvail)} free)`)
+      if (!cpuFeasible) issues.push(`not enough allocatable CPU (only ${cpuAvail.toFixed(0)}% free)`)
+      if (!ramFeasible) issues.push(`not enough allocatable memory (only ${friendlyMemory(ramAvail)} free)`)
       reason = `Target node "${targetNodeName}" may not have enough resources: ${issues.join(', ')}.`
     }
 
     const toastId = toast.loading(`Migrating ${serviceName} to ${targetNodeName}…`)
     setSimulationState({
+      createdAt: Date.now(),
       type: 'migration',
       serviceName,
       namespace: migrationMode.namespace,
@@ -2213,7 +2928,10 @@ export default function ClusterTopologyMap() {
 
     try {
       // 1. Run failure simulation to assess migration impact
-      const failureResult = await simulateFailure({ serviceId: serviceName, maxDepth: 2 })
+      const failureResult = await simulateFailure({
+        serviceId: toNamespacedServiceId(serviceName, migrationMode.namespace),
+        maxDepth: 2,
+      })
       setSimulationState((prev) => prev ? { ...prev, failureResult } : null)
 
       if (!feasible) {
@@ -2225,15 +2943,12 @@ export default function ClusterTopologyMap() {
       // 2. Execute migration drill using the dedicated MigrateService drill type.
       //    The backend patches nodeSelector to the target node, scales down to 0,
       //    then scales back up so pods are scheduled only on the target node.
-      const ns = migrationMode.namespace || 'onlineboutique'
-
       const drillPlan = await planDrill({
         type: 'MigrateService',
-        target: serviceName,
+        target: toNamespacedDrillTarget(serviceName, migrationMode.namespace),
         config: {
           targetNode: targetNodeName,
           replicas: currentPodCount,
-          namespace: ns,
         },
       })
 
@@ -2484,7 +3199,9 @@ export default function ClusterTopologyMap() {
               nodes={displayNodes}
               edges={displayEdges}
               selections={activeSelections}
-              layoutType="forceDirected2d"
+              layoutType="custom"
+              animated={false}
+              layoutOverrides={stableLayoutOverrides}
               labelType="all"
               draggable={!!migrationMode}
               theme={graphTheme}
@@ -2535,11 +3252,14 @@ export default function ClusterTopologyMap() {
               />
             )}
 
-            {/* Simulation results drawer */}
+            {/* Simulation results banner */}
             {simulationState && (
               <SimulationResultsDrawer
                 state={simulationState}
-                onClose={() => setSimulationState(null)}
+                onClose={() => {
+                  setSimulationState(null)
+                  clearScaleVisualIntents()
+                }}
                 onRunDrill={handleRunDrill}
                 onRecover={async () => {
                   if (!simulationState.drillRunId) return

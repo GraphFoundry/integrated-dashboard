@@ -44,7 +44,7 @@ export const Combobox = forwardRef<HTMLInputElement, ComboboxAdapterProps>(funct
   },
   ref
 ) {
-  const { onBlur: _onBlur, onClick, ...inputProps } = props
+  const { onClick, ...inputProps } = props
   const rawValue = value == null ? '' : String(value)
   const selectedItem = useMemo(
     () => items.find((item) => item.value === rawValue) ?? items.find((item) => item.label === rawValue),

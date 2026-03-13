@@ -5,6 +5,7 @@ import axios from 'axios'
 
 // Simple .env loader
 const envPath = path.resolve(__dirname, '../.env')
+const RUNTIME_ENV_FILE = '/etc/runtime-config/runtime.env'
 
 function loadEnvFile(): void {
   if (fs.existsSync(envPath)) {
@@ -27,16 +28,34 @@ function loadEnvFile(): void {
   }
 }
 
+function loadRuntimeEnvFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) return
+  const content = fs.readFileSync(filePath, 'utf8')
+  content.split('\n').forEach((line) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx < 0) return
+    const key = trimmed.substring(0, eqIdx).trim()
+    const value = trimmed.substring(eqIdx + 1).trim()
+    process.env[key] = value
+  })
+}
+
 loadEnvFile()
+loadRuntimeEnvFile(RUNTIME_ENV_FILE)
 
 import cors from 'cors'
 import morgan from 'morgan'
+import { createProxyMiddleware } from 'http-proxy-middleware'
 import http from 'http'
 import WebSocket, { WebSocketServer } from 'ws'
 import { Storage } from './storage'
 import { AlertService } from './service'
 import { WSMessage, AlertEvent, GraphUpdateData } from './types'
+import { createSimulationReplayHandler, createSimulationRunHandler } from './simulations-run-route'
 import { SmsService } from './sms.service'
+import { fetchPodsByService } from './k8s'
 import { WebhookDedupeStore } from './webhookDedupeStore'
 import {
   getPayloadLogicalTimestampMs,
@@ -49,8 +68,120 @@ interface RawBodyRequest extends Request {
   rawBody?: Buffer
 }
 
+interface PredictiveCurrentActionPayload {
+  anomalyActive: boolean
+  healthScore: number
+  primaryBottleneck: Record<string, unknown> | null
+  timeToImpactSec: number | null
+  recommendation: Record<string, unknown> | null
+  evidence: {
+    timestamp: string
+    [key: string]: unknown
+  }
+}
+
 const app = express()
 app.use(cors())
+app.use(morgan('dev'))
+
+// ── Downstream microservice proxies ─────────────────────────────────────────
+// Mounted BEFORE express.json() so request bodies stream through unmodified.
+const PREDICTIVE_API_BASE_URL = process.env.PREDICTIVE_API_BASE_URL || 'http://localhost:7000'
+const SCHEDULER_API_BASE_URL = process.env.SCHEDULER_API_BASE_URL || 'http://localhost:9020'
+const SIMULATION_API_BASE_URL = process.env.SIMULATION_API_BASE_URL || PREDICTIVE_API_BASE_URL
+const SIMULATION_RUN_PATH = process.env.SIMULATION_RUN_PATH || '/simulations/run'
+const PREDICTIVE_CURRENT_ACTION_ROUTES = [
+  '/api/predictive/actions/current',
+  '/api/predictive/predictive/actions/current',
+]
+
+function buildPredictiveCurrentActionUrl(baseUrl: string): string {
+  const normalized = baseUrl.replace(/\/+$/, '')
+  return normalized.endsWith('/predictive')
+    ? `${normalized}/actions/current`
+    : `${normalized}/predictive/actions/current`
+}
+
+function defaultPredictiveCurrentActionPayload(): PredictiveCurrentActionPayload {
+  return {
+    anomalyActive: false,
+    healthScore: 100,
+    primaryBottleneck: null,
+    timeToImpactSec: null,
+    recommendation: null,
+    evidence: {
+      timestamp: new Date().toISOString(),
+    },
+  }
+}
+
+// Dedicated handler avoids path-prefix duplication and shields UI from upstream 503 bursts.
+app.get(PREDICTIVE_CURRENT_ACTION_ROUTES, async (req: Request, res: Response) => {
+  const requestId = req.header('X-Request-Id')
+
+  try {
+    const response = await axios.get<PredictiveCurrentActionPayload>(
+      buildPredictiveCurrentActionUrl(PREDICTIVE_API_BASE_URL),
+      {
+        timeout: 3000,
+        headers: requestId ? { 'X-Request-Id': requestId } : undefined,
+      }
+    )
+    return res.status(200).json(response.data)
+  } catch (error) {
+    console.warn('[BFF:predictive-current-action] upstream unavailable, serving safe fallback')
+    if (axios.isAxiosError(error)) {
+      console.warn('[BFF:predictive-current-action] details:', error.message)
+    }
+    return res.status(200).json(defaultPredictiveCurrentActionPayload())
+  }
+})
+
+app.use(
+  '/api/predictive',
+  createProxyMiddleware({
+    target: PREDICTIVE_API_BASE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/predictive': '' },
+    on: {
+      proxyReq: (proxyReq, req) => {
+        // Forward X-Request-Id if present
+        const rid = req.headers['x-request-id']
+        if (rid) proxyReq.setHeader('X-Request-Id', rid as string)
+      },
+      error: (err, _req, res) => {
+        console.error('[Proxy:predictive] error:', err.message)
+        if ('writeHead' in res && typeof res.writeHead === 'function') {
+          ;(res as import('http').ServerResponse).writeHead(502, { 'Content-Type': 'application/json' })
+          ;(res as import('http').ServerResponse).end(JSON.stringify({ error: 'Predictive API unavailable' }))
+        }
+      },
+    },
+  })
+)
+
+app.use(
+  '/api/scheduler',
+  createProxyMiddleware({
+    target: SCHEDULER_API_BASE_URL,
+    changeOrigin: true,
+    pathRewrite: { '^/api/scheduler': '' },
+    on: {
+      proxyReq: (proxyReq, req) => {
+        const rid = req.headers['x-request-id']
+        if (rid) proxyReq.setHeader('X-Request-Id', rid as string)
+      },
+      error: (err, _req, res) => {
+        console.error('[Proxy:scheduler] error:', err.message)
+        if ('writeHead' in res && typeof res.writeHead === 'function') {
+          ;(res as import('http').ServerResponse).writeHead(502, { 'Content-Type': 'application/json' })
+          ;(res as import('http').ServerResponse).end(JSON.stringify({ error: 'Scheduler API unavailable' }))
+        }
+      },
+    },
+  })
+)
+
 app.use(
   express.json({
     limit: '10mb',
@@ -59,7 +190,24 @@ app.use(
     },
   })
 )
-app.use(morgan('dev'))
+
+// Dedicated simulation passthrough preserves upstream status/body without adding synthetic fields.
+app.post(
+  '/api/simulations/run',
+  createSimulationRunHandler({
+    simulationApiBaseUrl: SIMULATION_API_BASE_URL,
+    simulationRunPath: SIMULATION_RUN_PATH,
+  })
+)
+
+// Replay endpoint preserves caller snapshot identifiers for deterministic re-runs.
+app.post(
+  '/api/simulations/replay',
+  createSimulationReplayHandler({
+    simulationApiBaseUrl: SIMULATION_API_BASE_URL,
+    simulationRunPath: SIMULATION_RUN_PATH,
+  })
+)
 
 const PORT = process.env.PORT || 3001
 const DB_PATH = process.env.DB_PATH || './alerts.db'
@@ -73,12 +221,12 @@ function parseIntEnv(name: string, fallback: number): number {
 }
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || ''
-const WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
-const WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
+let WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
+let WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
 const WEBHOOK_DEDUPE_FILE =
   process.env.WEBHOOK_DEDUPE_FILE || path.resolve(__dirname, '../data/webhook-dedupe.json')
-const WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
-const WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
+let WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
+let WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
 const GRAPH_HEALTH_URL = process.env.GRAPH_HEALTH_URL || 'http://localhost:3000/graph/health'
 const GRAPH_STALE_WINDOW_MINUTES = 5
 
@@ -522,6 +670,18 @@ app.post('/api/notifications/sms', async (req: Request, res: Response) => {
   }
 })
 
+// GET /api/k8s/pods - Pods grouped by service name (direct K8s API)
+app.get('/api/k8s/pods', async (req: Request, res: Response) => {
+  try {
+    const namespace = req.query.namespace as string | undefined
+    const podsByService = await fetchPodsByService(namespace)
+    res.json({ podsByService })
+  } catch (error) {
+    console.error('[BFF:k8s/pods] Failed to fetch pods:', error instanceof Error ? error.message : error)
+    res.status(502).json({ error: 'Failed to fetch pods from Kubernetes API', podsByService: {} })
+  }
+})
+
 // GET /api/stats - Connection and system stats
 app.get('/api/stats', (req: Request, res: Response) => {
   const overview = alertService.getOverview()
@@ -537,6 +697,101 @@ app.get('/api/stats', (req: Request, res: Response) => {
     },
     ...overview,
   })
+})
+
+// ── Config management endpoints ─────────────────────────────────────────────
+import {
+  getAllConfigs,
+  getServiceConfig,
+  updateConfigKey as updateConfigKeyFn,
+  applyConfig,
+} from './configManager'
+
+app.get('/api/configs', async (_req: Request, res: Response) => {
+  try {
+    const configs = await getAllConfigs()
+    res.json(configs)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[Config] Failed to get configs:', message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.get('/api/configs/:serviceId', async (req: Request, res: Response) => {
+  try {
+    const config = await getServiceConfig(req.params.serviceId)
+    if (!config) {
+      res.status(404).json({ error: 'Service not found' })
+      return
+    }
+    res.json(config)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[Config] Failed to get config for ${req.params.serviceId}:`, message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.put('/api/configs/:serviceId/:key', async (req: Request, res: Response) => {
+  try {
+    const { serviceId, key } = req.params
+    const { value } = req.body as { value: string }
+    if (value === undefined || value === null) {
+      res.status(400).json({ error: 'Missing "value" in request body' })
+      return
+    }
+    const result = await updateConfigKeyFn(serviceId, key, String(value))
+    if (!result.updated) {
+      res.status(400).json({ error: result.error })
+      return
+    }
+    res.json({ updated: true })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[Config] Failed to update key:`, message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.post('/api/configs/:serviceId/apply', async (req: Request, res: Response) => {
+  try {
+    const { serviceId } = req.params
+    const updates = req.body?.updates as Record<string, string> | undefined
+    const result = await applyConfig(serviceId, updates)
+    if (!result.applied) {
+      res.status(400).json({ error: result.error })
+      return
+    }
+    res.json(result)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`[Config] Failed to apply config for ${req.params.serviceId}:`, message)
+    res.status(500).json({ error: message })
+  }
+})
+
+app.post('/admin/reload-config', (req: Request, res: Response) => {
+  try {
+    loadRuntimeEnvFile(RUNTIME_ENV_FILE)
+    // Apply env overrides from request body (takes precedence over file)
+    const envOverrides = req.body?.env as Record<string, string> | undefined
+    if (envOverrides && typeof envOverrides === 'object') {
+      for (const [key, value] of Object.entries(envOverrides)) {
+        process.env[key] = String(value)
+      }
+    }
+    WEBHOOK_REPLAY_WINDOW_SEC = parseIntEnv('WEBHOOK_REPLAY_WINDOW_SEC', 300)
+    WEBHOOK_DEDUPE_WINDOW_SEC = parseIntEnv('WEBHOOK_DEDUPE_WINDOW_SEC', 86400)
+    WEBHOOK_RATE_LIMIT_WINDOW_MS = parseIntEnv('WEBHOOK_RATE_LIMIT_WINDOW_MS', 60000)
+    WEBHOOK_RATE_LIMIT_MAX = parseIntEnv('WEBHOOK_RATE_LIMIT_MAX', 120)
+    console.log('[CONFIG] Runtime config reloaded')
+    res.json({ status: 'reloaded' })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[CONFIG] Reload failed:', message)
+    res.status(500).json({ status: 'error', message })
+  }
 })
 
 // Start server

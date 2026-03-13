@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import toast from 'react-hot-toast'
 import DrillCatalog from './components/DrillCatalog'
 import RunPanel from './components/RunPanel'
 import LiveMetricsStrip from './components/LiveMetricsStrip'
 import TimelineReplay from './components/TimelineReplay'
-import type { DrillRun } from '@/lib/api/drills'
-import { getDrillRun, listDrillHistory } from '@/lib/api/drills'
+import type { DrillPrefillRequest, DrillRun } from '@/lib/api/drills'
+import { getDrillRun, listDrillHistory, verifyDrillRollback } from '@/lib/api/drills'
 import { useK8sHealth } from '@/lib/useK8sHealth'
 import { History, PlayCircle, ShieldCheck, LayoutDashboard, Loader2, WifiOff, RefreshCw, CheckCircle2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -25,6 +26,12 @@ import {
 } from '@/components/common/uiClassTokens'
 
 type DirectorTab = 'director' | 'history'
+type DrillDirectorLocationState = {
+  prefillDrill?: DrillPrefillRequest
+  scenarioBannerSeenAt?: string
+}
+
+const VALIDATION_SUMMARY_SECTION_ID = 'run-validation-expected-vs-actual'
 
 function getRunStatusBadgeClass(status: string): string {
   switch (status) {
@@ -51,15 +58,55 @@ function getRunStatusBadgeClass(status: string): string {
   }
 }
 
+function formatOptionalTimestamp(value?: string): string {
+  if (!value) {
+    return '—'
+  }
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value
+  }
+  return parsed.toLocaleString()
+}
+
 export default function DrillDirector() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const [selectedTab, setSelectedTab] = useState<DirectorTab>('director')
   const [activeRun, setActiveRun] = useState<DrillRun | null>(null)
   const [history, setHistory] = useState<DrillRun[]>([])
   const [isHistoryLoading, setIsHistoryLoading] = useState(false)
   const [reviewingRunId, setReviewingRunId] = useState<string | null>(null)
+  const [verifyingRollbackId, setVerifyingRollbackId] = useState<string | null>(null)
+  const [pendingHistoryFocus, setPendingHistoryFocus] = useState<'comparison-summary' | null>(null)
+  const [prefillDrill, setPrefillDrill] = useState<DrillPrefillRequest | null>(null)
+  const [prefillBannerSeenAt, setPrefillBannerSeenAt] = useState<string | null>(null)
   const { status: k8sHealth, isLoading: isK8sProbing, recheck: recheckK8s } = useK8sHealth()
+  const [topologyRefreshTrigger, setTopologyRefreshTrigger] = useState(0)
+  const prevRunStatusRef = useRef<string | null>(null)
 
   const isClusterOffline = !isK8sProbing && k8sHealth !== null && !k8sHealth.reachable
+
+  /* Bump topology refresh trigger whenever drill run status changes */
+  useEffect(() => {
+    const currentStatus = activeRun?.status ?? null
+    if (currentStatus && currentStatus !== prevRunStatusRef.current) {
+      setTopologyRefreshTrigger((c) => c + 1)
+    }
+    prevRunStatusRef.current = currentStatus
+  }, [activeRun?.status])
+
+  useEffect(() => {
+    const state = location.state as DrillDirectorLocationState | null
+    if (!state?.prefillDrill) return
+
+    setPrefillDrill(state.prefillDrill)
+    setPrefillBannerSeenAt(state.scenarioBannerSeenAt ?? null)
+    setSelectedTab('director')
+    setActiveRun(null)
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     let isMounted = true
@@ -109,16 +156,49 @@ export default function DrillDirector() {
     return () => {
       isMounted = false
     }
-  }, [activeRun?.id, activeRun?.status])
+  }, [activeRun])
 
-  const openRunReview = async (runId: string) => {
+  useEffect(() => {
+    if (!activeRun || pendingHistoryFocus !== 'comparison-summary') {
+      return
+    }
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      const comparisonSummary = document.getElementById(VALIDATION_SUMMARY_SECTION_ID)
+      if (comparisonSummary) {
+        comparisonSummary.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+      setPendingHistoryFocus(null)
+    })
+
+    return () => window.cancelAnimationFrame(animationFrameId)
+  }, [activeRun, pendingHistoryFocus])
+
+  const handleVerifyRollback = async (runId: string) => {
+    setVerifyingRollbackId(runId)
+    try {
+      await verifyDrillRollback(runId)
+      toast.success('Rollback verified — you can now start a new drill.')
+      const data = await listDrillHistory()
+      setHistory(data)
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to verify rollback')
+    } finally {
+      setVerifyingRollbackId(null)
+    }
+  }
+
+  const openRunReview = async (runId: string, focus: 'comparison-summary' | null = null) => {
     setReviewingRunId(runId)
+    setPendingHistoryFocus(focus)
     try {
       const fullRun = await getDrillRun(runId)
       setActiveRun(fullRun)
       setSelectedTab('director')
     } catch (err) {
       console.error(err)
+      setPendingHistoryFocus(null)
       toast.error(err instanceof Error ? err.message : 'Failed to load run details')
     } finally {
       setReviewingRunId((current) => (current === runId ? null : current))
@@ -128,7 +208,7 @@ export default function DrillDirector() {
   return (
     <div className={pageContainerClass}>
       <PageHeader
-        title="Drill Director"
+        title="Execute"
         description="Run safe drills and watch system impact live. Orchestrate chaos sequences with precision and operator-controlled recovery guardrails."
         icon={PlayCircle}
         actions={
@@ -210,7 +290,7 @@ export default function DrillDirector() {
 
       {/* Cluster Topology — Nodes / Services / Pods */}
       <div className="w-full mb-6">
-        <ClusterTopologyMap />
+        <ClusterTopologyMap refreshTrigger={topologyRefreshTrigger} />
       </div>
 
       <Tabs
@@ -274,7 +354,16 @@ export default function DrillDirector() {
                   </p>
                 </div>
               </div>
-              <DrillCatalog onDrillSelect={setActiveRun} disabled={isClusterOffline} />
+              <DrillCatalog
+                onDrillSelect={setActiveRun}
+                disabled={isClusterOffline}
+                prefill={prefillDrill}
+                prefillBannerSeenAt={prefillBannerSeenAt}
+                onPrefillConsumed={() => {
+                  setPrefillDrill(null)
+                  setPrefillBannerSeenAt(null)
+                }}
+              />
             </div>
           )}
         </TabPanel>
@@ -286,10 +375,14 @@ export default function DrillDirector() {
                 <thead className={tableHeadRowClass}>
                   <tr>
                     <th className={tableHeaderCellClass}>Sequence ID</th>
+                    <th className={tableHeaderCellClass}>Scenario ID</th>
                     <th className={tableHeaderCellClass}>Drill Type</th>
                     <th className={tableHeaderCellClass}>Target Component</th>
                     <th className={tableHeaderCellClass}>Status</th>
                     <th className={tableHeaderCellClass}>Verdict</th>
+                    <th className={tableHeaderCellClass}>Validation</th>
+                    <th className={tableHeaderCellClass}>Banner Verified</th>
+                    <th className={tableHeaderCellClass}>Rollback Verified</th>
                     <th className={tableHeaderCellClass}>Engagement Date</th>
                     <th className={cn(tableHeaderCellClass, 'text-right')}>Actions</th>
                   </tr>
@@ -298,7 +391,7 @@ export default function DrillDirector() {
                   {!history || history.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={11}
                         className="bg-[var(--surface-soft)]/20 p-12 text-center italic text-[var(--text-muted)]"
                       >
                         <div className="flex flex-col items-center gap-2 opacity-50">
@@ -340,6 +433,9 @@ export default function DrillDirector() {
                           <td className={cn(tableCellClass, 'font-mono text-xs font-bold text-sky-500')}>
                             {run.id.split('-')[0].toUpperCase()}
                           </td>
+                          <td className={cn(tableCellClass, 'font-mono text-xs text-[var(--text-secondary)]')}>
+                            {run.scenarioId?.trim() ? run.scenarioId : '—'}
+                          </td>
                           <td className={cn(tableCellClass, 'font-semibold')}>{run.type}</td>
                           <td className={tableCellClass}>
                             <code className="rounded-md border border-[var(--border)] bg-[var(--surface-solid)] px-2 py-1 font-mono text-[10px] font-bold text-[var(--text-secondary)]">
@@ -374,29 +470,91 @@ export default function DrillDirector() {
                               {run.verdict}
                             </Badge>
                           </td>
+                          <td className={tableCellClass}>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                historyChipBaseClass,
+                                run.validationStatus &&
+                                  run.validationStatus.toLowerCase() === 'match' &&
+                                  'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+                                run.validationStatus &&
+                                  run.validationStatus.toLowerCase() === 'mismatch' &&
+                                  'border-rose-400/50 bg-rose-500/10 text-rose-400',
+                                run.validationStatus &&
+                                  run.validationStatus.toLowerCase() !== 'match' &&
+                                  run.validationStatus.toLowerCase() !== 'mismatch' &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-primary)]',
+                                !run.validationStatus &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-muted)]'
+                              )}
+                            >
+                              {run.validationStatus?.trim() ? run.validationStatus : 'Not Set'}
+                            </Badge>
+                          </td>
+                          <td className={tableCellClass}>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                historyChipBaseClass,
+                                run.bannerVerified === true && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700',
+                                run.bannerVerified === false && 'border-rose-400/50 bg-rose-500/10 text-rose-400',
+                                run.bannerVerified === undefined &&
+                                  'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-muted)]'
+                              )}
+                            >
+                              {run.bannerVerified === undefined ? 'Unknown' : run.bannerVerified ? 'Yes' : 'No'}
+                            </Badge>
+                          </td>
+                          <td className={cn(tableCellClass, 'text-xs font-medium text-[var(--text-muted)]')}>
+                            {formatOptionalTimestamp(run.rollbackVerifiedAt)}
+                          </td>
                           <td className={cn(tableCellClass, 'text-xs font-medium text-[var(--text-muted)]')}>
                             {new Date(run.startTime).toLocaleString()}
                           </td>
                           <td className={cn(tableCellClass, 'text-right')}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(event) => event.stopPropagation()}
-                              onPress={() => void openRunReview(run.id)}
-                              className={cn(
-                                tableActionLinkClass,
-                                'border-sky-500/25 bg-sky-500/6 text-[10px] font-bold uppercase tracking-widest text-sky-700 hover:bg-sky-500/12 hover:text-sky-800'
+                            <div className="inline-flex flex-col items-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(event) => event.stopPropagation()}
+                                onPress={() => void openRunReview(run.id)}
+                                className={cn(
+                                  tableActionLinkClass,
+                                  'border-sky-500/25 bg-sky-500/6 text-[10px] font-bold uppercase tracking-widest text-sky-700 hover:bg-sky-500/12 hover:text-sky-800'
+                                )}
+                                isDisabled={isReviewing}
+                              >
+                                {isReviewing ? (
+                                  <span className="inline-flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin" /> Loading
+                                  </span>
+                                ) : (
+                                  'Review Pack'
+                                )}
+                              </Button>
+                              {!run.rollbackVerifiedAt && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(event) => event.stopPropagation()}
+                                  onPress={() => void handleVerifyRollback(run.id)}
+                                  className={cn(
+                                    tableActionLinkClass,
+                                    'border-amber-500/25 bg-amber-500/8 text-[10px] font-bold uppercase tracking-widest text-amber-700 hover:bg-amber-500/16 hover:text-amber-800'
+                                  )}
+                                  isDisabled={verifyingRollbackId === run.id}
+                                >
+                                  {verifyingRollbackId === run.id ? (
+                                    <span className="inline-flex items-center gap-2">
+                                      <Loader2 className="h-3 w-3 animate-spin" /> Verifying
+                                    </span>
+                                  ) : (
+                                    'Verify Rollback'
+                                  )}
+                                </Button>
                               )}
-                              isDisabled={isReviewing}
-                            >
-                              {isReviewing ? (
-                                <span className="inline-flex items-center gap-2">
-                                  <Loader2 className="h-3 w-3 animate-spin" /> Loading
-                                </span>
-                              ) : (
-                                'Review Pack'
-                              )}
-                            </Button>
+                            </div>
                           </td>
                         </tr>
                       )

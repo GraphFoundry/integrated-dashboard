@@ -1,5 +1,7 @@
 // BFF API Client types and functions
-const BFF_BASE_URL = import.meta.env.VITE_BFF_URL || 'http://localhost:3001'
+import { env } from '@/lib/env'
+
+const BFF_BASE_URL = env.BFF_URL
 
 export interface AlertEvent {
   schema_version: string
@@ -208,6 +210,35 @@ export interface GraphLatestDataResponse {
   message?: string
 }
 
+// ── Config Management Types ─────────────────────────────────────────────────
+export interface ConfigKeyInfo {
+  key: string
+  label: string
+  description: string
+  type: string
+  currentValue: string
+  defaultValue: string
+  group: string
+  validation?: { min?: number; max?: number; pattern?: string }
+}
+
+export interface ConfigGroupInfo {
+  name: string
+  keys: ConfigKeyInfo[]
+}
+
+export interface ServiceConfigInfo {
+  serviceId: string
+  displayName: string
+  groups: ConfigGroupInfo[]
+}
+
+export interface ApplyConfigResult {
+  applied: boolean
+  reloaded: boolean
+  error?: string
+}
+
 // API Client
 export const bffApi = {
   // Overview
@@ -264,6 +295,51 @@ export const bffApi = {
   async getStats(): Promise<any> {
     const response = await fetch(`${BFF_BASE_URL}/api/stats`)
     if (!response.ok) throw new Error('Failed to fetch stats')
+    return response.json()
+  },
+
+  // Config Management
+  async getConfigs(): Promise<ServiceConfigInfo[]> {
+    const response = await fetch(`${BFF_BASE_URL}/api/configs`)
+    if (!response.ok) throw new Error('Failed to fetch configs')
+    return response.json()
+  },
+
+  async getServiceConfig(serviceId: string): Promise<ServiceConfigInfo> {
+    const response = await fetch(`${BFF_BASE_URL}/api/configs/${encodeURIComponent(serviceId)}`)
+    if (!response.ok) throw new Error(`Failed to fetch config for ${serviceId}`)
+    return response.json()
+  },
+
+  async updateConfigKey(serviceId: string, key: string, value: string): Promise<{ updated: boolean; error?: string }> {
+    const response = await fetch(
+      `${BFF_BASE_URL}/api/configs/${encodeURIComponent(serviceId)}/${encodeURIComponent(key)}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      }
+    )
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ error: 'Request failed' }))
+      return { updated: false, error: data.error }
+    }
+    return response.json()
+  },
+
+  async applyConfig(serviceId: string, updates?: Record<string, string>): Promise<ApplyConfigResult> {
+    const response = await fetch(
+      `${BFF_BASE_URL}/api/configs/${encodeURIComponent(serviceId)}/apply`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates }),
+      }
+    )
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ error: 'Request failed' }))
+      return { applied: false, reloaded: false, error: data.error }
+    }
     return response.json()
   },
 }

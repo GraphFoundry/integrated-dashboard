@@ -21,8 +21,11 @@ import type {
   SimulationContextResponse,
   SimulationMetricsResponse,
   DemoSnapshotsResponse,
+  PredictiveCurrentActionResponse,
 } from '@/lib/types'
+import type { SimulationRunRequestDto, SimulationRunResponseDto } from '@/lib/simulationContract'
 import { predictiveApi } from '@/lib/predictiveApiClient'
+import { simulationsApi } from '@/lib/simulationsApiClient'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -36,13 +39,9 @@ interface SimulationRunOptions extends RequestOptions {
 
 const SERVICE_CACHE_KEY = 'predictive_services_cache_v1'
 
-const SEEDED_SERVICES: DiscoveredService[] = [
-  { serviceId: 'default:frontend', name: 'frontend', namespace: 'default', podCount: 3, availability: 0.99 },
-  { serviceId: 'default:checkoutservice', name: 'checkoutservice', namespace: 'default', podCount: 2, availability: 0.99 },
-  { serviceId: 'default:paymentservice', name: 'paymentservice', namespace: 'default', podCount: 2, availability: 0.98 },
-  { serviceId: 'default:recommendationservice', name: 'recommendationservice', namespace: 'default', podCount: 2, availability: 0.99 },
-  { serviceId: 'default:cartservice', name: 'cartservice', namespace: 'default', podCount: 2, availability: 0.99 },
-]
+// No hardcoded seed list — services are discovered dynamically from the
+// live cluster via getServices() and cached in localStorage for resilience.
+const SEEDED_SERVICES: DiscoveredService[] = []
 
 function normalizeServiceRecord(service: DiscoveredService): DiscoveredService {
   const rawServiceId = service.serviceId?.trim()
@@ -80,7 +79,9 @@ export function getCachedServices(): DiscoveredService[] {
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed
-      .filter((item): item is DiscoveredService => Boolean(item?.serviceId || (item?.name && item?.namespace)))
+      .filter((item): item is DiscoveredService =>
+        Boolean(item?.serviceId || (item?.name && item?.namespace))
+      )
       .map((service) => normalizeServiceRecord(service))
   } catch {
     return []
@@ -150,9 +151,9 @@ export function getResilientServices(
 ): DiscoveredService[] {
   const includeSeeded = options.includeSeeded ?? true
   return dedupeServices([
-    ...primary,
-    ...getCachedServices(),
     ...(includeSeeded ? getSeededServices() : []),
+    ...getCachedServices(),
+    ...primary,
   ])
 }
 
@@ -245,11 +246,64 @@ export async function simulateScale(
 }
 
 /**
+ * Run simulation using versioned BFF contract passthrough endpoint.
+ * Backend validation and deferred/unsupported statuses are preserved as-is.
+ */
+export async function runSimulation(
+  request: SimulationRunRequestDto,
+  options?: RequestOptions
+): Promise<SimulationRunResponseDto> {
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
+  }
+
+  const { data } = await simulationsApi.post<SimulationRunResponseDto>('/run', request, {
+    signal: options?.signal,
+    headers,
+  })
+  return data
+}
+
+/**
+ * Replay a simulation using the same snapshot (by snapshotTimestamp/snapshotHash).
+ * Used to demonstrate determinism: same snapshot + same inputs must produce same output.
+ */
+export async function replaySimulation(
+  request: SimulationRunRequestDto,
+  options?: RequestOptions
+): Promise<SimulationRunResponseDto> {
+  const headers: Record<string, string> = {}
+  if (options?.requestId) {
+    headers['X-Request-Id'] = options.requestId
+  }
+
+  const { data } = await simulationsApi.post<SimulationRunResponseDto>('/replay', request, {
+    signal: options?.signal,
+    headers,
+  })
+  return data
+}
+
+/**
  * Check predictive engine health
  * @param signal - Optional AbortSignal for canceling in-flight requests
  */
 export async function healthCheck(signal?: AbortSignal): Promise<{ status: string }> {
   const { data } = await predictiveApi.get<{ status: string }>('/health', { signal })
+  return data
+}
+
+/**
+ * Fetch current predictive anomaly recommendation for operator actioning.
+ * Routed via BFF path: /api/predictive/actions/current
+ */
+export async function getCurrentPredictiveAction(
+  signal?: AbortSignal
+): Promise<PredictiveCurrentActionResponse> {
+  const { data } = await predictiveApi.get<PredictiveCurrentActionResponse>('/actions/current', {
+    signal,
+  })
   return data
 }
 
@@ -279,12 +333,19 @@ export async function getDecisionHistory(
   return data
 }
 
-export async function getDecisionById(id: number): Promise<DecisionHistoryResponse['decisions'][number]> {
-  const { data } = await predictiveApi.get<DecisionHistoryResponse['decisions'][number]>(`/decisions/${id}`)
+export async function getDecisionById(
+  id: number
+): Promise<DecisionHistoryResponse['decisions'][number]> {
+  const { data } = await predictiveApi.get<DecisionHistoryResponse['decisions'][number]>(
+    `/decisions/${id}`
+  )
   return data
 }
 
-export async function compareDecisions(leftId: number, rightId: number): Promise<DecisionCompareResponse> {
+export async function compareDecisions(
+  leftId: number,
+  rightId: number
+): Promise<DecisionCompareResponse> {
   const { data } = await predictiveApi.post<DecisionCompareResponse>('/decisions/compare', {
     leftId,
     rightId,
@@ -310,7 +371,9 @@ export async function getSimulationOutcomesMetrics(
 }
 
 export async function getSimulationCapabilities(): Promise<SimulationCapabilitiesResponse> {
-  const { data } = await predictiveApi.get<SimulationCapabilitiesResponse>('/simulations/capabilities')
+  const { data } = await predictiveApi.get<SimulationCapabilitiesResponse>(
+    '/simulations/capabilities'
+  )
   return data
 }
 
@@ -395,6 +458,7 @@ export async function simulateServiceAddition(
     '/simulate/add',
     {
       serviceName: scenario.serviceName,
+      targetNodeName: scenario.targetNodeName,
       cpuRequest: scenario.minCpuCores,
       ramRequest: scenario.minRamMB,
       replicas: scenario.replicas,
@@ -411,8 +475,11 @@ export async function simulateServiceAddition(
  * @param signal - Optional AbortSignal for canceling in-flight requests
  */
 export async function getNodes(signal?: AbortSignal): Promise<{ nodes: NodeWithResources[] }> {
-  const { data } = await predictiveApi.get<{ nodes: NodeWithResources[] }>('/infrastructure/nodes', {
-    signal,
-  })
+  const { data } = await predictiveApi.get<{ nodes: NodeWithResources[] }>(
+    '/infrastructure/nodes',
+    {
+      signal,
+    }
+  )
   return data
 }

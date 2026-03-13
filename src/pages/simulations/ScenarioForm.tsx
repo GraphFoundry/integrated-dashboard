@@ -1,13 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
-import { FlaskConical, CalendarClock, Gauge, Layers, X } from 'lucide-react'
-import type {
-  Scenario,
-  ScenarioType,
-  DiscoveredService,
-  SimulationDemoConstraints,
-  TimeWindow,
-} from '@/lib/types'
-import { getResilientServices, getServices } from '@/lib/api'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import {
+  FlaskConical,
+  CalendarClock,
+  Gauge,
+  CheckCircle,
+  XCircle,
+  Server,
+  Plus,
+  Trash2,
+  Workflow,
+} from 'lucide-react'
+import type { Scenario, DiscoveredService, TimeWindow, NodeWithResources } from '@/lib/types'
+import { getDependencyGraphSnapshot, getNodes, getResilientServices, getServices } from '@/lib/api'
 import InfoHint from '@/components/common/InfoHint'
 import {
   cn,
@@ -17,61 +21,48 @@ import {
   secondaryButtonClass,
 } from '@/components/common/uiClassTokens'
 import { Combobox, Field, Input, Select, Slider } from '@/components/ui'
+import {
+  buildDependencyChainPayload,
+  buildDependencyChainPreview,
+  getDependencyChainErrors,
+  getLiveServiceIdHint,
+  normalizeLiveServiceInput,
+} from './addServiceHelpers'
 
-// Example services for Demo mode (valid format for Live mode reference)
-const EXAMPLE_SERVICES = [
-  'default:productcatalog',
-  'default:checkoutservice',
-  'default:frontend',
-  'default:cartservice',
-  'default:recommendationservice',
-  'default:paymentservice',
+type LockedScenario = Exclude<Scenario, { type: 'add-service' }>
+type LockedScenarioType = LockedScenario['type']
+export type AllScenarioType = LockedScenarioType | 'add-service'
+
+const SCENARIO_OPTIONS: ReadonlyArray<{ value: AllScenarioType; label: string }> = [
+  { value: 'failure', label: 'Failure / Service Shutdown' },
+  { value: 'scale', label: 'Scaling Up / Down' },
+  { value: 'add-service', label: 'Add a New Service' },
 ]
 
-const DEFAULT_DEMO_CONSTRAINTS: SimulationDemoConstraints = {
-  note: 'Demo Snapshot Mode uses deterministic fixtures and supports a curated subset of scenarios.',
-  addServiceSupported: false,
-  failure: { serviceId: 'default:checkoutservice' },
-  scale: { serviceId: 'default:recommendationservice', currentPods: 2, newPods: 5 },
-}
+const CPU_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 0.1, label: '0.1 cores — very light' },
+  { value: 0.25, label: '0.25 cores — light' },
+  { value: 0.5, label: '0.5 cores — half a CPU' },
+  { value: 1, label: '1 core — one full CPU' },
+  { value: 2, label: '2 cores — two CPUs' },
+  { value: 4, label: '4 cores — four CPUs' },
+]
 
-// Validate serviceId format for Live mode: must be "namespace:name"
-function isValidLiveServiceId(serviceId: string): boolean {
-  const trimmed = serviceId.trim()
-  if (!trimmed) return false
-  const parts = trimmed.split(':')
-  if (parts.length !== 2) return false
-  const [namespace, name] = parts
-  return namespace.length > 0 && name.length > 0
-}
-
-function normalizeLiveServiceInput(rawValue: string): string {
-  const trimmed = rawValue.trim()
-  if (!trimmed) return ''
-
-  if (trimmed.includes(':')) {
-    return trimmed
-  }
-
-  const labelledMatch = trimmed.match(/^([a-z0-9-]+)\s*\(([^)]+)\)(?:\s*-\s*.*)?$/i)
-  if (labelledMatch) {
-    const [, serviceName, namespace] = labelledMatch
-    if (serviceName && namespace) {
-      return `${namespace}:${serviceName}`
-    }
-  }
-
-  return trimmed
-}
+const RAM_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 64, label: '64 MB — very small' },
+  { value: 128, label: '128 MB — small' },
+  { value: 256, label: '256 MB — quarter gigabyte' },
+  { value: 512, label: '512 MB — half gigabyte' },
+  { value: 1024, label: '1 GB' },
+  { value: 2048, label: '2 GB' },
+  { value: 4096, label: '4 GB' },
+]
 
 interface ScenarioFormProps {
   readonly onRun: (scenario: Scenario) => void
   readonly loading: boolean
-  readonly mode: 'demo' | 'live'
-  readonly scenarioType: ScenarioType
-  readonly demoConstraints?: SimulationDemoConstraints
-  readonly onScenarioTypeChange: (type: ScenarioType) => void
-  readonly allowExperimentalAdd?: boolean
+  readonly scenarioType: AllScenarioType
+  readonly onScenarioTypeChange: (type: AllScenarioType) => void
   readonly onServiceSelectionChange?: (serviceId: string) => void
   readonly onDepthChange?: (depth: number) => void
 }
@@ -79,262 +70,233 @@ interface ScenarioFormProps {
 const compactControlClass =
   'neon-focus-ring interactive-soft h-11 w-full rounded-[var(--radius-sm)] border border-[var(--color-emerald-300)]/45 bg-[var(--surface-subtle)] px-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] hover:border-[var(--color-emerald-300)] focus:border-[var(--color-emerald-300)]'
 
+const scenarioNeedsSingleTarget = (type: AllScenarioType): boolean =>
+  type === 'failure' || type === 'scale'
+
+function isAllScenarioType(value: string): value is AllScenarioType {
+  return SCENARIO_OPTIONS.some((option) => option.value === value)
+}
+
 export default function ScenarioForm({
   onRun,
   loading,
-  mode,
   scenarioType,
-  demoConstraints,
   onScenarioTypeChange,
-  allowExperimentalAdd = true,
   onServiceSelectionChange,
   onDepthChange,
 }: ScenarioFormProps) {
-  // Demo mode: prefill with a valid service; Live mode: empty for user input
-  const [serviceId, setServiceId] = useState(mode === 'demo' ? 'default:productcatalog' : '')
+  const [serviceId, setServiceId] = useState('')
   const [maxDepth, setMaxDepth] = useState(1)
   const [currentPods, setCurrentPods] = useState(3)
   const [newPods, setNewPods] = useState(5)
   const [latencyMetric, setLatencyMetric] = useState<'p50' | 'p95' | 'p99'>('p95')
-  const [topPaths, setTopPaths] = useState(5)
   const [timeWindow, setTimeWindow] = useState<TimeWindow>('1w')
 
-  // Service Addition state
-  const [newServiceName, setNewServiceName] = useState('')
-  const [minCpu, setMinCpu] = useState(0.5)
-  const [minRam, setMinRam] = useState(512)
-  const [addReplicas, setAddReplicas] = useState(1)
-  const [dependencies, setDependencies] = useState<string[]>([])
-
-  // Service discovery state (Live mode only)
   const [discoveredServices, setDiscoveredServices] = useState<DiscoveredService[]>([])
   const [servicesLoading, setServicesLoading] = useState(false)
   const [servicesError, setServicesError] = useState<string | null>(null)
   const [servicesNotice, setServicesNotice] = useState<string | null>(null)
   const [servicesStale, setServicesStale] = useState(false)
-  const allowUnsafeDemoConstraintOverrides =
-    mode === 'demo' &&
-    import.meta.env.DEV &&
-    import.meta.env.VITE_ALLOW_DEMO_CONSTRAINT_OVERRIDE === 'true'
-  const effectiveDemoConstraints = demoConstraints ?? DEFAULT_DEMO_CONSTRAINTS
-  const activeDemoScenarioConstraint =
-    mode !== 'demo' || allowUnsafeDemoConstraintOverrides
-      ? undefined
-      : scenarioType === 'failure'
-        ? effectiveDemoConstraints.failure
-        : scenarioType === 'scale'
-          ? effectiveDemoConstraints.scale
-          : undefined
-  const demoScaleConstraint =
-    mode === 'demo' && scenarioType === 'scale' && !allowUnsafeDemoConstraintOverrides
-      ? effectiveDemoConstraints.scale
-      : undefined
 
-  // Fetch services from backend when Live mode is active
+  const [addServiceName, setAddServiceName] = useState('')
+  const [selectedNodeName, setSelectedNodeName] = useState('')
+  const [cpuRequest, setCpuRequest] = useState(0.5)
+  const [ramRequest, setRamRequest] = useState(256)
+  const [dependencyChain, setDependencyChain] = useState<string[]>([])
+  const [nodes, setNodes] = useState<NodeWithResources[]>([])
+  const [nodesLoading, setNodesLoading] = useState(false)
+  const [nodesError, setNodesError] = useState<string | null>(null)
+
   const fetchServices = useCallback(async (signal?: AbortSignal) => {
     setServicesLoading(true)
     setServicesError(null)
     setServicesNotice(null)
     try {
-      const response = await getServices(signal)
-      const resilientServices = getResilientServices(response.services)
+      const [serviceResponse, graphSnapshot] = await Promise.all([
+        getServices(signal).catch(() => null),
+        getDependencyGraphSnapshot(signal).catch(() => null),
+      ])
+
+      if (!serviceResponse && !graphSnapshot) {
+        setServicesStale(true)
+        setServicesNotice(
+          'Live service discovery is unavailable. Showing any cached services; if none appear, check predictive API connectivity and OVERVIEW_NAMESPACE configuration.'
+        )
+        setDiscoveredServices(getResilientServices([], { includeSeeded: false }))
+        return
+      }
+
+      const graphServices: DiscoveredService[] = (graphSnapshot?.nodes ?? [])
+        .filter((node) => Boolean(node.name))
+        .map((node) => ({
+          serviceId: `${node.namespace || 'default'}:${node.name}`,
+          name: node.name,
+          namespace: node.namespace || 'default',
+          podCount: typeof node.podCount === 'number' ? node.podCount : undefined,
+          availability: typeof node.availability === 'number' ? node.availability : undefined,
+        }))
+
+      const resilientServices = getResilientServices(
+        [...(serviceResponse?.services ?? []), ...graphServices],
+        { includeSeeded: false }
+      )
+      const sourcesAreStale = Boolean(serviceResponse?.stale || graphSnapshot?.metadata?.stale)
+
       setDiscoveredServices(resilientServices)
-      setServicesStale(response.stale)
-      if (response.error) {
-        setServicesNotice(response.error)
-      } else if (response.stale) {
+      setServicesStale(sourcesAreStale)
+
+      if (serviceResponse?.error) {
+        setServicesNotice(serviceResponse.error)
+      } else if (sourcesAreStale) {
         setServicesNotice('Showing latest available services (data source is currently stale).')
+      } else if (resilientServices.length === 0) {
+        setServicesNotice(
+          'No live services were found in the configured workload namespace. Check that analysis-engine and service-graph-engine use the same OVERVIEW_NAMESPACE.'
+        )
       }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'CanceledError') {
-        return // Aborted, ignore
-      }
+    } catch (error) {
+      if (error instanceof Error && error.name === 'CanceledError') return
+
       setServicesError(null)
       setServicesStale(true)
-      setServicesNotice('Live service list is unavailable. Showing cached/demo services.')
-      setDiscoveredServices(getResilientServices([]))
+      setServicesNotice(
+        'Live service discovery is unavailable. Showing any cached services; if none appear, check predictive API connectivity and OVERVIEW_NAMESPACE configuration.'
+      )
+      setDiscoveredServices(getResilientServices([], { includeSeeded: false }))
     } finally {
       setServicesLoading(false)
     }
   }, [])
 
-  // Reset serviceId and fetch services when mode changes
   useEffect(() => {
-    if (mode === 'demo') {
-      if (scenarioType === 'failure') {
-        setServiceId(effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice')
-      } else if (scenarioType === 'scale') {
-        setServiceId(effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice')
-        setCurrentPods(effectiveDemoConstraints.scale?.currentPods ?? 2)
-        setNewPods(effectiveDemoConstraints.scale?.newPods ?? 5)
-      }
-      setDiscoveredServices(getResilientServices([]))
-      setServicesError(null)
-      setServicesNotice(null)
-      setServicesStale(false)
-    } else {
-      setServiceId('')
-      // Fetch services for Live mode
-      const controller = new AbortController()
-      fetchServices(controller.signal)
-      return () => controller.abort()
-    }
-  }, [
-    mode,
-    fetchServices,
-    scenarioType,
-    effectiveDemoConstraints.failure?.serviceId,
-    effectiveDemoConstraints.scale?.serviceId,
-    effectiveDemoConstraints.scale?.currentPods,
-    effectiveDemoConstraints.scale?.newPods,
-  ])
+    const controller = new AbortController()
+    fetchServices(controller.signal)
+    return () => controller.abort()
+  }, [fetchServices])
 
   useEffect(() => {
-    onServiceSelectionChange?.(serviceId.trim())
-  }, [serviceId, onServiceSelectionChange])
+    if (scenarioType !== 'add-service') return
+
+    const controller = new AbortController()
+    setNodesLoading(true)
+    setNodesError(null)
+
+    getNodes(controller.signal)
+      .then(({ nodes: fetchedNodes }) => {
+        if (controller.signal.aborted) return
+
+        setNodes(fetchedNodes)
+        if (fetchedNodes.length === 0) {
+          setSelectedNodeName('')
+          return
+        }
+
+        const selectedStillExists = fetchedNodes.some((node) => node.name === selectedNodeName)
+        if (!selectedStillExists) {
+          setSelectedNodeName(fetchedNodes[0].name)
+        }
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return
+        setNodesError(
+          error instanceof Error ? error.message : 'Could not load nodes. Check API connectivity.'
+        )
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setNodesLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [scenarioType, selectedNodeName])
+
+  useEffect(() => {
+    const selected = scenarioNeedsSingleTarget(scenarioType) ? serviceId.trim() : ''
+    onServiceSelectionChange?.(selected)
+  }, [scenarioType, serviceId, onServiceSelectionChange])
 
   useEffect(() => {
     onDepthChange?.(maxDepth)
   }, [maxDepth, onDepthChange])
 
-  useEffect(() => {
-    const addServiceSupportedInCurrentMode =
-      allowExperimentalAdd &&
-      (mode !== 'demo' || effectiveDemoConstraints.addServiceSupported === true)
-    if (!addServiceSupportedInCurrentMode && scenarioType === 'add-service') {
-      onScenarioTypeChange('failure')
-    }
-  }, [
-    allowExperimentalAdd,
-    effectiveDemoConstraints.addServiceSupported,
-    mode,
-    onScenarioTypeChange,
-    scenarioType,
-  ])
+  const discoveredServiceIdSet = useMemo(
+    () => new Set(discoveredServices.map((service) => service.serviceId)),
+    [discoveredServices]
+  )
 
-  // Helper: check if serviceId exists in discovered services (Live mode)
-  const isServiceIdInGraph = (): boolean => {
-    if (mode !== 'live') return true
-    if (discoveredServices.length === 0) return true // Allow if no services loaded (may be loading)
-    return discoveredServices.some((s) => s.serviceId === serviceId.trim())
-  }
+  const serviceIdHint = getLiveServiceIdHint(serviceId, discoveredServiceIdSet)
+  const dependencyErrors = getDependencyChainErrors(dependencyChain, discoveredServiceIdSet)
+  const hasDependencyErrors = dependencyErrors.some(Boolean)
 
-  // Helper: check if serviceId is valid for Live mode
-  const isLiveServiceIdValid = (): boolean => {
-    if (!serviceId.trim()) return false
-    if (!isValidLiveServiceId(serviceId)) return false
-    return isServiceIdInGraph()
-  }
+  const selectedNode = nodes.find((node) => node.name === selectedNodeName) ?? null
+  const availableCpu = selectedNode
+    ? selectedNode.resources.cpu.cores * (1 - selectedNode.resources.cpu.usagePercent / 100)
+    : null
+  const availableRamMB = selectedNode
+    ? selectedNode.resources.ram.totalMB - selectedNode.resources.ram.usedMB
+    : null
 
-  // Helper: check scale-specific validation
-  const isScaleInputsValid = (): boolean => {
-    if (currentPods < 1) return false
-    if (newPods < 1) return false
-    if (currentPods === newPods) return false
-    return true
-  }
+  const cpuOk = availableCpu !== null && cpuRequest <= availableCpu
+  const ramOk = availableRamMB !== null && ramRequest <= availableRamMB
+  const resourcesOk = cpuOk && ramOk
 
-  // Helper: check add-service specific validation
-  const isAddServiceInputsValid = (): boolean => {
-    if (!newServiceName.trim()) return false
-    if (minCpu <= 0) return false
-    if (minRam <= 0) return false
-    if (addReplicas < 1) return false
-    // Must have at least one valid dependency
-    if (dependencies.filter((d) => d.trim()).length === 0) return false
-    return true
-  }
-
-  // Helper: get serviceId validation message for display
-  const getServiceIdHint = (): string | null => {
-    if (mode === 'demo') {
-      if (allowUnsafeDemoConstraintOverrides) {
-        return 'Demo override enabled for local testing. Fixture locks are bypassed and backend validation errors may be surfaced.'
-      }
-      if (scenarioType === 'failure') {
-        return `Demo failure runs are fixed to ${effectiveDemoConstraints.failure?.serviceId ?? 'default:checkoutservice'}.`
-      }
-      if (scenarioType === 'scale') {
-        const scaleTarget =
-          effectiveDemoConstraints.scale?.serviceId ?? 'default:recommendationservice'
-        const current = effectiveDemoConstraints.scale?.currentPods ?? 2
-        const next = effectiveDemoConstraints.scale?.newPods ?? 5
-        return `Demo scaling runs are fixed to ${scaleTarget} (${current} -> ${next} pods).`
-      }
-      return 'Demo mode supports curated fixtures only.'
-    }
-    if (!serviceId.trim()) return null
-    if (!isValidLiveServiceId(serviceId)) {
-      return 'Format: namespace:name (e.g., default:productcatalog)'
-    }
-    if (discoveredServices.length > 0 && !isServiceIdInGraph()) {
-      return 'Service not found in graph. Select from the dropdown or check the service name.'
-    }
-    return null
-  }
-
-  // Main validation
-  const isValid = (): boolean => {
-    if (scenarioType === 'add-service') {
-      return mode === 'live' && isAddServiceInputsValid()
-    }
-    if (!serviceId.trim()) return false
-    if (mode === 'demo') {
-      if (!allowUnsafeDemoConstraintOverrides && scenarioType === 'failure') {
-        const expectedServiceId = effectiveDemoConstraints.failure?.serviceId
-        if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
-      }
-      if (!allowUnsafeDemoConstraintOverrides && scenarioType === 'scale') {
-        const expectedServiceId = effectiveDemoConstraints.scale?.serviceId
-        if (expectedServiceId && serviceId.trim() !== expectedServiceId) return false
-        const expectedCurrentPods = effectiveDemoConstraints.scale?.currentPods
-        if (typeof expectedCurrentPods === 'number' && currentPods !== expectedCurrentPods)
-          return false
-        const expectedNewPods = effectiveDemoConstraints.scale?.newPods
-        if (typeof expectedNewPods === 'number' && newPods !== expectedNewPods) return false
-      }
-    }
-    if (mode === 'live' && !isLiveServiceIdValid()) return false
-    if (maxDepth < 1 || maxDepth > 3) return false
-    if (scenarioType === 'scale' && !isScaleInputsValid()) return false
-    return true
-  }
-
-  const serviceIdHint = getServiceIdHint()
-  const serviceComboboxItems =
-    mode === 'live'
-      ? discoveredServices.map((s) => {
-          let label = `${s.name} (${s.namespace})`
-          if (s.podCount !== undefined || s.availability !== undefined) {
-            const details = []
-            if (s.podCount !== undefined) details.push(`${s.podCount} pods`)
-            if (s.availability !== undefined)
-              details.push(`${(s.availability * 100).toFixed(0)}% up`)
-            label += ` - ${details.join(', ')}`
+  const serviceComboboxItems = useMemo(
+    () =>
+      discoveredServices.map((service) => {
+        let label = `${service.name} (${service.namespace})`
+        if (service.podCount !== undefined || service.availability !== undefined) {
+          const details = []
+          if (service.podCount !== undefined) details.push(`${service.podCount} pods`)
+          if (service.availability !== undefined) {
+            details.push(`${(service.availability * 100).toFixed(0)}% up`)
           }
-          return { value: s.serviceId, label }
-        })
-      : activeDemoScenarioConstraint
-        ? [
-            {
-              value: activeDemoScenarioConstraint.serviceId,
-              label: `${activeDemoScenarioConstraint.serviceId} (demo fixture)`,
-            },
-          ]
-        : []
+          label += ` - ${details.join(', ')}`
+        }
+        return { value: service.serviceId, label }
+      }),
+    [discoveredServices]
+  )
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const commonServiceHelperText =
+    servicesNotice ||
+    (!servicesLoading && discoveredServices.length === 0 && !servicesError
+      ? 'No live services are currently discoverable. Enter a service as namespace:name or verify the configured workload namespace.'
+      : undefined)
+
+  const chainPreview = useMemo(
+    () => buildDependencyChainPreview(addServiceName, dependencyChain),
+    [addServiceName, dependencyChain]
+  )
+
+  const isValid = (): boolean => {
+    if (scenarioType === 'failure') {
+      return !serviceIdHint && maxDepth >= 1 && maxDepth <= 3
+    }
+    if (scenarioType === 'scale') {
+      return (
+        !serviceIdHint &&
+        maxDepth >= 1 &&
+        maxDepth <= 3 &&
+        currentPods >= 1 &&
+        newPods >= 1 &&
+        currentPods !== newPods
+      )
+    }
+    if (scenarioType === 'add-service') {
+      return Boolean(addServiceName.trim()) && Boolean(selectedNodeName) && !hasDependencyErrors
+    }
+    return true
+  }
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
     if (!isValid()) return
 
     if (scenarioType === 'failure') {
-      onRun({
-        type: 'failure',
-        serviceId: serviceId.trim(),
-        maxDepth,
-        timeWindow,
-      })
-    } else if (scenarioType === 'scale') {
+      onRun({ type: 'failure', serviceId: serviceId.trim(), maxDepth, timeWindow })
+      return
+    }
+
+    if (scenarioType === 'scale') {
       onRun({
         type: 'scale',
         serviceId: serviceId.trim(),
@@ -342,42 +304,26 @@ export default function ScenarioForm({
         newPods,
         latencyMetric,
         maxDepth,
-        topPaths,
         timeWindow,
       })
-    } else {
-      onRun({
-        type: 'add-service',
-        serviceName: newServiceName.trim(),
-        minCpuCores: minCpu,
-        minRamMB: minRam,
-        replicas: addReplicas,
-        dependencies: dependencies.map((d) => ({ serviceId: d, relation: 'calls' })),
-        maxDepth,
-        timeWindow,
-      })
+      return
     }
-  }
 
-  const handleAddDependency = () => {
-    setDependencies([...dependencies, ''])
-  }
-
-  const handleDependencyChange = (index: number, value: string) => {
-    const newDeps = [...dependencies]
-    newDeps[index] = value
-    setDependencies(newDeps)
-  }
-
-  const handleRemoveDependency = (index: number) => {
-    const newDeps = [...dependencies]
-    newDeps.splice(index, 1)
-    setDependencies(newDeps)
+    onRun({
+      type: 'add-service',
+      serviceName: addServiceName.trim(),
+      targetNodeName: selectedNodeName,
+      minCpuCores: cpuRequest,
+      minRamMB: ramRequest,
+      replicas: 1,
+      dependencies: buildDependencyChainPayload(dependencyChain),
+      maxDepth: 1,
+      timeWindow,
+    })
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Scenario Type */}
       <div>
         <label htmlFor="scenarioType" className={controlLabelClass}>
           Scenario Type
@@ -385,41 +331,29 @@ export default function ScenarioForm({
         <Select
           id="scenarioType"
           value={scenarioType}
-          onChange={(e) => onScenarioTypeChange(e.target.value as ScenarioType)}
+          onChange={(event) => {
+            const next = event.target.value
+            if (isAllScenarioType(next)) onScenarioTypeChange(next)
+          }}
           className={controlInputMutedClass}
           suffixIcon={<FlaskConical className="h-4 w-4" />}
         >
-          <option value="failure">Failure Simulation</option>
-          <option value="scale">Scaling Simulation</option>
-          {allowExperimentalAdd && (
-            <option
-              value="add-service"
-              disabled={mode === 'demo' && effectiveDemoConstraints.addServiceSupported !== true}
-            >
-              {mode === 'demo'
-                ? 'Add New Service (Experimental, Live only)'
-                : 'Add New Service (Experimental)'}
+          {SCENARIO_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
-          )}
+          ))}
         </Select>
-        {mode === 'demo' && (
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
-            {allowUnsafeDemoConstraintOverrides
-              ? 'Demo fixture override is enabled for local testing. Requests may fail backend validation by design.'
-              : 'Demo mode is constrained to curated fixtures for repeatable outputs.'}
-          </p>
-        )}
       </div>
 
-      {/* Time Period (For all simulation types) */}
-      <div className="mb-4">
+      <div>
         <label htmlFor="timeWindow" className={controlLabelClass}>
           Decision Time Period
         </label>
         <Select
           id="timeWindow"
           value={timeWindow}
-          onChange={(e) => setTimeWindow(e.target.value as TimeWindow)}
+          onChange={(event) => setTimeWindow(event.target.value as TimeWindow)}
           className={controlInputMutedClass}
           suffixIcon={<CalendarClock className="h-4 w-4" />}
         >
@@ -430,294 +364,410 @@ export default function ScenarioForm({
         </Select>
       </div>
 
-      {scenarioType === 'add-service' ? (
-        <>
-          {/* New Service Fields */}
-          <div>
-            <label htmlFor="newServiceName" className={controlLabelClass}>
-              Service Name
-            </label>
-            <Input
-              id="newServiceName"
-              type="text"
-              value={newServiceName}
-              onChange={(e) => setNewServiceName(e.target.value)}
-              placeholder="e.g., payment-service"
-              className={compactControlClass}
-            />
-          </div>
+      {scenarioNeedsSingleTarget(scenarioType) && (
+        <Field
+          id="serviceId"
+          label={
+            <>
+              Target Service ID
+              <span className="ml-1 align-middle">
+                <InfoHint text="Pick the service you want to test in this simulation. Use namespace:name so the system can find the exact service correctly and avoid selecting the wrong service with a similar name." />
+              </span>
+              <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>
+              {servicesLoading && (
+                <span className="ml-2 text-xs text-blue-400">Loading services...</span>
+              )}
+              {!servicesLoading && discoveredServices.length > 0 && (
+                <span className="ml-2 text-xs text-[var(--text-secondary)]">
+                  {discoveredServices.length} service
+                  {discoveredServices.length === 1 ? '' : 's'} available
+                  {servicesStale && <span className="ml-1 text-amber-600">(stale source)</span>}
+                </span>
+              )}
+            </>
+          }
+          helperClassName={cn(serviceIdHint ? 'text-amber-600' : 'text-[var(--text-dim)]')}
+          helperText={serviceIdHint || commonServiceHelperText}
+          errorClassName="text-red-400"
+          errorText={servicesError}
+        >
+          <Combobox
+            id="serviceId"
+            value={serviceId}
+            onChange={(event) => setServiceId(normalizeLiveServiceInput(event.target.value))}
+            items={serviceComboboxItems}
+            placeholder="Select or type service..."
+            className={cn(
+              compactControlClass,
+              'placeholder-slate-500',
+              serviceIdHint ? 'border-amber-500/70' : 'border-[var(--border-strong)]'
+            )}
+            aria-label="Target service ID"
+          />
+        </Field>
+      )}
 
+      {(scenarioType === 'failure' || scenarioType === 'scale') && (
+        <div>
+          <label htmlFor="maxDepth" className={controlLabelClass}>
+            Impact Range (hops): {maxDepth}
+          </label>
+          <Slider
+            aria-label="Impact range in hops"
+            id="maxDepth"
+            min="1"
+            max="3"
+            value={maxDepth}
+            onChange={(event) => setMaxDepth(Number(event.target.value))}
+            className="w-full"
+          />
+          <div className="mt-1 flex justify-between text-xs text-[var(--text-dim)]">
+            <span>1</span>
+            <span>2</span>
+            <span>3</span>
+          </div>
+        </div>
+      )}
+
+      {scenarioType === 'scale' && (
+        <>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="minCpu" className={controlLabelClass}>
-                Min CPU (Cores)
+              <label htmlFor="currentPods" className={controlLabelClass}>
+                Current Pods
               </label>
               <Input
-                id="minCpu"
+                id="currentPods"
                 type="number"
-                step="0.1"
-                min="0.1"
-                value={minCpu}
-                onChange={(e) => setMinCpu(Number(e.target.value))}
+                min="1"
+                value={currentPods}
+                onChange={(event) => setCurrentPods(Number(event.target.value))}
                 className={compactControlClass}
               />
             </div>
             <div>
-              <label htmlFor="minRam" className={controlLabelClass}>
-                Memory Allocation
+              <label htmlFor="newPods" className={controlLabelClass}>
+                New Pods
               </label>
-              <Select
-                id="minRam"
-                value={minRam}
-                onChange={(e) => setMinRam(Number(e.target.value))}
-                className={controlInputMutedClass}
-                suffixIcon={<Gauge className="h-4 w-4" />}
-              >
-                <option value={128}>128 MB</option>
-                <option value={256}>256 MB</option>
-                <option value={512}>512 MB</option>
-                <option value={1024}>1 GB</option>
-                <option value={2048}>2 GB</option>
-                <option value={4096}>4 GB</option>
-                <option value={8192}>8 GB</option>
-                <option value={12288}>12 GB</option>
-                <option value={16384}>16 GB</option>
-              </Select>
+              <Input
+                id="newPods"
+                type="number"
+                min="1"
+                value={newPods}
+                onChange={(event) => setNewPods(Number(event.target.value))}
+                className={compactControlClass}
+              />
             </div>
+          </div>
+          <div>
+            <label htmlFor="latencyMetric" className={controlLabelClass}>
+              Latency Metric
+            </label>
+            <Select
+              id="latencyMetric"
+              value={latencyMetric}
+              onChange={(event) => setLatencyMetric(event.target.value as 'p50' | 'p95' | 'p99')}
+              className={controlInputMutedClass}
+              suffixIcon={<Gauge className="h-4 w-4" />}
+            >
+              <option value="p50">Typical response time</option>
+              <option value="p95">Slow-end response time (95% under this)</option>
+              <option value="p99">Worst-case response time (99% under this)</option>
+            </Select>
+          </div>
+        </>
+      )}
+
+      {scenarioType === 'add-service' && (
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="addServiceName" className={controlLabelClass}>
+              New Service Name
+              <span className="ml-1 align-middle">
+                <InfoHint text="Give your new service a name. This helps identify it in the cluster. Use lowercase letters and dashes only (e.g. my-api-service)." />
+              </span>
+            </label>
+            <Input
+              id="addServiceName"
+              type="text"
+              placeholder="e.g. my-api-service"
+              value={addServiceName}
+              onChange={(event) => setAddServiceName(event.target.value)}
+              className={compactControlClass}
+            />
           </div>
 
           <div>
-            <label htmlFor="addReplicas" className={controlLabelClass}>
-              Replicas
+            <label htmlFor="selectedNode" className={controlLabelClass}>
+              Deploy to Node
+              <span className="ml-1 align-middle">
+                <InfoHint text="Choose which server (node) you want to run this service on. Placement is scored per node, not from a shared machine pool." />
+              </span>
+              {nodesLoading && <span className="ml-2 text-xs text-blue-400">Loading nodes...</span>}
+              {!nodesLoading && nodes.length > 0 && (
+                <span className="ml-2 text-xs text-[var(--text-secondary)]">
+                  {nodes.length} node{nodes.length === 1 ? '' : 's'} available
+                </span>
+              )}
+            </label>
+            {nodesError ? (
+              <p className="rounded border border-rose-500/50 bg-rose-500/10 p-2 text-xs text-[var(--text-primary)]">
+                {nodesError}
+              </p>
+            ) : (
+              <Select
+                id="selectedNode"
+                value={selectedNodeName}
+                onChange={(event) => setSelectedNodeName(event.target.value)}
+                className={controlInputMutedClass}
+                suffixIcon={<Server className="h-4 w-4" />}
+                disabled={nodesLoading || nodes.length === 0}
+              >
+                {nodes.length === 0 && <option value="">No nodes available</option>}
+                {nodes.map((node) => {
+                  const cpuPct = node.resources.cpu.usagePercent.toFixed(0)
+                  const ramPct =
+                    node.resources.ram.totalMB > 0
+                      ? ((node.resources.ram.usedMB / node.resources.ram.totalMB) * 100).toFixed(0)
+                      : '0'
+                  return (
+                    <option key={node.name} value={node.name}>
+                      {node.name} — CPU {cpuPct}% used, RAM {ramPct}% used
+                    </option>
+                  )
+                })}
+              </Select>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="cpuRequest" className={controlLabelClass}>
+              CPU Needed
+              <span className="ml-1 align-middle">
+                <InfoHint text="How much CPU power your new service needs to run. If you're unsure, start with 0.5 cores." />
+              </span>
             </label>
             <Select
-              id="addReplicas"
-              value={addReplicas}
-              onChange={(e) => setAddReplicas(Number(e.target.value))}
+              id="cpuRequest"
+              value={cpuRequest}
+              onChange={(event) => setCpuRequest(Number(event.target.value))}
               className={controlInputMutedClass}
-              suffixIcon={<Layers className="h-4 w-4" />}
             >
-              {[1, 2, 3, 4, 5, 10].map((num) => (
-                <option key={num} value={num}>
-                  {num}
+              {CPU_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </Select>
           </div>
 
-          {/* Dependencies */}
           <div>
-            <label className={controlLabelClass}>Dependencies</label>
-            <div className="space-y-2 mb-2">
-              {dependencies.map((dep, idx) => (
-                <div key={idx} className="flex gap-2">
-                  <Select
-                    aria-label={`Dependency ${idx + 1}`}
-                    value={dep}
-                    onChange={(e) => handleDependencyChange(idx, e.target.value)}
-                    className={cn(controlInputMutedClass, 'flex-1')}
-                  >
-                    <option value="">Select Service...</option>
-                    {discoveredServices.length > 0
-                      ? discoveredServices.map((s) => (
-                          <option key={s.serviceId} value={s.serviceId}>
-                            {s.name} ({s.namespace})
-                          </option>
-                        ))
-                      : EXAMPLE_SERVICES.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                  </Select>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveDependency(idx)}
-                    className="neon-focus-ring interactive-soft inline-flex h-11 items-center justify-center rounded-[var(--radius-sm)] border border-rose-300/45 bg-rose-500/14 px-3 text-rose-400 hover:bg-rose-500/24"
-                    aria-label={`Remove dependency ${idx + 1}`}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={handleAddDependency}
-              className={cn(
-                secondaryButtonClass,
-                'inline-flex items-center gap-1 px-3 py-2 text-sm'
-              )}
-            >
-              + Add Dependency
-            </button>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* Existing Fields for Failure/Scale */}
-          <div>
-            <Field
-              id="serviceId"
-              label={
-                <>
-                  Service ID
-                  <span className="ml-1 align-middle">
-                    <InfoHint text="Pick the service you want to test in this simulation. Use namespace:name so the system can find the exact service correctly and avoid selecting the wrong service with a similar name." />
-                  </span>
-                  {mode === 'live' && (
-                    <span className="ml-1 text-xs text-[var(--text-dim)]">(namespace:name)</span>
-                  )}
-                  {mode === 'live' && servicesLoading && (
-                    <span className="ml-2 text-xs text-blue-400">Loading services...</span>
-                  )}
-                  {mode === 'live' && !servicesLoading && discoveredServices.length > 0 && (
-                    <span className="ml-2 text-xs text-[var(--text-secondary)]">
-                      {discoveredServices.length} service
-                      {discoveredServices.length === 1 ? '' : 's'} available
-                      {servicesStale && <span className="ml-1 text-amber-600">(stale source)</span>}
-                    </span>
-                  )}
-                </>
-              }
-              helperClassName={cn(serviceIdHint ? 'text-amber-600' : 'text-[var(--text-dim)]')}
-              helperText={
-                serviceIdHint ||
-                servicesNotice ||
-                (mode === 'live' &&
-                !serviceId.trim() &&
-                !servicesLoading &&
-                discoveredServices.length === 0 &&
-                !servicesError
-                  ? `Examples: ${EXAMPLE_SERVICES.slice(0, 2).join(', ')}`
-                  : undefined)
-              }
-              errorClassName="text-red-400"
-              errorText={mode === 'live' ? servicesError : null}
-            >
-              <Combobox
-                id="serviceId"
-                value={serviceId}
-                onChange={(e) => setServiceId(normalizeLiveServiceInput(e.target.value))}
-                disabled={mode === 'demo' && Boolean(activeDemoScenarioConstraint?.serviceId)}
-                items={serviceComboboxItems}
-                placeholder={
-                  mode === 'live'
-                    ? 'Select or type service...'
-                    : activeDemoScenarioConstraint
-                      ? 'Fixed by demo fixture'
-                      : 'e.g., productcatalog'
-                }
-                className={cn(
-                  compactControlClass,
-                  'placeholder-slate-500',
-                  serviceIdHint ? 'border-amber-500/70' : 'border-[var(--border-strong)]'
-                )}
-                aria-label="Service ID"
-              />
-            </Field>
-          </div>
-
-          {/* Max Depth */}
-          <div>
-            <label htmlFor="maxDepth" className={controlLabelClass}>
-              Impact Range (hops): {maxDepth}
+            <label htmlFor="ramRequest" className={controlLabelClass}>
+              Memory (RAM) Needed
+              <span className="ml-1 align-middle">
+                <InfoHint text="How much memory your service needs. 256 MB is a good starting point for a small service." />
+              </span>
             </label>
-            <Slider
-              aria-label="Impact range in hops"
-              id="maxDepth"
-              min="1"
-              max="3"
-              value={maxDepth}
-              onChange={(e) => setMaxDepth(Number(e.target.value))}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-[var(--text-dim)] mt-1">
-              <span>1</span>
-              <span>2</span>
-              <span>3</span>
+            <Select
+              id="ramRequest"
+              value={ramRequest}
+              onChange={(event) => setRamRequest(Number(event.target.value))}
+              className={controlInputMutedClass}
+            >
+              {RAM_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-solid)] p-4">
+            <div className="mb-3">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Dependency Chain</p>
+              <button
+                type="button"
+                onClick={() => setDependencyChain((current) => [...current, ''])}
+                className={cn(secondaryButtonClass, 'mt-3 inline-flex w-full items-center justify-center gap-2 px-3 py-2')}
+              >
+                <Plus className="h-4 w-4" />
+                Add dependency
+              </button>
+            </div>
+
+            {dependencyChain.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface-soft)] px-3 py-4 text-xs text-[var(--text-secondary)]">
+                No dependency chain yet. Add one or more existing services if the new service relies
+                on them.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {dependencyChain.map((value, index) => (
+                  <Field
+                    key={`dependency-${index}`}
+                    id={`dependency-${index}`}
+                    label={`Dependency ${index + 1}`}
+                    helperText={
+                      dependencyErrors[index]
+                        ? dependencyErrors[index]
+                        : index === 0
+                          ? 'First hop called directly by the new service.'
+                          : 'This service is evaluated as the next hop in the chain.'
+                    }
+                    helperClassName={cn(
+                      dependencyErrors[index] ? 'text-amber-600' : 'text-[var(--text-dim)]'
+                    )}
+                  >
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <Combobox
+                          id={`dependency-${index}`}
+                          value={value}
+                          onChange={(event) => {
+                            const nextValue = normalizeLiveServiceInput(event.target.value)
+                            setDependencyChain((current) =>
+                              current.map((entry, entryIndex) =>
+                                entryIndex === index ? nextValue : entry
+                              )
+                            )
+                          }}
+                          items={serviceComboboxItems}
+                          placeholder="Select or type service..."
+                          className={cn(
+                            compactControlClass,
+                            dependencyErrors[index] && 'border-amber-500/70'
+                          )}
+                          aria-label={`Dependency ${index + 1}`}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDependencyChain((current) =>
+                            current.filter((_, entryIndex) => entryIndex !== index)
+                          )
+                        }
+                        className={cn(
+                          secondaryButtonClass,
+                          'inline-flex h-11 items-center justify-center px-3'
+                        )}
+                        aria-label={`Remove dependency ${index + 1}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </Field>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-4 rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3">
+              <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)]">
+                <Workflow className="h-4 w-4 text-emerald-600" />
+                Chain Preview
+              </div>
+              <p className="text-xs text-[var(--text-secondary)]">
+                {chainPreview.length > 0
+                  ? chainPreview.join(' → ')
+                  : 'Add a service name to preview the chain.'}
+              </p>
+              {commonServiceHelperText && (
+                <p className="mt-2 text-xs text-[var(--text-dim)]">{commonServiceHelperText}</p>
+              )}
             </div>
           </div>
 
-          {/* Scale-specific fields */}
-          {scenarioType === 'scale' && (
-            <>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label htmlFor="currentPods" className={controlLabelClass}>
-                    Current Pods
-                  </label>
-                  <Input
-                    id="currentPods"
-                    type="number"
-                    min="1"
-                    value={currentPods}
-                    onChange={(e) => setCurrentPods(Number(e.target.value))}
-                    disabled={Boolean(demoScaleConstraint)}
-                    className={compactControlClass}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="newPods" className={controlLabelClass}>
-                    New Pods
-                  </label>
-                  <Input
-                    id="newPods"
-                    type="number"
-                    min="1"
-                    value={newPods}
-                    onChange={(e) => setNewPods(Number(e.target.value))}
-                    disabled={Boolean(demoScaleConstraint)}
-                    className={compactControlClass}
-                  />
-                </div>
-              </div>
-              {demoScaleConstraint && (
-                <p className="text-xs text-[var(--text-muted)]">
-                  Demo scaling fixture is locked to {demoScaleConstraint.serviceId} (
-                  {demoScaleConstraint.currentPods ?? 2} -&gt; {demoScaleConstraint.newPods ?? 5}{' '}
-                  pods) to match backend demo validation.
-                </p>
+          {selectedNode && (
+            <div
+              className={cn(
+                'rounded-xl border-2 p-4',
+                resourcesOk
+                  ? 'border-emerald-500/60 bg-emerald-500/10'
+                  : 'border-rose-500/60 bg-rose-500/10'
               )}
-
-              <div>
-                <label htmlFor="latencyMetric" className={controlLabelClass}>
-                  Latency Metric
-                </label>
-                <Select
-                  id="latencyMetric"
-                  value={latencyMetric}
-                  onChange={(e) => setLatencyMetric(e.target.value as 'p50' | 'p95' | 'p99')}
-                  className={controlInputMutedClass}
-                  suffixIcon={<Gauge className="h-4 w-4" />}
-                >
-                  <option value="p50">Typical response time</option>
-                  <option value="p95">Slow-end response time (95% under this)</option>
-                  <option value="p99">Worst-case response time (99% under this)</option>
-                </Select>
+            >
+              <div className="mb-3 flex items-center gap-2">
+                {resourcesOk ? (
+                  <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600" />
+                ) : (
+                  <XCircle className="h-5 w-5 shrink-0 text-rose-600" />
+                )}
+                <p className="text-sm font-bold text-[var(--text-primary)]">
+                  {resourcesOk
+                    ? 'This node has enough room for your service'
+                    : 'This node is currently short on resources'}
+                </p>
               </div>
 
-              <div>
-                <label htmlFor="topPaths" className={controlLabelClass}>
-                  Top Paths
-                </label>
-                <Select
-                  id="topPaths"
-                  value={topPaths}
-                  onChange={(e) => setTopPaths(Number(e.target.value))}
-                  className={controlInputMutedClass}
-                  suffixIcon={<Layers className="h-4 w-4" />}
-                >
-                  {[3, 5, 8, 10].map((num) => (
-                    <option key={num} value={num}>
-                      Top {num}
-                    </option>
-                  ))}
-                </Select>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[var(--text-secondary)]">CPU</span>
+                  <span
+                    className={cn('font-semibold', cpuOk ? 'text-emerald-600' : 'text-rose-600')}
+                  >
+                    {cpuOk
+                      ? `${availableCpu!.toFixed(2)} cores free — enough`
+                      : `Needs ${cpuRequest} cores, only ${availableCpu!.toFixed(2)} free`}
+                  </span>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-[var(--text-secondary)]">Memory</span>
+                  <span
+                    className={cn('font-semibold', ramOk ? 'text-emerald-600' : 'text-rose-600')}
+                  >
+                    {ramOk
+                      ? `${(availableRamMB! / 1024).toFixed(1)} GB free — enough`
+                      : `Needs ${ramRequest >= 1024 ? `${(ramRequest / 1024).toFixed(1)} GB` : `${ramRequest} MB`}, only ${(availableRamMB! / 1024).toFixed(1)} GB free`}
+                  </span>
+                </div>
               </div>
-            </>
+
+              <p className="mt-3 text-xs text-[var(--text-secondary)]">
+                {resourcesOk
+                  ? 'The backend will still rank every node individually and suggest a better node if it preserves more headroom.'
+                  : 'Run the simulation anyway to compare this node against the rest of the cluster and get a fallback recommendation.'}
+              </p>
+            </div>
           )}
-        </>
+
+          {nodes.length > 0 && (
+            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                Node Resources
+                <span className="ml-2 text-xs font-normal text-[var(--text-secondary)]">
+                  {nodes.length} node{nodes.length === 1 ? '' : 's'}
+                </span>
+              </p>
+              <div className="mt-3 space-y-3">
+                {nodes.map((node) => {
+                  const nodeCpuUsed = node.resources.cpu.cores * (node.resources.cpu.usagePercent / 100)
+                  const nodeCpuFree = Math.max(0, node.resources.cpu.cores - nodeCpuUsed)
+                  const nodeRamFree = Math.max(0, node.resources.ram.totalMB - node.resources.ram.usedMB)
+                  return (
+                    <div key={node.name} className="rounded-lg border border-[var(--border)] bg-[var(--surface-solid)] p-3">
+                      <p className="text-xs font-semibold text-[var(--text-primary)]">{node.name}</p>
+                      <div className="mt-2 space-y-1 text-xs text-[var(--text-secondary)]">
+                        <div className="flex items-start justify-between gap-2">
+                          <span>CPU</span>
+                          <span className="font-semibold text-[var(--text-primary)]">
+                            {nodeCpuFree.toFixed(2)} free of {node.resources.cpu.cores} cores
+                          </span>
+                        </div>
+                        <div className="flex items-start justify-between gap-2">
+                          <span>Memory</span>
+                          <span className="font-semibold text-[var(--text-primary)]">
+                            {(nodeRamFree / 1024).toFixed(1)} GB free of{' '}
+                            {(node.resources.ram.totalMB / 1024).toFixed(1)} GB
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       <button

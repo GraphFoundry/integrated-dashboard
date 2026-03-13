@@ -22,6 +22,11 @@ export interface DrillRun {
     type: string
     target: string
     status: string
+    scenarioId?: string
+    validationStatus?: string
+    rollbackVerifiedAt?: string
+    rollbackVerificationSource?: string
+    bannerVerified?: boolean
     startTime: string
     endTime?: string
     config: any
@@ -40,6 +45,87 @@ export interface DrillPlanRequest {
     type: string
     target: string
     config: any
+    bannerVerified?: boolean
+}
+
+export interface DrillPrefillConfig {
+    namespace: string
+    observeTokens: number
+    replicas?: number
+    targetNode?: string
+    rps?: number
+    rate?: number
+    users?: number
+}
+
+export interface DrillPrefillRequest {
+    type: string
+    target: string
+    config: DrillPrefillConfig
+}
+
+export type DrillComparisonStatus = 'match' | 'mismatch' | 'missing'
+
+export interface DrillFieldMismatch {
+    metricName: string
+    expectedValue: string
+    actualValue: string
+}
+
+export interface DrillLayerComparisonStatus {
+    status: DrillComparisonStatus | string
+    mismatches?: DrillFieldMismatch[]
+}
+
+export interface DrillRunServiceMetricValues {
+    service: string
+    namespace?: string
+    rps: number
+    errorRate: number
+    p95: number
+    availability: number
+    podCount: number
+}
+
+export interface DrillRunSnapshot {
+    runId: string
+    snapshotTimestamp: string
+    vmState: {
+        status: string
+        verdict: string
+        target: string
+        sourceTimestamp?: string
+        canRecover: boolean
+        recoveryDeadline?: string
+        recoveryMode?: string
+        recoverySource?: string
+    }
+    backendMetrics: {
+        targetService: string
+        sourceTimestamp?: string
+        baseline?: DrillRunServiceMetricValues
+        final?: DrillRunServiceMetricValues
+    }
+    dashboardMetrics: {
+        source: string
+        sourceTimestamp?: string
+        baseline?: DrillRunServiceMetricValues
+        final?: DrillRunServiceMetricValues
+    }
+    graphSummary: {
+        serviceCount: number
+        edgeCount: number
+        sourceTimestamp?: string
+        target?: DrillRunServiceMetricValues
+    }
+    comparison: {
+        vm: DrillLayerComparisonStatus
+        api: DrillLayerComparisonStatus
+        uiMetrics: DrillLayerComparisonStatus
+        graph: DrillLayerComparisonStatus
+        scenarioVerdict: 'passed' | 'failed' | string
+        failureReason?: string
+    }
 }
 
 export const planDrill = async (request: DrillPlanRequest): Promise<DrillRun> => {
@@ -57,6 +143,11 @@ export const getDrillRun = async (runId: string): Promise<DrillRun> => {
     return response.data
 }
 
+export const getDrillRunSnapshot = async (runId: string): Promise<DrillRunSnapshot> => {
+    const response = await predictiveApi.get(`/drills/runs/${runId}/snapshot`)
+    return response.data
+}
+
 export const abortDrillRun = async (runId: string): Promise<{ status: string }> => {
     const response = await predictiveApi.post(`/drills/runs/${runId}/abort`)
     return response.data
@@ -69,6 +160,11 @@ export const recoverDrillRun = async (runId: string): Promise<{ status: string }
 
 export const acceptDrillRun = async (runId: string): Promise<{ status: string }> => {
     const response = await predictiveApi.post(`/drills/runs/${runId}/accept`)
+    return response.data
+}
+
+export const verifyDrillRollback = async (runId: string): Promise<{ status: string }> => {
+    const response = await predictiveApi.post(`/drills/runs/${runId}/verify-rollback`)
     return response.data
 }
 

@@ -38,26 +38,28 @@ export const controlTextareaClass = cn(
 
 export const iconActionButtonClass = cn(
   'neon-focus-ring interactive-soft inline-flex items-center justify-center rounded-[var(--radius-sm)]',
-  'border border-[var(--ring)] bg-emerald-500/18 text-[var(--text-primary)] shadow-[0_10px_24px_rgba(2,6,23,0.2)]',
-  'hover:border-[var(--ring)] hover:bg-emerald-500/28 disabled:opacity-50'
+  'border border-emerald-400 bg-emerald-50 text-emerald-700 shadow-[0_4px_12px_rgba(5,150,105,0.15)]',
+  'dark:border-[var(--ring)] dark:bg-emerald-500/18 dark:text-[var(--text-primary)] dark:shadow-[0_10px_24px_rgba(2,6,23,0.2)]',
+  'hover:bg-emerald-100 hover:border-emerald-500 dark:hover:bg-emerald-500/28 dark:hover:border-[var(--ring)] disabled:opacity-50'
 )
 
 export const primaryButtonClass = cn(
-  'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)]',
-  'border border-[var(--ring)] bg-gradient-to-r from-emerald-500 to-emerald-400',
-  'shadow-[0_10px_24px_rgba(5,150,105,0.3)] hover:brightness-110 disabled:opacity-50'
+  'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-white',
+  'border border-emerald-500 bg-gradient-to-r from-emerald-600 to-emerald-500',
+  'shadow-[0_4px_12px_rgba(5,150,105,0.25)] hover:brightness-110 dark:shadow-[0_10px_24px_rgba(5,150,105,0.3)] disabled:opacity-50'
 )
 
 export const secondaryButtonClass = cn(
   'neon-focus-ring interactive-soft rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold',
-  'border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-primary)] hover:border-[var(--ring)] hover:bg-[var(--surface-elevated)] hover:text-[var(--text-primary)]',
-  'disabled:opacity-50 disabled:hover:border-[var(--border)] disabled:hover:bg-[var(--surface-soft)] disabled:hover:text-[var(--text-primary)]'
+  'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-800',
+  'dark:border-[var(--border)] dark:bg-[var(--surface-soft)] dark:text-[var(--text-primary)] dark:hover:border-[var(--ring)] dark:hover:bg-[var(--surface-elevated)] dark:hover:text-[var(--text-primary)]',
+  'disabled:opacity-50 disabled:cursor-not-allowed'
 )
 
 export const successButtonClass = cn(
-  'neon-focus-ring interactive-soft inline-flex items-center rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)]',
-  'border border-emerald-200/30 bg-gradient-to-r from-emerald-500 to-green-500',
-  'shadow-[0_10px_24px_rgba(5,150,105,0.3)] hover:brightness-110 disabled:opacity-50'
+  'neon-focus-ring interactive-soft inline-flex items-center rounded-[var(--radius-sm)] px-4 py-2.5 text-sm font-semibold text-white',
+  'border border-emerald-500 bg-gradient-to-r from-emerald-600 to-green-500',
+  'shadow-[0_4px_12px_rgba(5,150,105,0.25)] hover:brightness-110 dark:shadow-[0_10px_24px_rgba(5,150,105,0.3)] disabled:opacity-50'
 )
 
 export const subtleIconButtonClass = cn(iconActionButtonClass, 'h-11 w-11 p-2.5')
